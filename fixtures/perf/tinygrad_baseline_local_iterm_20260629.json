@@ -1,0 +1,22 @@
+{
+  "host_profile": "local_iterm_20260629",
+  "shape": "64x64x64",
+  "dtype": "bf16",
+  "n_warmup": 50,
+  "n_measured": 200,
+  "tinygrad_ms": {
+    "min": 0.7753,
+    "p10": 0.828,
+    "p25": 0.9304,
+    "median": 1.1108,
+    "p75": 1.626,
+    "p90": 2.0512,
+    "max": 3.1851
+  },
+  "device": "METAL",
+  "env": {
+    "USE_TC": "1",
+    "BEAM": "0",
+    "NOOPT": "0"
+  }
+}

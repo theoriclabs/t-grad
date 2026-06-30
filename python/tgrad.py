@@ -737,9 +737,9 @@ def main(argv: list[str]) -> int:
         print(f"py_bench_small_below_tc_tile_count: {summary['below_tc_tile_count']}")
         print(f"py_bench_small_n_correct: {summary['n_correct']}")
         if summary["failed"]:
-            print(f"py_bench_small_failed: {len(summary['failed'])}")
+            print(f"py_bench_small_errors: {len(summary['failed'])}")
             for f in summary["failed"]:
-                print(f"  FAIL: {f['shape']:20s} {f['dist']:20s} "
+                print(f"  ERROR: {f['shape']:20s} {f['dist']:20s} "
                       f"max_abs_diff={f['max_abs_diff']:.6f}",
                       file=sys.stderr)
             return 1
@@ -757,9 +757,9 @@ def main(argv: list[str]) -> int:
         print(f"py_bench_general_count: {summary['general_count']}")
         print(f"py_bench_general_n_correct: {summary['n_correct']}")
         if summary["failed"]:
-            print(f"py_bench_general_failed: {len(summary['failed'])}")
+            print(f"py_bench_general_errors: {len(summary['failed'])}")
             for f in summary["failed"]:
-                print(f"  FAIL: {f['shape']:20s} bucket={f['bucket']:25s} "
+                print(f"  ERROR: {f['shape']:20s} bucket={f['bucket']:25s} "
                       f"max_abs_diff={f['max_abs_diff']:.6f}",
                       file=sys.stderr)
             return 1
@@ -788,9 +788,9 @@ def main(argv: list[str]) -> int:
             print(f"py_bench_tc_general_ratio_max: {summary['ratio_max']:.4f}")
             print(f"py_bench_tc_general_ratio_median: {summary['ratio_median']:.4f}")
         if summary["failed"]:
-            print(f"py_bench_tc_general_failed: {len(summary['failed'])}")
+            print(f"py_bench_tc_general_issues: {len(summary['failed'])}")
             for f in summary["failed"]:
-                print(f"  FAIL: {f['shape']:25s} route={f['route']:10s} "
+                print(f"  ISSUE: {f['shape']:25s} route={f['route']:10s} "
                       f"correct={f['correct']} ratio={f['ratio']:.4f}",
                       file=sys.stderr)
             return 1
@@ -813,7 +813,7 @@ def main(argv: list[str]) -> int:
         print(f"py_bench_random_tc_n_correct: {summary['n_correct']}")
         print(f"py_bench_random_tc_n_tc_route: {summary['n_tc_route']}")
         if summary["failed"]:
-            print(f"py_bench_random_tc_failed: {len(summary['failed'])}")
+            print(f"py_bench_random_tc_issues: {len(summary['failed'])}")
             return 1
         print("py_bench_random_tc_ok: true")
         return 0
@@ -830,9 +830,9 @@ def main(argv: list[str]) -> int:
         print(f"py_bench_random_count: {summary['count']}")
         print(f"py_bench_random_n_correct: {summary['n_correct']}")
         if summary["failed"]:
-            print(f"py_bench_random_failed: {len(summary['failed'])}")
+            print(f"py_bench_random_errors: {len(summary['failed'])}")
             for f in summary["failed"]:
-                print(f"  FAIL: idx={f['idx']:3d} {f['shape']:20s} "
+                print(f"  ERROR: idx={f['idx']:3d} {f['shape']:20s} "
                       f"max_abs_diff={f['max_abs_diff']:.6f}",
                       file=sys.stderr)
             return 1
@@ -852,11 +852,11 @@ def main(argv: list[str]) -> int:
         print(f"py_bench_views_n_route_view: {summary['n_route_view']}")
         print(f"py_bench_views_n_route_buffer: {summary['n_route_buffer']}")
         if summary["failed"]:
-            print(f"py_bench_views_failed: {len(summary['failed'])}")
+            print(f"py_bench_views_errors: {len(summary['failed'])}")
             for f in summary["failed"]:
                 err = f.get("error", f"max_abs_diff={f.get('max_abs_diff', '?')}")
                 shape_str = f"{f.get('M','?')}x{f.get('K','?')}x{f.get('N','?')}"
-                print(f"  FAIL: {f.get('op_chain', '?'):16s} {shape_str:14s}  {err}",
+                print(f"  ERROR: {f.get('op_chain', '?'):16s} {shape_str:14s}  {err}",
                       file=sys.stderr)
             return 1
         print("py_bench_views_ok: true")
@@ -876,11 +876,11 @@ def main(argv: list[str]) -> int:
         print(f"py_random_views_ops_used: {','.join(summary['ops_used'])}")
         print(f"py_random_views_seed: {summary['seed_hex']}")
         if summary["failed"]:
-            print(f"py_random_views_failed: {len(summary['failed'])}")
+            print(f"py_random_views_errors: {len(summary['failed'])}")
             for f in summary["failed"]:
                 err = f.get("error") or f"max_abs_diff={f.get('max_abs_diff','?')}"
                 shape_str = f"{f.get('M','?')}x{f.get('K','?')}x{f.get('N','?')}"
-                print(f"  FAIL: {f.get('op_chain','?'):16s} {shape_str:14s}  {err}",
+                print(f"  ERROR: {f.get('op_chain','?'):16s} {shape_str:14s}  {err}",
                       file=sys.stderr)
             return 1
         print("py_random_views_ok: true")
@@ -913,10 +913,22 @@ def main(argv: list[str]) -> int:
         print(f"py_bench_full_ratio_median: {summary['ratio_median']:.4f}")
         print(f"py_bench_full_ratio_max: {summary['ratio_max']:.4f}")
         if summary["failed"]:
-            print(f"py_bench_full_failed: {len(summary['failed'])}")
-            for f in summary["failed"]:
-                print(f"  FAIL: {f['shape']:20s} {f['dist']:20s} correct={f['correct']} ratio={f['ratio']:.4f}",
-                      file=sys.stderr)
+            correctness_errors = [f for f in summary["failed"] if not f["correct"]]
+            perf_misses = [f for f in summary["failed"] if f["correct"]]
+            if correctness_errors:
+                print(f"py_bench_full_correctness_errors: {len(correctness_errors)}")
+                for f in correctness_errors:
+                    print(
+                        f"  ERROR: {f['shape']:20s} {f['dist']:20s} "
+                        f"correct={f['correct']} ratio={f['ratio']:.4f}",
+                        file=sys.stderr)
+            if perf_misses:
+                print(f"py_bench_full_perf_miss: {len(perf_misses)}")
+                for f in perf_misses:
+                    print(
+                        f"  PERF_MISS: {f['shape']:20s} {f['dist']:20s} "
+                        f"correct={f['correct']} ratio={f['ratio']:.4f}",
+                        file=sys.stderr)
             return 1
         print(f"py_bench_full_ok: true")
         return 0

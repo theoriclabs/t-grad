@@ -226,3 +226,7 @@ Tgrad is released under the MIT license. See `LICENSE`.
 
 This repository contains a bounded Lean/Metal demo derived from a
 tinygrad study. See `NOTICE.md` for attribution and scope notes.
+
+## See Also
+
+- [Clockworks C Compiler](github.com/ClockworksCompute/ccc) a C Compiler written in Lean 4, which can detect Heartbleed class of bugs.

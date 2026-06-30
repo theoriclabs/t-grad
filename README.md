@@ -13,6 +13,8 @@ This is not a general tensor library and it is not a tinygrad
 replacement. It is a compact experiment in writing a real numerical
 runtime slice with Lean in the loop.
 
+Read the background post: [We Rewrote tinygrad in Lean](https://theoric.com/blog/we-rewrote-tinygrad-in-lean/).
+
 ## Highlights
 
 - Lean-owned runtime path for a bounded bf16 matmul slice.

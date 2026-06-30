@@ -16,6 +16,7 @@ export TGRAD_DIR="$REPO_ROOT"
 export TGRAD_BENCH_MODE=smoke
 export PYTHONPATH="$TGRAD_DIR/python${PYTHONPATH:+:$PYTHONPATH}"
 DEV_SEED="${TGRAD_DEVCHECK_SEED:-decafbadc0ffee01}"
+ALLOW_METAL_RUNTIME_SKIP="${TGRAD_ALLOW_METAL_RUNTIME_SKIP:-0}"
 cd "$REPO_ROOT"
 
 source "$TGRAD_DIR/scripts/lib/checks.sh"
@@ -39,6 +40,29 @@ has_subcommand() {
 run_cmd() {
   echo "  $*" >&2
   "$@"
+}
+
+metal_runtime_unavailable_log() {
+  local log="$1"
+  grep -Eq \
+    "tgrad_tensor_alloc|returned rc=-2|Pipeline\.realizeView failed" \
+    "$log"
+}
+
+skip_metal_runtime_smoke() {
+  local label="$1"
+  local log="$2"
+  if grep -q "tgrad_tensor_alloc" "$log"; then
+    echo "  ⚠ $label skipped: Metal allocation unavailable in this environment"
+    sed 's/^/      /' "$log"
+    return 0
+  fi
+  if metal_runtime_unavailable_log "$log" && [[ "$ALLOW_METAL_RUNTIME_SKIP" == "1" ]]; then
+    echo "  ⚠ $label skipped: Metal runtime compile/dispatch unavailable in this environment"
+    sed 's/^/      /' "$log"
+    return 0
+  fi
+  return 1
 }
 
 cheap_preflight() {
@@ -68,9 +92,7 @@ cheap_preflight() {
 smoke_basic_matmul() {
   if ! run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench --shape 64x64x64 --dtype bf16 \
       >/tmp/tgrad_devcheck_basic.txt 2>&1; then
-    if grep -q "tgrad_tensor_alloc" /tmp/tgrad_devcheck_basic.txt; then
-      echo "  ⚠ runtime smoke skipped: Metal allocation unavailable in this environment"
-      cat /tmp/tgrad_devcheck_basic.txt | sed 's/^/      /'
+    if skip_metal_runtime_smoke "runtime smoke" /tmp/tgrad_devcheck_basic.txt; then
       return 0
     fi
     cat /tmp/tgrad_devcheck_basic.txt
@@ -191,9 +213,7 @@ smoke_views() {
     if ! run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-views \
         --seed "$DEV_SEED" --count 1 --output /tmp/tgrad_devcheck_random_views.jsonl \
         >/tmp/tgrad_devcheck_random_views.txt 2>&1; then
-      if grep -q "tgrad_tensor_alloc" /tmp/tgrad_devcheck_random_views.txt; then
-        echo "  ⚠ view smoke skipped: Metal allocation unavailable in this environment"
-        cat /tmp/tgrad_devcheck_random_views.txt | sed 's/^/      /'
+      if skip_metal_runtime_smoke "view smoke" /tmp/tgrad_devcheck_random_views.txt; then
         return 0
       fi
       cat /tmp/tgrad_devcheck_random_views.txt

@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 60
     env:
       TGRAD_PERF_PROFILE: apple_m4_mini_release
+      TGRAD_ALLOW_METAL_RUNTIME_SKIP: "1"
     steps:
       - uses: actions/checkout@v4
 

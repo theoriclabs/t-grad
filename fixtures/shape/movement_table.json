@@ -1,0 +1,217 @@
+[
+  {
+    "op": "reshape",
+    "in_shape": [
+      2,
+      3
+    ],
+    "arg": [
+      6
+    ],
+    "expected": [
+      6
+    ]
+  },
+  {
+    "op": "reshape",
+    "in_shape": [
+      2,
+      3
+    ],
+    "arg": [
+      3,
+      2
+    ],
+    "expected": [
+      3,
+      2
+    ]
+  },
+  {
+    "op": "reshape",
+    "in_shape": [
+      4
+    ],
+    "arg": [
+      2,
+      2
+    ],
+    "expected": [
+      2,
+      2
+    ]
+  },
+  {
+    "op": "reshape",
+    "in_shape": [
+      6
+    ],
+    "arg": [
+      2,
+      3
+    ],
+    "expected": [
+      2,
+      3
+    ]
+  },
+  {
+    "op": "reshape",
+    "in_shape": [
+      2,
+      3
+    ],
+    "arg": [
+      5
+    ],
+    "expected": null
+  },
+  {
+    "op": "permute",
+    "in_shape": [
+      2,
+      3
+    ],
+    "arg": [
+      1,
+      0
+    ],
+    "expected": [
+      3,
+      2
+    ]
+  },
+  {
+    "op": "permute",
+    "in_shape": [
+      2,
+      3,
+      4
+    ],
+    "arg": [
+      2,
+      0,
+      1
+    ],
+    "expected": [
+      4,
+      2,
+      3
+    ]
+  },
+  {
+    "op": "permute",
+    "in_shape": [
+      2,
+      3,
+      4
+    ],
+    "arg": [
+      0,
+      1,
+      2
+    ],
+    "expected": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "op": "permute",
+    "in_shape": [
+      3
+    ],
+    "arg": [
+      0
+    ],
+    "expected": [
+      3
+    ]
+  },
+  {
+    "op": "permute",
+    "in_shape": [
+      2,
+      3
+    ],
+    "arg": [
+      0,
+      1,
+      2
+    ],
+    "expected": null
+  },
+  {
+    "op": "expand",
+    "in_shape": [
+      1,
+      3
+    ],
+    "arg": [
+      2,
+      3
+    ],
+    "expected": [
+      2,
+      3
+    ]
+  },
+  {
+    "op": "expand",
+    "in_shape": [
+      1,
+      1,
+      5
+    ],
+    "arg": [
+      2,
+      4,
+      5
+    ],
+    "expected": [
+      2,
+      4,
+      5
+    ]
+  },
+  {
+    "op": "expand",
+    "in_shape": [
+      3
+    ],
+    "arg": [
+      3
+    ],
+    "expected": [
+      3
+    ]
+  },
+  {
+    "op": "expand",
+    "in_shape": [
+      2,
+      1
+    ],
+    "arg": [
+      2,
+      4
+    ],
+    "expected": [
+      2,
+      4
+    ]
+  },
+  {
+    "op": "expand",
+    "in_shape": [
+      2,
+      3
+    ],
+    "arg": [
+      4,
+      5
+    ],
+    "expected": null
+  }
+]

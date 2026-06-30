@@ -1,0 +1,13 @@
+{
+  "gate": "L6",
+  "ts_utc": "2026-06-22T14:28:49Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L6.b — real FFI via @[export] + libtgrad.dylib + ctypes (no subprocess)",
+  "hashes": {
+    "python_bench_output_sha256":  "9ec76c4a5e1b3fc3a442fb12b2ee788a31b4c0c74133beddacc2b63a492ca35e",
+    "libtgrad_dylib_sha256":       "6f00ead85591b6eea2e6d98028e2c03d9b9d7b52abd684c8e74e7e2b556137a6",
+    "expected_bytes_sha256":       "ca826d5646a4570fab6b53d99864b9389b1ddd9d6e5cd68209698f1cfd3ee6d1"
+  }
+}

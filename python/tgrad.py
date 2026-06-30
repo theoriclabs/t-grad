@@ -1,0 +1,927 @@
+"""Tgrad Python authoring layer — L6.b real FFI via ctypes ↔ @[export].
+
+Loads `libtgrad.dylib` (built by `c/Makefile`'s `dylib` target),
+calls into Lean's @[export] entries through C trampolines. No
+subprocess; sub-millisecond per-call overhead so L7's perf parity is
+meaningful.
+
+Usage:
+    python -m tgrad bench --shape 64x64x64
+
+    >>> import tgrad
+    >>> a = tgrad.Tensor.from_numpy(np_array_a)
+    >>> b = tgrad.Tensor.from_numpy(np_array_b)
+    >>> c = a @ b
+    >>> c.numpy()  # → np.ndarray
+"""
+from __future__ import annotations
+import argparse
+import ctypes
+import json
+import os
+import statistics
+import sys
+import time
+import weakref
+from pathlib import Path
+
+import numpy as np
+
+REPO_ROOT = Path(os.environ.get("TGRAD_ROOT", Path(__file__).resolve().parents[1])).expanduser().resolve(strict=False)
+DEFAULT_LIB = REPO_ROOT / ".lake" / "build" / "lib" / "libtgrad.dylib"
+LIB_PATH = Path(os.environ.get("TGRAD_LIB", str(DEFAULT_LIB))).expanduser().resolve(strict=False)
+PERF_PROFILE = os.environ.get("TGRAD_PERF_PROFILE", "apple_m4_mini_release")
+
+if not LIB_PATH.exists():
+    raise RuntimeError(
+        f"libtgrad.dylib not found at {LIB_PATH}. Build it via "
+        f"`lake build Tgrad:shared tgrad-cli tgrad-tests && make -C c dylib` "
+        f"from the Tgrad repo root, or set TGRAD_LIB."
+    )
+
+# RTLD_GLOBAL: libtgrad.dylib's force_loaded Lean code has flat-namespace
+# references to the C bridge symbols (lean_theograd_metal_alloc, etc.).
+# Without RTLD_GLOBAL, dyld's per-handle private namespace prevents the
+# Lean code from seeing libtgrad.dylib's own bridge symbols at load.
+_lib = ctypes.CDLL(str(LIB_PATH), mode=ctypes.RTLD_GLOBAL)
+
+_lib.tgrad_init.argtypes = []
+_lib.tgrad_init.restype  = ctypes.c_int
+_lib.tgrad_handle_inc.argtypes = [ctypes.c_void_p]
+_lib.tgrad_handle_inc.restype  = None
+_lib.tgrad_handle_dec.argtypes = [ctypes.c_void_p]
+_lib.tgrad_handle_dec.restype  = None
+
+_lib.tgrad_tensor_alloc.argtypes = [ctypes.c_size_t]
+_lib.tgrad_tensor_alloc.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_free.argtypes  = [ctypes.c_uint64, ctypes.c_size_t]
+_lib.tgrad_tensor_free.restype   = None
+_lib.tgrad_tensor_write_bytes.argtypes = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+_lib.tgrad_tensor_write_bytes.restype  = ctypes.c_int
+_lib.tgrad_tensor_read_bytes.argtypes  = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+_lib.tgrad_tensor_read_bytes.restype   = ctypes.c_int
+_lib.tgrad_matmul_64x64.argtypes = [
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64]
+_lib.tgrad_matmul_64x64.restype  = ctypes.c_int32
+
+# L11: general matmul. (M, K, N) selects the captured kernel inside
+# the Lean side via ShapeSentinel.ofTriple. Same return-code mapping
+# as tgrad_matmul_64x64 plus -1 for "shape not in capture index."
+_lib.tgrad_matmul.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
+]
+_lib.tgrad_matmul.restype  = ctypes.c_int32
+
+# L12: algebraic-emit matmul. Same contract as tgrad_matmul; the Lean
+# side compiles the kernel from `renderKernel (matmulKernelDeclFor s)`
+# (pure function on the renderer AST) instead of reading the captured
+# MSL file. Distinct symbol so the gate can confirm the dylib exports
+# both paths, and so `--use-algebraic-emit` routing is observable.
+_lib.tgrad_matmul_alg.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
+]
+_lib.tgrad_matmul_alg.restype  = ctypes.c_int32
+
+# L13.B: scalar-matmul entry for below-TC-tile shapes (any dim < 8).
+# Kernel rendered from `scalarMatmulKernelDecl`. Distinct symbol so
+# the L13.B gate can observably route through this path.
+_lib.tgrad_matmul_small.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
+]
+_lib.tgrad_matmul_small.restype  = ctypes.c_int32
+
+# L13.F: TC-general matmul for non-sentinel TC-eligible shapes.
+# Kernel rendered from `tcMatmulKernelDecl` (pure on (M, K, N)).
+# Uses simdgroup_load/multiply_accumulate/store — generated source
+# always contains `simdgroup_multiply_accumulate` (L13.F gate check).
+_lib.tgrad_matmul_tc.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
+]
+_lib.tgrad_matmul_tc.restype  = ctypes.c_int32
+
+# L13.F.STRICT.B: manually-loaded TC-general matmul. Bench-only until
+# L13.F.STRICT.C flips the production TC route.
+_lib.tgrad_matmul_tc_manual_load.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
+]
+_lib.tgrad_matmul_tc_manual_load.restype  = ctypes.c_int32
+
+# L13.F: TC eligibility query. Pure call into Lean — returns 1 if
+# `tcMatmulKernelDecl(M, K, N)` would produce a valid plan, else 0.
+# Python uses this BEFORE dispatch to route non-sentinel TC. The
+# routing decision is Lean's, not Python's (L13.F gate D3).
+_lib.tgrad_matmul_tc_eligible.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+]
+_lib.tgrad_matmul_tc_eligible.restype  = ctypes.c_int32
+
+# L14.A: opaque-handle tensor registry. `tgrad_tensor_from_buffer`
+# constructs a Lean-side Tensor (UOp graph) and returns an opaque
+# uint64 handle. Query entries (rank/shape_dim/raw_buffer) round-trip
+# for L14.B's view methods.
+_lib.tgrad_tensor_from_buffer.argtypes = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t, ctypes.c_uint8,
+]
+_lib.tgrad_tensor_from_buffer.restype = ctypes.c_uint64
+_lib.tgrad_tensor_rank.argtypes       = [ctypes.c_uint64]
+_lib.tgrad_tensor_rank.restype        = ctypes.c_size_t
+_lib.tgrad_tensor_shape_dim.argtypes  = [ctypes.c_uint64, ctypes.c_size_t]
+_lib.tgrad_tensor_shape_dim.restype   = ctypes.c_size_t
+_lib.tgrad_tensor_raw_buffer.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_raw_buffer.restype  = ctypes.c_uint64
+
+# L14.B.1: view methods. Each composes a movement node on the
+# underlying Tensor's uop and returns a new opaque handle. Pure
+# graph transforms; no buffer allocation; no kernel dispatch.
+_lib.tgrad_tensor_transpose.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_transpose.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_permute.argtypes   = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t]
+_lib.tgrad_tensor_permute.restype    = ctypes.c_uint64
+_lib.tgrad_tensor_reshape.argtypes   = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t]
+_lib.tgrad_tensor_reshape.restype    = ctypes.c_uint64
+_lib.tgrad_tensor_expand.argtypes    = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t]
+_lib.tgrad_tensor_expand.restype     = ctypes.c_uint64
+_lib.tgrad_tensor_slice.argtypes     = [
+    ctypes.c_uint64, ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t]
+_lib.tgrad_tensor_slice.restype      = ctypes.c_uint64
+
+# L14.B.1: query the UOp kind of a tensor handle's root. Returns
+# 0=BUFFER, 1=PERMUTE, 2=RESHAPE, 3=EXPAND, 4=SLICE, 255=other.
+# L14.B.2.c uses this to route view inputs to tgrad_matmul_view
+# (replacing L14.B.1's MatmulOnNonBufferUop typed-error guard).
+_lib.tgrad_tensor_uop_kind.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_uop_kind.restype  = ctypes.c_uint8
+
+# L14.B.2.c: view-aware matmul. When either input has a non-BUFFER
+# uop, Python routes here; the Lean side runs the parametric scalar
+# matmul (`Pipeline.realizeView`) with A/B load-index UOps derived
+# from the input uop chains.
+_lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
+_lib.tgrad_matmul_view.restype  = ctypes.c_uint64
+
+# Stable FFI dtype encoding (matches PythonFFI.lean's `dtypeOfCode`):
+_DTYPE_BF16 = 0
+_DTYPE_F32  = 1
+_DTYPE_F16  = 2
+_DTYPE_I32  = 3
+_DTYPE_CODES = {"bf16": _DTYPE_BF16, "f32": _DTYPE_F32,
+                "f16": _DTYPE_F16, "i32": _DTYPE_I32}
+def _dtype_code(name: str) -> int:
+    return _DTYPE_CODES.get(name, _DTYPE_BF16)
+
+# Module-level toggle that `Tensor.__matmul__` honours. Default is the
+# capture path (L11 baseline); the L12 bench-full sets this to True via
+# `--use-algebraic-emit`.
+_USE_ALGEBRAIC: bool = False
+_USE_MANUAL_LOAD_TC: bool = False
+
+def set_use_algebraic(flag: bool) -> None:
+    """Switch Tgrad's matmul routing between the captured-MSL path
+    (False, default) and the algebraic-emit path (True). The L12 bench
+    flips this to True before timing; runs are otherwise capture-path."""
+    global _USE_ALGEBRAIC
+    _USE_ALGEBRAIC = bool(flag)
+
+def set_use_manual_load_tc(flag: bool) -> None:
+    """Switch TC-general routing between the legacy simdgroup-load
+    kernel and the L13.F.STRICT.B manual-load kernel."""
+    global _USE_MANUAL_LOAD_TC
+    _USE_MANUAL_LOAD_TC = bool(flag)
+
+_rc = _lib.tgrad_init()
+if _rc != 0:
+    raise RuntimeError(f"tgrad_init failed (rc={_rc})")
+
+
+class TgradError(RuntimeError):
+    """Base for all Tgrad FFI errors."""
+
+
+class NotInLeanScope(TgradError):
+    """Raised when the requested shape isn't supported by the L6.b scope."""
+
+
+class TgradTypeError(TgradError):
+    """Raised for dtype / shape contract violations."""
+
+
+class MatmulOnNonBufferUop(TgradError):
+    """Raised by `Tensor.__matmul__` when either input's Lean-side
+    `uop` is not a BUFFER leaf — i.e. the user composed a view chain
+    (`a.transpose() @ b`) and tried to matmul before L14.B.2 wires
+    `Schedule.Rangeify` into the realize path. The view methods are
+    plumbed; the kernel-side view-aware codegen lands at L14.B.2."""
+
+
+_SUPPORTED_DTYPES = {"bf16"}
+# L13.C+ scope: arbitrary 2D operand shapes are accepted. The
+# concrete shape support per matmul `(M, K) @ (K, N)` is decided at
+# __matmul__ time:
+#   - (M, K, N) in _TRIPLE_SET     → TC sentinel path (tgrad_matmul)
+#   - (M, K, N) in _SMALL_TRIPLE_SET → known below-TC-tile path
+#   - otherwise                     → catch-all scalar path
+#       (tgrad_matmul_small, which the Lean side accepts for any
+#        shape with useTc=false in pickDispatchPlan)
+# `_SUPPORTED_SHAPES` is kept as a documentation set listing the
+# operand shapes the manifest fixtures exercise; from_numpy /
+# from_bf16_bytes now accept any 2D ndarray with dims ≥ 1.
+_SUPPORTED_SHAPES = {
+    # L11 sentinel operand shapes
+    (64, 64),  (1024, 1024),  (2048, 2048),  (4096, 4096),  (8192, 8192),
+    (8192, 1024),  (4096, 1024),  (2048, 1024),
+    (1024, 8192), (1024, 4096),  (1024, 2048),
+    # L13.B below-TC-tile operand shapes (any dim < 8)
+    (4, 4), (8, 8), (8, 4), (4, 32), (32, 4), (6, 32), (32, 6),
+}
+_L11_TRIPLES = [
+    (64,   64,   64),
+    (1024, 1024, 1024),
+    (2048, 2048, 2048),
+    (4096, 4096, 4096),
+    (8192, 8192, 8192),
+    (8192, 1024, 1024),
+    (4096, 1024, 1024),
+    (2048, 1024, 1024),
+    (1024, 1024, 8192),
+    (1024, 1024, 4096),
+    (1024, 1024, 2048),
+]
+# L13.B below-TC-tile triples (any dim < 8) — matches the 5
+# "below_tc_tile" entries in `fixtures/bench/general_shape_manifest.json`.
+_L13_B_SMALL_TRIPLES = [
+    (4, 4, 4),
+    (8, 8, 4),
+    (4, 32, 4),
+    (6, 32, 6),
+    (4, 4, 32),
+]
+_TRIPLE_SET = set(_L11_TRIPLES)
+_SMALL_TRIPLE_SET = set(_L13_B_SMALL_TRIPLES)
+
+
+def _bf16_from_fp32(arr_fp32: np.ndarray) -> bytes:
+    """Convert an fp32 ndarray to bf16 bytes (truncation, IEEE 754 → bf16)."""
+    flat = arr_fp32.astype(np.float32).flatten()
+    view = flat.view(np.uint32)
+    # Take the high 16 bits = the bf16 representation (no rounding; tinygrad-compatible
+    # since tinygrad's f32→bf16 cast also truncates the trailing mantissa bits).
+    hi = (view >> 16).astype(np.uint16)
+    return hi.tobytes()
+
+
+def _fp32_from_bf16(b: bytes, shape: tuple[int, ...]) -> np.ndarray:
+    """Lift bf16 bytes back to fp32 (zero-pad the mantissa)."""
+    hi = np.frombuffer(b, dtype=np.uint16).astype(np.uint32) << 16
+    return hi.view(np.float32).reshape(shape).copy()
+
+
+class Tensor:
+    """Tgrad tensor — owns an MTLBuffer via the Lean allocator.
+
+    `__slots__` includes `__weakref__` so `weakref.finalize` can
+    register a cleanup; per learnings/05_opaque_handle/python.py.
+    """
+    __slots__ = ("_buf", "_size", "_shape", "_dtype", "_handle", "_fin",
+                 "__weakref__")
+
+    def __init__(self, buf: int, size: int, shape: tuple[int, ...],
+                 dtype: str, handle: int | None = None,
+                 owns_buf: bool = True):
+        """`buf` and `size` describe the underlying MTLBuffer.
+        `shape` and `dtype` are the *effective* (post-view) shape +
+        dtype. `handle` is the Lean-side opaque tensor handle; if
+        None (L14.A path), it's auto-registered via
+        `tgrad_tensor_from_buffer`. `owns_buf` controls whether
+        garbage collection should free the buffer — view-derived
+        Tensors share the underlying buffer with the source, so
+        only the root sets `owns_buf=True`."""
+        self._buf   = buf
+        self._size  = size
+        self._shape = shape
+        self._dtype = dtype
+        if handle is None:
+            shape_arr = (ctypes.c_size_t * len(shape))(*shape)
+            handle = _lib.tgrad_tensor_from_buffer(
+                buf, shape_arr, len(shape), _dtype_code(dtype))
+            if handle == 0:
+                raise TgradError(
+                    f"tgrad_tensor_from_buffer(buf={buf}, shape={shape}) returned 0")
+        self._handle = handle
+        # On collection, return the buffer to the LRU (only if we own it).
+        if owns_buf:
+            self._fin = weakref.finalize(self, _lib.tgrad_tensor_free, buf, size)
+        else:
+            self._fin = None
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self._shape
+
+    @property
+    def dtype(self) -> str:
+        return self._dtype
+
+    @classmethod
+    def from_numpy(cls, arr: np.ndarray, dtype: str = "bf16") -> "Tensor":
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim != 2:
+            raise TgradTypeError(f"L6.b: only 2-D tensors supported (got ndim={arr.ndim})")
+        if arr.dtype not in (np.float32, np.float64):
+            raise TgradTypeError(
+                f"L6.b: from_numpy expects fp32 or fp64 input (got {arr.dtype}); "
+                f"will be cast to {dtype}")
+        shape = tuple(int(s) for s in arr.shape)
+        # L13.C: accept any 2D shape with dims ≥ 1. The matmul path
+        # then routes (M, K, N) through tgrad_matmul (sentinel) or
+        # tgrad_matmul_small (scalar) based on pickDispatchPlan.
+        if any(s < 1 for s in shape):
+            raise NotInLeanScope(
+                f"shape {shape} has a non-positive dimension; refused.")
+        bytes_ = _bf16_from_fp32(arr)
+        size = len(bytes_)
+        buf = _lib.tgrad_tensor_alloc(size)
+        if buf == 0:
+            raise TgradError(f"tgrad_tensor_alloc({size}) returned 0")
+        arr_buf = (ctypes.c_uint8 * size).from_buffer_copy(bytes_)
+        rc = _lib.tgrad_tensor_write_bytes(buf, arr_buf, size)
+        if rc != 0:
+            _lib.tgrad_tensor_free(buf, size)
+            raise TgradError(f"tgrad_tensor_write_bytes returned rc={rc}")
+        return cls(buf, size, shape, dtype)
+
+    @classmethod
+    def from_bf16_bytes(cls, raw: bytes, shape: tuple[int, ...]) -> "Tensor":
+        """Construct from already-bf16 bytes (e.g. captured tinygrad fixture).
+        L13.C+: accepts any 2D shape with dims ≥ 1."""
+        shape = tuple(int(s) for s in shape)
+        if len(shape) != 2 or any(s < 1 for s in shape):
+            raise NotInLeanScope(
+                f"shape {shape} must be 2D with positive dims.")
+        size = len(raw)
+        buf = _lib.tgrad_tensor_alloc(size)
+        if buf == 0:
+            raise TgradError(f"tgrad_tensor_alloc({size}) returned 0")
+        arr_buf = (ctypes.c_uint8 * size).from_buffer_copy(raw)
+        rc = _lib.tgrad_tensor_write_bytes(buf, arr_buf, size)
+        if rc != 0:
+            _lib.tgrad_tensor_free(buf, size)
+            raise TgradError(f"tgrad_tensor_write_bytes returned rc={rc}")
+        return cls(buf, size, shape, "bf16")
+
+    def numpy(self) -> np.ndarray:
+        out = (ctypes.c_uint8 * self._size)()
+        rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
+        if rc != 0:
+            raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
+        return _fp32_from_bf16(bytes(out), self._shape)
+
+    def to_bytes(self) -> bytes:
+        out = (ctypes.c_uint8 * self._size)()
+        rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
+        if rc != 0:
+            raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
+        return bytes(out)
+
+    # L14.B.1: view methods — compose movement nodes on the Lean-side
+    # uop; return a new Tensor sharing the underlying buffer. Pure
+    # graph transforms; no buffer allocation; no kernel dispatch.
+
+    def transpose(self) -> "Tensor":
+        new_h = _lib.tgrad_tensor_transpose(self._handle)
+        if new_h == 0:
+            raise TgradError(f"tgrad_tensor_transpose(handle={self._handle}) returned 0")
+        # Effective shape after transpose (2-D PERMUTE [1,0]):
+        if len(self._shape) != 2:
+            raise TgradTypeError(
+                f"Tensor.transpose: 2-D only (got shape={self._shape})")
+        new_shape = (self._shape[1], self._shape[0])
+        return Tensor(self._buf, self._size, new_shape, self._dtype,
+                      handle=new_h, owns_buf=False)
+
+    T = property(transpose)
+
+    def permute(self, *axes: int) -> "Tensor":
+        if len(axes) != len(self._shape):
+            raise TgradTypeError(
+                f"Tensor.permute: axes={axes} doesn't match rank={len(self._shape)}")
+        n = len(axes)
+        arr = (ctypes.c_size_t * n)(*axes)
+        new_h = _lib.tgrad_tensor_permute(self._handle, arr, n)
+        if new_h == 0:
+            raise TgradError(f"tgrad_tensor_permute(axes={axes}) returned 0")
+        new_shape = tuple(self._shape[i] for i in axes)
+        return Tensor(self._buf, self._size, new_shape, self._dtype,
+                      handle=new_h, owns_buf=False)
+
+    def reshape(self, *new_shape: int) -> "Tensor":
+        n = len(new_shape)
+        arr = (ctypes.c_size_t * n)(*new_shape)
+        new_h = _lib.tgrad_tensor_reshape(self._handle, arr, n)
+        if new_h == 0:
+            raise TgradError(f"tgrad_tensor_reshape(shape={new_shape}) returned 0")
+        return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
+                      handle=new_h, owns_buf=False)
+
+    def expand(self, *new_shape: int) -> "Tensor":
+        n = len(new_shape)
+        arr = (ctypes.c_size_t * n)(*new_shape)
+        new_h = _lib.tgrad_tensor_expand(self._handle, arr, n)
+        if new_h == 0:
+            raise TgradError(f"tgrad_tensor_expand(shape={new_shape}) returned 0")
+        return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
+                      handle=new_h, owns_buf=False)
+
+    def __getitem__(self, key) -> "Tensor":
+        # Accept a single slice or a tuple of slices.
+        if isinstance(key, slice):
+            key = (key,)
+        if not isinstance(key, tuple):
+            raise TgradTypeError(
+                f"Tensor.__getitem__: only slice or tuple-of-slice supported (got {type(key).__name__})")
+        n = len(key)
+        flat = (ctypes.c_size_t * (3 * n))()
+        new_shape = list(self._shape)
+        for i, sl in enumerate(key):
+            if not isinstance(sl, slice):
+                raise TgradTypeError(f"Tensor.__getitem__[{i}]: expected slice, got {type(sl).__name__}")
+            dim = self._shape[i] if i < len(self._shape) else 0
+            start = 0 if sl.start is None else sl.start
+            stop  = dim if sl.stop is None else sl.stop
+            step  = 1 if sl.step is None else sl.step
+            if step <= 0:
+                raise TgradTypeError(
+                    f"Tensor.__getitem__: only positive steps supported (got step={step})")
+            flat[3 * i]     = start
+            flat[3 * i + 1] = stop
+            flat[3 * i + 2] = step
+            new_shape[i] = max(0, (min(stop, dim) - min(start, dim) + step - 1) // step)
+        new_h = _lib.tgrad_tensor_slice(self._handle, flat, 3 * n)
+        if new_h == 0:
+            raise TgradError(f"tgrad_tensor_slice returned 0")
+        return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
+                      handle=new_h, owns_buf=False)
+
+    def _uop_kind_code(self) -> int:
+        """Return the underlying UOp kind: 0=BUFFER, 1=PERMUTE,
+        2=RESHAPE, 3=EXPAND, 4=SLICE, 255=other/unregistered."""
+        return _lib.tgrad_tensor_uop_kind(self._handle)
+
+    def __matmul__(self, other: "Tensor") -> "Tensor":
+        if not isinstance(other, Tensor):
+            return NotImplemented
+        if self._dtype != "bf16" or other._dtype != "bf16":
+            raise TgradTypeError(
+                f"matmul: bf16 only (got {self._dtype} @ {other._dtype})")
+        # L14.B.2.c: route view inputs through Pipeline.realizeView
+        # (which runs the parametric scalar matmul with view-derived
+        # index UOps). Replaces L14.B.1's MatmulOnNonBufferUop guard.
+        a_kind = self._uop_kind_code()
+        b_kind = other._uop_kind_code()
+        if a_kind != 0 or b_kind != 0:
+            out_handle = _lib.tgrad_matmul_view(self._handle, other._handle)
+            if out_handle == 0:
+                raise TgradError(
+                    f"tgrad_matmul_view(a.uop={a_kind}, b.uop={b_kind}) "
+                    f"returned 0 — Pipeline.realizeView failed")
+            out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+            out_rank = _lib.tgrad_tensor_rank(out_handle)
+            if out_rank != 2:
+                raise TgradError(
+                    f"tgrad_matmul_view: expected 2-D output, got rank {out_rank}")
+            out_M = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+            out_N = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+            out_size = out_M * out_N * 2  # bf16 = 2 bytes/elem
+            return Tensor(out_buf, out_size, (out_M, out_N), "bf16",
+                          handle=out_handle, owns_buf=True)
+        M, K_a = self._shape
+        K_b, N = other._shape
+        if K_a != K_b:
+            raise TgradTypeError(
+                f"matmul: contraction dim mismatch ({self._shape} @ {other._shape})")
+        K = K_a
+        if (M, K, N) in _TRIPLE_SET:
+            # L11/L12 sentinel path (capture or algebraic).
+            entry = _lib.tgrad_matmul_alg if _USE_ALGEBRAIC else _lib.tgrad_matmul
+            entry_name = "tgrad_matmul_alg" if _USE_ALGEBRAIC else "tgrad_matmul"
+        elif _lib.tgrad_matmul_tc_eligible(M, K, N) == 1:
+            # L13.F TC-eligible non-sentinel: route through the Lean-
+            # owned WMMA kernel emit. Routing decision comes from
+            # Lean's `tcMatmulKernelDecl` legality check, NOT a
+            # Python-side shape table (per L13.F gate D3).
+            if _USE_MANUAL_LOAD_TC:
+                entry = _lib.tgrad_matmul_tc_manual_load
+                entry_name = "tgrad_matmul_tc_manual_load"
+            else:
+                entry = _lib.tgrad_matmul_tc
+                entry_name = "tgrad_matmul_tc"
+        else:
+            # L13.B + L13.C + L13.D: catch-all scalar path. Used for
+            # below-TC-tile + TC-misaligned shapes that Lean's plan
+            # query rejects.
+            entry = _lib.tgrad_matmul_small
+            entry_name = "tgrad_matmul_small"
+        out_size = M * N * 2  # bf16: 2 bytes/element
+        out_buf = _lib.tgrad_tensor_alloc(out_size)
+        if out_buf == 0:
+            raise TgradError(f"tgrad_tensor_alloc({out_size}) for matmul output returned 0")
+        rc = entry(M, K, N, self._buf, other._buf, out_buf)
+        if rc != 0:
+            _lib.tgrad_tensor_free(out_buf, out_size)
+            raise TgradError(
+                f"{entry_name}(M={M}, K={K}, N={N}) returned rc={rc} "
+                f"(see PythonFFI.lean for rc → reason mapping)")
+        return Tensor(out_buf, out_size, (M, N), "bf16")
+
+
+def bench(shape: str = "64x64x64", dtype: str = "bf16") -> dict:
+    """Run a single-shape FFI bench: matmul on captured tinygrad inputs,
+    compare result vs captured expected output. Returns parsed status."""
+    if shape != "64x64x64":
+        raise NotInLeanScope(f"L6.b bench scope: 64x64x64 only (got {shape})")
+    if dtype != "bf16":
+        raise TgradTypeError(f"L6.b bench dtype: bf16 only (got {dtype})")
+    fix_dir = REPO_ROOT / "fixtures" / "pipeline"
+    a_bytes = (fix_dir / "matmul_64x64_bf16_seed42_a.bin").read_bytes()
+    b_bytes = (fix_dir / "matmul_64x64_bf16_seed42_b.bin").read_bytes()
+    e_bytes = (fix_dir / "matmul_64x64_bf16_seed42_expected.bin").read_bytes()
+    a = Tensor.from_bf16_bytes(a_bytes, (64, 64))
+    b = Tensor.from_bf16_bytes(b_bytes, (64, 64))
+    c = a @ b
+    actual = c.to_bytes()
+    matched = actual == e_bytes
+    return {
+        "shape":     shape,
+        "dtype":     dtype,
+        "actual_len": len(actual),
+        "expected_len": len(e_bytes),
+        "byte_match": matched,
+    }
+
+
+def bench_timing(shape: str = "64x64x64", dtype: str = "bf16",
+                 n_warmup: int = 50, n_measured: int = 200) -> dict:
+    """Time Tgrad's matmul via the ctypes FFI. Returns a dict with
+    median/percentile ms statistics. Mirrors the tinygrad capture's
+    methodology so the lean_ms ↔ tinygrad_ms ratio is honest.
+
+    Before timing, byte-matches the matmul output against the captured
+    tinygrad expected fixture — this closes the "skip a@b in the loop"
+    sabotage gap (a no-op timing would pass the perf predicate but the
+    byte-match would fail first)."""
+    if shape != "64x64x64":
+        raise NotInLeanScope(f"L7 timing scope: 64x64x64 only (got {shape})")
+    if dtype != "bf16":
+        raise TgradTypeError(f"L7 timing dtype: bf16 only (got {dtype})")
+    fix_dir = REPO_ROOT / "fixtures" / "pipeline"
+    a_bytes = (fix_dir / "matmul_64x64_bf16_seed42_a.bin").read_bytes()
+    b_bytes = (fix_dir / "matmul_64x64_bf16_seed42_b.bin").read_bytes()
+    e_bytes = (fix_dir / "matmul_64x64_bf16_seed42_expected.bin").read_bytes()
+    a = Tensor.from_bf16_bytes(a_bytes, (64, 64))
+    b = Tensor.from_bf16_bytes(b_bytes, (64, 64))
+    # Pre-timing correctness anchor: same path bench_timing measures must
+    # produce bit-identical output to L5.b's expected. Catches the "fake
+    # the timing by skipping a @ b" sabotage at L7's own gate level.
+    c0 = a @ b
+    if c0.to_bytes() != e_bytes:
+        raise TgradError(
+            "bench-timing: matmul output does NOT byte-match captured fixture; "
+            "the timing measurement would not reflect correct work")
+    # Warmup (cache warm; no further correctness checks — we've established it).
+    for _ in range(n_warmup):
+        _ = a @ b
+    times_ms: list[float] = []
+    for _ in range(n_measured):
+        t0 = time.perf_counter()
+        _ = a @ b
+        t1 = time.perf_counter()
+        times_ms.append((t1 - t0) * 1000.0)
+    times_ms.sort()
+    return {
+        "shape":      shape,
+        "dtype":      dtype,
+        "n_warmup":   n_warmup,
+        "n_measured": n_measured,
+        "min":        times_ms[0],
+        "p25":        times_ms[int(0.25 * len(times_ms))],
+        "median":     statistics.median(times_ms),
+        "p75":        times_ms[int(0.75 * len(times_ms))],
+        "max":        times_ms[-1],
+    }
+
+
+def main(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(description="Tgrad Python authoring layer (L6.b)")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    bp = sub.add_parser("bench", help="run a single-shape FFI bench")
+    bp.add_argument("--shape", required=True, help="e.g. 64x64x64")
+    bp.add_argument("--dtype", default="bf16")
+    tp = sub.add_parser("bench-timing", help="time Tgrad's matmul (L7 perf parity)")
+    tp.add_argument("--shape", required=True, help="e.g. 64x64x64")
+    tp.add_argument("--dtype", default="bf16")
+    tp.add_argument("--warmup",  type=int, default=50)
+    tp.add_argument("--measured", type=int, default=200)
+    bs = sub.add_parser("bench-small",
+                        help="L13.B: correctness-only sweep over below-TC-tile shapes")
+    bs.add_argument("--manifest",
+                    default=str(REPO_ROOT / "fixtures" / "bench" / "general_shape_manifest.json"))
+    bs.add_argument("--output", default="/tmp/tgrad_L13_B_bench.jsonl")
+    bg = sub.add_parser("bench-general",
+                        help="L13.C: correctness-only sweep over non-below-TC-tile manifest entries")
+    bg.add_argument("--manifest",
+                    default=str(REPO_ROOT / "fixtures" / "bench" / "general_shape_manifest.json"))
+    bg.add_argument("--output", default="/tmp/tgrad_L13_C_bench.jsonl")
+    br = sub.add_parser("bench-random-shapes",
+                        help="L13.D: random shape sweep (HEAD-derived seed; correctness only)")
+    br.add_argument("--seed", required=True,
+                    help="hex seed (typically 'git rev-parse HEAD' prefix)")
+    br.add_argument("--count", type=int, default=30)
+    br.add_argument("--output", default="/tmp/tgrad_L13_D_bench.jsonl")
+    btc = sub.add_parser("bench-tc-general",
+                         help="L13.F: 8 pinned TC-eligible non-sentinel shapes (correctness + ratio)")
+    btc.add_argument("--manifest",
+                     default=str(REPO_ROOT / "fixtures" / "bench" / "tc_general_manifest.json"))
+    btc.add_argument("--baseline", default=None,
+                     help="default: fixtures/perf/tinygrad_baseline_tc_general_<profile>.json")
+    btc.add_argument("--output", default="/tmp/tgrad_L13_F_tc_general.jsonl")
+    btc.add_argument("--warmup",   type=int, default=10)
+    btc.add_argument("--measured", type=int, default=30)
+    btc.add_argument("--use-manual-load", action="store_true",
+                     help="route TC-general matmul through the "
+                          "L13.F.STRICT.B manual-load kernel")
+    brtc = sub.add_parser("bench-random-tc-general",
+                          help="L13.F: random TC-eligible non-sentinel shapes (correctness only)")
+    brtc.add_argument("--seed", required=True)
+    brtc.add_argument("--count", type=int, default=10)
+    brtc.add_argument("--output", default="/tmp/tgrad_L13_F_random_tc.jsonl")
+    brtc.add_argument("--use-manual-load", action="store_true",
+                      help="route TC-general matmul through the "
+                           "L13.F.STRICT.B manual-load kernel")
+    bv = sub.add_parser("bench-views",
+                        help="L14.B.3: 16 pinned view-matmul cases (correctness)")
+    bv.add_argument("--manifest",
+                    default=str(REPO_ROOT / "fixtures" / "bench" / "view_manifest.json"))
+    bv.add_argument("--output", default="/tmp/tgrad_L14_B_3_views.jsonl")
+    brv = sub.add_parser("bench-random-views",
+                         help="L14.C: anti-hardcoding random view-matmul sweep (seed=HEAD)")
+    brv.add_argument("--seed", required=True,
+                     help="hex string — first 16 chars of git rev-parse HEAD")
+    brv.add_argument("--count", type=int, default=20)
+    brv.add_argument("--output", default="/tmp/tgrad_L14_C_random.jsonl")
+    bf = sub.add_parser("bench-full", help="run the L11 50-pair sweep (correctness + ratio)")
+    bf.add_argument("--manifest",
+                    default=str(REPO_ROOT / "fixtures" / "bench" / "pair_manifest.json"))
+    bf.add_argument("--baseline", default=None,
+                    help="default: fixtures/perf/tinygrad_baseline_<profile>_full.json")
+    bf.add_argument("--output",   default="/tmp/tgrad_L11_bench.jsonl")
+    bf.add_argument("--warmup",   type=int, default=10)
+    bf.add_argument("--measured", type=int, default=30)
+    bf.add_argument("--use-algebraic-emit", dest="use_algebraic",
+                    action="store_true",
+                    help="route matmul through the L12 algebraic-emit FFI entry "
+                         "(tgrad_matmul_alg) instead of the L11 capture path")
+    args = p.parse_args(argv)
+    if args.cmd == "bench":
+        try:
+            r = bench(args.shape, args.dtype)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr)
+            return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"py_shape: {args.shape}")
+        print(f"py_dtype: {args.dtype}")
+        print(f"py_actual_len: {r['actual_len']}")
+        print(f"py_expected_len: {r['expected_len']}")
+        print(f"py_byte_match: {'true' if r['byte_match'] else 'false'}")
+        print(f"py_pipeline_ok: {'true' if r['byte_match'] else 'false'}")
+        return 0 if r["byte_match"] else 1
+    if args.cmd == "bench-timing":
+        try:
+            r = bench_timing(args.shape, args.dtype, args.warmup, args.measured)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_shape: {args.shape}")
+        print(f"py_dtype: {args.dtype}")
+        print(f"py_n_warmup: {r['n_warmup']}")
+        print(f"py_n_measured: {r['n_measured']}")
+        print(f"py_lean_ms_min: {r['min']:.4f}")
+        print(f"py_lean_ms_p25: {r['p25']:.4f}")
+        print(f"py_lean_ms_median: {r['median']:.4f}")
+        print(f"py_lean_ms_p75: {r['p75']:.4f}")
+        print(f"py_lean_ms_max: {r['max']:.4f}")
+        return 0
+    if args.cmd == "bench-small":
+        import tgrad_bench
+        try:
+            summary = tgrad_bench.run_bench_small(args.manifest, args.output)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_small_output: {args.output}")
+        print(f"py_bench_small_below_tc_tile_count: {summary['below_tc_tile_count']}")
+        print(f"py_bench_small_n_correct: {summary['n_correct']}")
+        if summary["failed"]:
+            print(f"py_bench_small_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                print(f"  FAIL: {f['shape']:20s} {f['dist']:20s} "
+                      f"max_abs_diff={f['max_abs_diff']:.6f}",
+                      file=sys.stderr)
+            return 1
+        print(f"py_bench_small_ok: true")
+        return 0
+    if args.cmd == "bench-general":
+        import tgrad_bench
+        try:
+            summary = tgrad_bench.run_bench_general(args.manifest, args.output)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_general_output: {args.output}")
+        print(f"py_bench_general_count: {summary['general_count']}")
+        print(f"py_bench_general_n_correct: {summary['n_correct']}")
+        if summary["failed"]:
+            print(f"py_bench_general_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                print(f"  FAIL: {f['shape']:20s} bucket={f['bucket']:25s} "
+                      f"max_abs_diff={f['max_abs_diff']:.6f}",
+                      file=sys.stderr)
+            return 1
+        print(f"py_bench_general_ok: true")
+        return 0
+    if args.cmd == "bench-tc-general":
+        import tgrad_bench
+        baseline_path = (args.baseline if args.baseline is not None else
+                         str(REPO_ROOT / "fixtures" / "perf"
+                             / f"tinygrad_baseline_tc_general_{PERF_PROFILE}.json"))
+        try:
+            summary = tgrad_bench.run_bench_tc_general(
+                args.manifest, baseline_path, args.output,
+                warmup=args.warmup, measured=args.measured,
+                use_manual_load=args.use_manual_load)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_tc_general_output: {args.output}")
+        print(f"py_bench_tc_general_count: {summary['manifest_count']}")
+        print(f"py_bench_tc_general_n_correct: {summary['n_correct']}")
+        print(f"py_bench_tc_general_n_tc_route: {summary['n_tc_route']}")
+        print(f"py_bench_tc_general_n_scalar_route: {summary['n_scalar_route']}")
+        if "ratio_max" in summary:
+            print(f"py_bench_tc_general_ratio_max: {summary['ratio_max']:.4f}")
+            print(f"py_bench_tc_general_ratio_median: {summary['ratio_median']:.4f}")
+        if summary["failed"]:
+            print(f"py_bench_tc_general_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                print(f"  FAIL: {f['shape']:25s} route={f['route']:10s} "
+                      f"correct={f['correct']} ratio={f['ratio']:.4f}",
+                      file=sys.stderr)
+            return 1
+        print("py_bench_tc_general_ok: true")
+        return 0
+    if args.cmd == "bench-random-tc-general":
+        import tgrad_bench
+        try:
+            summary = tgrad_bench.run_bench_random_tc_general(
+                args.seed, args.count, args.output,
+                use_manual_load=args.use_manual_load)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_random_tc_output: {args.output}")
+        print(f"py_bench_random_tc_seed: {summary['seed_hex']}")
+        print(f"py_bench_random_tc_count: {summary['count']}")
+        print(f"py_bench_random_tc_actual: {summary['actual_count']}")
+        print(f"py_bench_random_tc_n_correct: {summary['n_correct']}")
+        print(f"py_bench_random_tc_n_tc_route: {summary['n_tc_route']}")
+        if summary["failed"]:
+            print(f"py_bench_random_tc_failed: {len(summary['failed'])}")
+            return 1
+        print("py_bench_random_tc_ok: true")
+        return 0
+    if args.cmd == "bench-random-shapes":
+        import tgrad_bench
+        try:
+            summary = tgrad_bench.run_bench_random_shapes(args.seed, args.count, args.output)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_random_output: {args.output}")
+        print(f"py_bench_random_seed: {summary['seed_hex']}")
+        print(f"py_bench_random_count: {summary['count']}")
+        print(f"py_bench_random_n_correct: {summary['n_correct']}")
+        if summary["failed"]:
+            print(f"py_bench_random_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                print(f"  FAIL: idx={f['idx']:3d} {f['shape']:20s} "
+                      f"max_abs_diff={f['max_abs_diff']:.6f}",
+                      file=sys.stderr)
+            return 1
+        print(f"py_bench_random_ok: true")
+        return 0
+    if args.cmd == "bench-views":
+        import tgrad_bench
+        try:
+            summary = tgrad_bench.run_bench_views(args.manifest, args.output)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_views_output: {args.output}")
+        print(f"py_bench_views_count: {summary['manifest_count']}")
+        print(f"py_bench_views_n_correct: {summary['n_correct']}")
+        print(f"py_bench_views_n_route_view: {summary['n_route_view']}")
+        print(f"py_bench_views_n_route_buffer: {summary['n_route_buffer']}")
+        if summary["failed"]:
+            print(f"py_bench_views_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                err = f.get("error", f"max_abs_diff={f.get('max_abs_diff', '?')}")
+                shape_str = f"{f.get('M','?')}x{f.get('K','?')}x{f.get('N','?')}"
+                print(f"  FAIL: {f.get('op_chain', '?'):16s} {shape_str:14s}  {err}",
+                      file=sys.stderr)
+            return 1
+        print("py_bench_views_ok: true")
+        return 0
+    if args.cmd == "bench-random-views":
+        import tgrad_bench
+        try:
+            summary = tgrad_bench.run_bench_random_views(args.seed, args.count, args.output)
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_random_views_output: {args.output}")
+        print(f"py_random_views_count: {summary['count']}")
+        print(f"py_random_views_n_correct: {summary['n_correct']}")
+        print(f"py_random_views_n_route_view: {summary['n_route_view']}")
+        print(f"py_random_views_ops_used: {','.join(summary['ops_used'])}")
+        print(f"py_random_views_seed: {summary['seed_hex']}")
+        if summary["failed"]:
+            print(f"py_random_views_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                err = f.get("error") or f"max_abs_diff={f.get('max_abs_diff','?')}"
+                shape_str = f"{f.get('M','?')}x{f.get('K','?')}x{f.get('N','?')}"
+                print(f"  FAIL: {f.get('op_chain','?'):16s} {shape_str:14s}  {err}",
+                      file=sys.stderr)
+            return 1
+        print("py_random_views_ok: true")
+        return 0
+    if args.cmd == "bench-full":
+        import tgrad_bench
+        baseline_path = (args.baseline if args.baseline is not None else
+                         str(REPO_ROOT / "fixtures" / "perf"
+                             / f"tinygrad_baseline_{PERF_PROFILE}_full.json"))
+        # L12: switch matmul routing to the algebraic-emit FFI entry.
+        # Set BEFORE invoking run_bench_full so warm-up + timing both
+        # exercise the algebraic path.
+        if args.use_algebraic:
+            set_use_algebraic(True)
+        try:
+            summary = tgrad_bench.run_bench_full(
+                args.manifest, baseline_path, args.output,
+                warmup=args.warmup, measured=args.measured,
+            )
+        except NotInLeanScope as exc:
+            print(f"NotInLeanScope: {exc}", file=sys.stderr); return 1
+        except TgradError as exc:
+            print(f"error: {exc}", file=sys.stderr); return 1
+        print(f"py_bench_full_output: {args.output}")
+        print(f"py_bench_full_use_algebraic: {'true' if args.use_algebraic else 'false'}")
+        print(f"py_bench_full_n_pairs: {summary['manifest_count']}")
+        print(f"py_bench_full_n_correct: {summary['n_correct']}")
+        print(f"py_bench_full_n_ratio_ok: {summary['n_ratio_ok']}")
+        print(f"py_bench_full_ratio_min: {summary['ratio_min']:.4f}")
+        print(f"py_bench_full_ratio_median: {summary['ratio_median']:.4f}")
+        print(f"py_bench_full_ratio_max: {summary['ratio_max']:.4f}")
+        if summary["failed"]:
+            print(f"py_bench_full_failed: {len(summary['failed'])}")
+            for f in summary["failed"]:
+                print(f"  FAIL: {f['shape']:20s} {f['dist']:20s} correct={f['correct']} ratio={f['ratio']:.4f}",
+                      file=sys.stderr)
+            return 1
+        print(f"py_bench_full_ok: true")
+        return 0
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

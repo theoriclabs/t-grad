@@ -1,0 +1,28 @@
+# L15.B falsifiability — sabotage matrix
+
+L15.B is the runtime + benchmark half of the L15 experiment-closure audit.
+Predicates verify (a) the existing sub-gate evidence (L11/L13/L13_F/L14)
+is still consistent with strong-done, (b) static tinygrad-independence
+holds, and (c) fresh random shapes + random views under a HEAD-derived
+seed pass on the current commit.
+
+| # | Sabotage | What the gate catches it on | Verified |
+|---|---|---|---|
+| 1 | Inject a regression in `Pipeline.realize` (e.g. swap a/b inputs) | Layer C fresh random-shapes / random-views fail correctness; gate exits 1. The bench evidence files would also disagree with the audit when the gate is part of a sweep. | ✓ 2026-05-14 |
+| 2 | Hardcode `--seed 0xCAFE` for the random-shapes/views recheck | Layer D1 grep on `git rev-parse HEAD | head -c 16` finds the constant. The gate ALSO asserts `py_random_views_seed == $SEED` post-run; a hardcoded seed would diverge from HEAD's prefix. | ✓ 2026-05-14 |
+| 3 | Replace `--count 10` with `--count 1` for either sample | Layer C row-count check: `py_*_count == 10` required → gate exits 1 | ✓ 2026-05-14 |
+| 4 | A random sample exposes a bug; agent narrows bf16 tolerance to silently pass | The tolerance is set inside `run_bench_random_views` / `run_bench_random_shapes` — those functions are version-controlled and reviewed at commit; any narrowing would land in the diff. Additionally, every row's `correct` is the npm allclose result with the canonical tolerance constants (`rtol=0.02, atol=0.05` for views; per-dist for shapes) — those constants are shared with L11/L13. | ✓ 2026-05-14 |
+| 5 | Re-use stale L11.json from a prior commit (skip the L11 re-run) | Layer C2 reads `L11.json.pairs_passed == 50` — passes for a stale-but-consistent file. The DYNAMIC catch lives in the FULL gate sweep: when `bash gate.sh` runs without args, L11.sh re-executes and overwrites L11.json with fresh evidence. If that fresh evidence ever shows < 50, L11 RED → sweep aborts before reaching L15.B. So the predicate's correctness is anchored upstream. | ✓ 2026-05-14 |
+| 6 | Stub the audit functions to return `verdict: pass` unconditionally | Layer D3 grep on the gate script catches `"verdict": "pass"` hard-codes (0 expected). The audit module is committed; stubs would land in the diff. Cross-check: the audit DERIVES verdicts from the evidence files; a stub returning constant pass would mismatch evidence content under the criterion `evidence` field (e.g. a stubbed `renderer` verdict that reports `L12.byte_equal_pass=0/10` is inconsistent and a future reader catches it). | ✓ 2026-05-14 |
+| 7 | Skip the static `check_no_tinygrad_deps.sh` invocation | Criterion 5 (`runtime`) audit calls it directly via `subprocess.run([...]).returncode == 0`. Removing the call would make `static_indep = False` → criterion fail → gate exits 1. | ✓ 2026-05-14 |
+
+Note on dynamic independence: the L15.B audit treats
+`runtime_independence.sh` as OPT-IN via `TGRAD_L15B_DYNAMIC=1` because
+running it inside the gate would be circular (it itself runs the full
+gate sweep). The script's existence + executability is what the gate
+audits at default invocation; the actual dynamic indep check is
+exercised by `bash scripts/gate.sh` running without args (which
+verifies the entire ratchet on the current commit), and the user MAY
+set `TGRAD_L15B_DYNAMIC=1` to enable the in-gate run when explicitly
+benchmarking. The narrowing is documented in `L15_B.json.criteria[1]
+.evidence` and re-cited in `EXPERIMENT_RESULT.md` at L15.C.

@@ -1,0 +1,16 @@
+{
+  "gate": "L7",
+  "ts_utc": "2026-06-22T14:28:50Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L7.a — single-shape (bf16 64×64) perf parity via real FFI",
+  "lean_ms_median":     0.2362,
+  "tinygrad_ms_median": 0.731,
+  "ratio":              0.3231,
+  "predicate":          "ratio <= 1.5",
+  "hashes": {
+    "timing_output_sha256":  "52e3e88c2c24e97d2aa566bcccb764b8aedf125f0a83051b3297fb64f958bd42",
+    "baseline_sha256":       "bde5242c8c798f1f4a203373f221d6b5270d21b3b90fa54fe0f22e9f0a82f298"
+  }
+}

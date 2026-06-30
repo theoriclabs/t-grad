@@ -1,0 +1,21 @@
+{
+  "gate": "L11",
+  "ts_utc": "2026-06-22T14:38:50Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L11 — full benchmark parity (50 shape×dist pairs); no fall-back",
+  "pairs_total":   50,
+  "pairs_passed":  50,
+  "pairs_failed":  0,
+  "ratio_ok":      50,
+  "ratio_min":     0.3582,
+  "ratio_median":  0.9354,
+  "ratio_max":     1.284,
+  "hashes": {
+    "bench_jsonl_sha256":     "509a32cce4ae33ceb7d539d2879ebf4b2e0fc91733200ec56695fd8b7d9ffcf2",
+    "pair_manifest_sha256":   "c5f3a8aead4c7bda0d928799c152e6e4b6a3d7aff71ad8b67da9604cd785ede5",
+    "dist_tolerances_sha256": "07288bf0fd8cbf13a659f29a68155c293845285971576e5351eb7c91e98ad54c",
+    "baseline_full_sha256":   "706b32d6689eb42e03fbcca05d8ee71461249f2b5c89672e0cff41cbc7e1f315"
+  }
+}

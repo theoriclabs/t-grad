@@ -1,0 +1,12 @@
+{
+  "gate": "L10",
+  "ts_utc": "2026-06-22T14:28:51Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L10.a — rangeify coverage extended (1 new fixture); full pm_mops + INDEX/AFTER/SHAPED_WMMA + ctx-carrying rules is L10.b",
+  "hashes": {
+    "l2_rangeify_sha256":   "b8b6097b88cd53043fc2675ffef28559f626d1b019287b04366f53ad61ac9c90",
+    "l10_rangeify_sha256":  "166f55102f8df7b145c13148f12dfe3777cce7537a0d70951093dd82b68c1089"
+  }
+}

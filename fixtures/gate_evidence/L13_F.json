@@ -1,0 +1,27 @@
+{
+  "gate": "L13_F",
+  "ts_utc": "2026-06-22T14:49:34Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L13.F — optimized non-sentinel TC/WMMA general matmul (strict perf predicate)",
+  "tc_general_total":         8,
+  "tc_general_correct":       8,
+  "tc_general_wmma":          8,
+  "tc_general_scalar_routes": 0,
+  "tc_general_manual_load":   8,
+  "random_tc_total":          10,
+  "random_tc_wmma":           10,
+  "random_tc_correct":        10,
+  "random_seed_used":         "a06d475cba262dfe",
+  "ratio_max":                0.8786,
+  "perf_ratio_max":           0.8786,
+  "perf_predicate":           "ratio ≤ 1.5",
+  "production_kernel":        "tcMatmulKernelDeclManualLoad",
+  "hashes": {
+    "bench_jsonl_sha256":  "c3c6a4d0b7f1fed246025130252cf67f02f53195d277395dc511d92af524e096",
+    "random_jsonl_sha256": "9737e7b153499987fcebacacce35d7f518199f79e12ae74b4adc03e3d6e36e12",
+    "manifest_sha256":     "20ab8ce5a0401cb0e019eda85f6588c9200caa1fe2953956e1fb604623dfc952",
+    "tinygrad_baseline_tc_general_sha256": "f710769ef523b9e7fc239694827791d018fec2463763dd2722bac91127d6635c"
+  }
+}

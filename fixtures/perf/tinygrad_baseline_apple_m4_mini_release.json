@@ -1,0 +1,22 @@
+{
+  "host_profile": "apple_m4_mini_release",
+  "shape": "64x64x64",
+  "dtype": "bf16",
+  "n_warmup": 50,
+  "n_measured": 200,
+  "tinygrad_ms": {
+    "min": 0.6912,
+    "p10": 0.7015,
+    "p25": 0.7065,
+    "median": 0.7165,
+    "p75": 0.7242,
+    "p90": 0.7437,
+    "max": 0.9205
+  },
+  "device": "METAL",
+  "env": {
+    "USE_TC": "1",
+    "BEAM": "0",
+    "NOOPT": "0"
+  }
+}

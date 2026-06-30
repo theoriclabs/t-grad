@@ -1,0 +1,29 @@
+{
+  "kernel_count": 4,
+  "items": [
+    {
+      "kind": "COPY",
+      "function_name": null,
+      "buffer_count": 2,
+      "total_src_count": 3
+    },
+    {
+      "kind": "COPY",
+      "function_name": null,
+      "buffer_count": 2,
+      "total_src_count": 3
+    },
+    {
+      "kind": "COPY",
+      "function_name": null,
+      "buffer_count": 2,
+      "total_src_count": 3
+    },
+    {
+      "kind": "SINK",
+      "function_name": "test",
+      "buffer_count": 4,
+      "total_src_count": 5
+    }
+  ]
+}

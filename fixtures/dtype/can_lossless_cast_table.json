@@ -1,0 +1,982 @@
+[
+  {
+    "dt0": "bool",
+    "dt1": "bool",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "int8",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "uint8",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "int16",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "uint16",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "int32",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "uint32",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "uint64",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "float16",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "bfloat16",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "bool",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "int64",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "float32",
+    "can_cast": false
+  },
+  {
+    "dt0": "weakint",
+    "dt1": "float64",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "int8",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "int16",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "int32",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "float16",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int8",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "int8",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "uint8",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "int16",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "uint16",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "int32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "uint32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "uint64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "float16",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint8",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int16",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "int16",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "int16",
+    "can_cast": true
+  },
+  {
+    "dt0": "int16",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "int32",
+    "can_cast": true
+  },
+  {
+    "dt0": "int16",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int16",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int16",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "int16",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "uint16",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "int32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "uint32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "uint64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint16",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int32",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "int32",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "int32",
+    "can_cast": true
+  },
+  {
+    "dt0": "int32",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int32",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "float32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int32",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "uint32",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "uint64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "float32",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint32",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int64",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "int64",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "int64",
+    "can_cast": true
+  },
+  {
+    "dt0": "int64",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "float32",
+    "can_cast": false
+  },
+  {
+    "dt0": "int64",
+    "dt1": "float64",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "weakint",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "int64",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "uint64",
+    "can_cast": true
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "float32",
+    "can_cast": false
+  },
+  {
+    "dt0": "uint64",
+    "dt1": "float64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "weakint",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "int64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "float16",
+    "can_cast": true
+  },
+  {
+    "dt0": "float16",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float16",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "float16",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "weakint",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "int64",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "bfloat16",
+    "can_cast": true
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "bfloat16",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "float32",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "weakint",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "int64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float32",
+    "dt1": "float32",
+    "can_cast": true
+  },
+  {
+    "dt0": "float32",
+    "dt1": "float64",
+    "can_cast": true
+  },
+  {
+    "dt0": "float64",
+    "dt1": "bool",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "weakint",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "int8",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "uint8",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "int16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "uint16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "int32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "uint32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "int64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "uint64",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "float16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "bfloat16",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "float32",
+    "can_cast": false
+  },
+  {
+    "dt0": "float64",
+    "dt1": "float64",
+    "can_cast": true
+  }
+]

@@ -1,0 +1,14 @@
+.lake/
+build/
+*.olean
+*.olean.lock
+*.olean.trace
+.cache/
+c/build/
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+.venv-*/
+dist/
+*.egg-info/

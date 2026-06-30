@@ -1,0 +1,31 @@
+{
+  "gate": "L13_F_STRICT_B",
+  "ts_utc": "2026-06-22T14:51:56Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L13.F.STRICT.B - manual-load tinygrad-shaped TC kernel (correctness; perf measured)",
+  "manual_load_total": 8,
+  "manual_load_correct": 8,
+  "manual_load_wmma": 8,
+  "manual_load_scalar_routes": 0,
+  "random_total": 10,
+  "random_correct": 10,
+  "random_wmma": 10,
+  "tg_memory_present": true,
+  "barriers_present": true,
+  "manual_load_msl_uses_thread_elements": true,
+  "perf_ratio_max_manual_load": 0.8797,
+  "perf_ratio_median_manual_load": 0.81955,
+  "perf_ratio_min_manual_load": 0.5659,
+  "perf_ratio_max_simdgroup_load": 0.8786,
+  "l13_f_regression": "pass",
+  "l13_f_strict_a_regression": "pass",
+  "l12_regression": "pass",
+  "hashes": {
+    "matmul_tc_module_sha256": "45ebae0cb6e8bc27ca39b1a5a8aa46df8c888d0d2d17ac4b1a4997759b317e21",
+    "metal_renderer_sha256": "e30d41f3e3964436a064423506c4d0700ccc88ba611f6d4c902e516f3907ad28",
+    "pinned_jsonl_sha256": "ca419876ceaf49ea80ada6853ab1bbbd5068d7608ea5584ffcf2cf0703f5cb7d",
+    "random_jsonl_sha256": "c135a8276ee6e2f13f53360c31583723468f5da05c7f3a84fa52716ab76f9d4e"
+  }
+}

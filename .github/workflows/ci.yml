@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      TGRAD_PERF_PROFILE: apple_m4_mini_release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Lean
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install Python package
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e '.[dev]'
+
+      - name: Build native and Lean artifacts
+        run: |
+          set -euxo pipefail
+          xcrun --sdk macosx --show-sdk-path
+          make -C c
+          lake build Tgrad:shared tgrad-cli tgrad-tests
+          make -C c dylib
+
+      - name: Static checks
+        run: |
+          set -euxo pipefail
+          find scripts -name '*.sh' -print0 | xargs -0 bash -n
+          bash scripts/check_no_tinygrad_deps.sh
+          python -m build
+
+      - name: Smoke tests
+        run: |
+          set -euxo pipefail
+          .lake/build/bin/tgrad-tests
+          bash scripts/devcheck.sh --all

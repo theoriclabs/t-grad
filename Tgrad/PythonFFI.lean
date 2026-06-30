@@ -1,0 +1,532 @@
+import Tgrad.Runtime.Buffer
+import Tgrad.Runtime.MetalProgram
+import Tgrad.Runtime.Cache
+import Tgrad.Pipeline
+import Tgrad.Tensor
+import Tgrad.Renderer.MatmulDecls
+import Tgrad.Renderer.MatmulScalar
+import Tgrad.Renderer.MatmulTc
+import Tgrad.Codegen.Opt.Heuristic
+
+/-! # Tgrad.PythonFFI — `@[export]` entries for Python ctypes
+
+  The Lean-owns-the-runtime side of the L6 bridge. Python calls in
+  via tiny C trampolines in `c/tgrad_python.c`, which translate
+  ctypes-friendly args (uint64, const uint8_t*, size_t) into Lean's
+  calling convention and dispatch the `@[export]` entries below.
+
+  Direction is **inverted** vs L4's `@[extern]` (which is Lean → C):
+  here Python → C → Lean. Both directions coexist in the same
+  `libtgrad.dylib` produced by `c/Makefile`'s `dylib` target.
+
+  Long-form spec lived in the pre-v1.0.0 `Tgrad/GOAL_NEXT.md`
+  §G_L6_b ladder; the v1 contract is the @[export] surface below
+  plus `python/tgrad.py`.
+-/
+namespace Tgrad.PythonFFI
+
+/-- Allocate `nBytes` of MTLBuffer memory. Returns the raw MTLBuffer
+    pointer as `UInt64`; 0 on failure. -/
+@[export tgrad_tensor_alloc_lean]
+def tensorAlloc (nBytes : USize) : IO UInt64 :=
+  Tgrad.Runtime.Metal.metalAlloc nBytes
+
+/-- Free a buffer (returns to LRU pool, or releases if pool is full). -/
+@[export tgrad_tensor_free_lean]
+def tensorFree (bufPtr : UInt64) (nBytes : USize) : IO Unit :=
+  Tgrad.Runtime.Metal.metalFree bufPtr nBytes
+
+/-- Write a `ByteArray` of host bytes into a buffer at offset 0. -/
+@[export tgrad_tensor_write_bytes_lean]
+def tensorWriteBytes (bufPtr : UInt64) (bytes : @& ByteArray) : IO Unit :=
+  Tgrad.Runtime.Metal.metalBufferWriteBytes bufPtr bytes
+
+/-- Read `nBytes` from a buffer's contents into a fresh `ByteArray`. -/
+@[export tgrad_tensor_read_bytes_lean]
+def tensorReadBytes (bufPtr : UInt64) (nBytes : USize) : IO ByteArray :=
+  Tgrad.Runtime.Metal.metalBufferReadBytes bufPtr nBytes
+
+/-- Cache for the compiled bf16 64×64 matmul library. Lazy: first
+    matmul64x64 call reads the MSL fixture and compiles; subsequent
+    calls reuse the cached library pointer. Skipping the per-call
+    `IO.FS.readFile` + `metalCompile` + `metalLibraryRelease` cycle
+    is the load-bearing perf optimization for L7's ratio predicate. -/
+initialize cachedMatmul64Lib : IO.Ref UInt64 ← IO.mkRef 0
+
+/-- Run the captured bf16 64×64 matmul kernel with caller-supplied
+    input and output MTLBuffer pointers. Returns 0 on success;
+    negative codes match `metal_alloc.m`'s contract:
+       -1: MSL fixture missing on disk
+       -2: empty MSL
+       -3: metalCompile returned 0
+       other: dispatch's signed rc reinterpreted via `UInt32.toInt32`. -/
+@[export tgrad_matmul_64x64_lean]
+def matmul64x64 (aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  -- Load the compiled library once; reuse across calls.
+  let mut libPtr ← cachedMatmul64Lib.get
+  if libPtr == 0 then
+    let mslPath := "fixtures/codegen/matmul_64x64.msl"
+    let msl ← (try IO.FS.readFile (System.FilePath.mk mslPath)
+               catch _ => pure "")
+    if msl.isEmpty then return -1
+    libPtr ← Tgrad.Runtime.Metal.metalCompile msl
+    if libPtr == 0 then return -2
+    cachedMatmul64Lib.set libPtr
+  -- Match Pipeline.realize's dispatch: grid × threadgroup = total threads.
+  let totalX : USize := USize.ofNat (2 * 32)
+  let totalY : USize := USize.ofNat (1 * 2)
+  let totalZ : USize := USize.ofNat (1 * 1)
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr "r_2_32_2_2_4_4_8"
+    #[outPtr, aPtr, bPtr]
+    totalX totalY totalZ 32 2 1
+  pure rc.toInt32
+
+-- ----------------------------------------------------------------------
+-- L11: general matmul entry — accepts (M, K, N), routes via ShapeSentinel.
+-- ----------------------------------------------------------------------
+
+/-- Per-shape compiled-library cache. Key: ShapeSentinel toString.
+    Value: MTLLibrary pointer (UInt64; 0 = not yet compiled). First
+    call for a shape compiles + caches; subsequent calls reuse. -/
+initialize libCache : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def cacheKey : Tgrad.Renderer.Metal.ShapeSentinel → String
+  | .bf16_64x64             => "bf16_64x64"
+  | .bf16_1024x1024         => "bf16_1024x1024"
+  | .bf16_2048x2048         => "bf16_2048x2048"
+  | .bf16_4096x4096         => "bf16_4096x4096"
+  | .bf16_8192x8192         => "bf16_8192x8192"
+  | .bf16_8192x1024x1024    => "bf16_8192x1024x1024"
+  | .bf16_4096x1024x1024    => "bf16_4096x1024x1024"
+  | .bf16_2048x1024x1024    => "bf16_2048x1024x1024"
+  | .bf16_1024x1024x8192    => "bf16_1024x1024x8192"
+  | .bf16_1024x1024x4096    => "bf16_1024x1024x4096"
+  | .bf16_1024x1024x2048    => "bf16_1024x1024x2048"
+
+private def cacheLookup (key : String) : List (String × UInt64) → UInt64
+  | []              => 0
+  | (k, v) :: rest  => if k == key then v else cacheLookup key rest
+
+private def compileOrCacheGet (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : IO UInt64 := do
+  let key := cacheKey sentinel
+  let cache ← libCache.get
+  let cached := cacheLookup key cache
+  if cached != 0 then
+    return cached
+  let mslPath := sentinel.fixturePath
+  let msl ← (try IO.FS.readFile (System.FilePath.mk mslPath) catch _ => pure "")
+  if msl.isEmpty then return 0
+  let lib ← Tgrad.Runtime.Metal.metalCompile msl
+  if lib == 0 then return 0
+  libCache.modify (fun c => (key, lib) :: c)
+  pure lib
+
+/-- General bf16 matmul. (M, K, N) selects the right captured MSL via
+    `ShapeSentinel.ofTriple`. Returns 0 on success;
+    negative codes:
+       -1: unsupported (M, K, N) — not in L11 manifest
+       -2: MSL fixture missing OR metalCompile failed
+       other: dispatch rc reinterpreted via UInt32.toInt32. -/
+@[export tgrad_matmul_lean]
+def matmulGeneral (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  let sentinel ← match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M.toNat K.toNat N.toNat with
+    | none   => return -1
+    | some s => pure s
+  let libPtr ← compileOrCacheGet sentinel
+  if libPtr == 0 then return -2
+  let dims := Tgrad.Pipeline.dispatchDimsFor sentinel
+  let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
+  let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
+  let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
+  let fnName := Tgrad.Pipeline.kernelNameFor sentinel
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outPtr, aPtr, bPtr]
+    totalX totalY totalZ
+    (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y) (USize.ofNat dims.threadgroup.z)
+  pure rc.toInt32
+
+-- ----------------------------------------------------------------------
+-- L12: algebraic-emit matmul entry — no IO.FS.readFile, kernel is
+-- rendered from `matmulKernelDeclFor` at compile time. Distinct symbol
+-- from `tgrad_matmul_lean` so the dylib visibly carries both paths and
+-- the L12 gate's anti-cheat can confirm the flag actually routes here.
+-- ----------------------------------------------------------------------
+
+/-- Algebraic-path compiled-library cache. Separate from `libCache` so
+    the two paths never alias: even though the MSL bytes are identical,
+    keeping the caches separate makes the chosen path observable. -/
+initialize libCacheAlg : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetAlg (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : IO UInt64 := do
+  let key := cacheKey sentinel
+  let cache ← libCacheAlg.get
+  let cached := cacheLookup key cache
+  if cached != 0 then
+    return cached
+  -- Algebraic emit: renderKernel is pure, no IO.FS.readFile.
+  let msl := Tgrad.Renderer.Metal.renderKernel
+    (Tgrad.Renderer.Metal.matmulKernelDeclFor sentinel)
+  if msl.isEmpty then return 0
+  let lib ← Tgrad.Runtime.Metal.metalCompile msl
+  if lib == 0 then return 0
+  libCacheAlg.modify (fun c => (key, lib) :: c)
+  pure lib
+
+/-- General bf16 matmul via algebraic emit. (M, K, N) routes through
+    `ShapeSentinel.ofTriple` to pick the right `matmulKernelDeclFor`
+    case. Same dispatch contract as `tgrad_matmul_lean`.
+
+    L12 evidence: the dylib must export `_tgrad_matmul_alg` (separate
+    symbol from `_tgrad_matmul`). The L12 gate's anti-cheat predicate
+    requires the bench's `--use-algebraic-emit` flag to resolve to
+    THIS symbol (and only this one), not silently fall through to the
+    capture-path entry. -/
+@[export tgrad_matmul_alg_lean]
+def matmulGeneralAlg (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  let sentinel ← match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M.toNat K.toNat N.toNat with
+    | none   => return -1
+    | some s => pure s
+  let libPtr ← compileOrCacheGetAlg sentinel
+  if libPtr == 0 then return -2
+  let dims := Tgrad.Pipeline.dispatchDimsFor sentinel
+  let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
+  let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
+  let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
+  let fnName := Tgrad.Pipeline.kernelNameFor sentinel
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outPtr, aPtr, bPtr]
+    totalX totalY totalZ
+    (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y) (USize.ofNat dims.threadgroup.z)
+  pure rc.toInt32
+
+-- ----------------------------------------------------------------------
+-- L13.B: scalar-matmul entry for below-TC-tile shapes (M, K, or N < 8).
+-- The kernel is emitted algebraically from `scalarMatmulKernelDecl`;
+-- one thread per output element, no WMMA. Distinct symbol from
+-- `tgrad_matmul_lean` so the L13.B gate's anti-cheat can confirm the
+-- below-TC-tile path is observably wired (not silent fall-through to
+-- the sentinel path).
+-- ----------------------------------------------------------------------
+
+/-- Scalar-path compiled-library cache, keyed by `"<M>x<K>x<N>"`. -/
+initialize libCacheSmall : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetSmall (M K N : Nat) : IO UInt64 := do
+  let key := s!"{M}x{K}x{N}"
+  let cache ← libCacheSmall.get
+  let cached := cacheLookup key cache
+  if cached != 0 then
+    return cached
+  let msl := Tgrad.Renderer.Metal.renderKernel
+    (Tgrad.Renderer.Metal.scalarMatmulKernelDecl M K N)
+  if msl.isEmpty then return 0
+  let lib ← Tgrad.Runtime.Metal.metalCompile msl
+  if lib == 0 then return 0
+  libCacheSmall.modify (fun c => (key, lib) :: c)
+  pure lib
+
+/-- L13.B + L13.C scalar matmul. For any (M, K, N) that
+    `pickDispatchPlan` returns with `useTc == false` — i.e., not in
+    the TC-eligible production sentinel set. Covers:
+      * L13.B: below-TC-tile (M, K, or N < 8) — 5 manifest entries
+      * L13.C: catch-all general path — any other non-sentinel bf16
+                shape (TC-aligned-non-pow2, pow2-non-benchmark,
+                asym-tall, asym-wide, large-mixed)
+    Returns 0 on success;
+       -1 : (M, K, N) is TC-eligible (caller should use tgrad_matmul
+            or tgrad_matmul_alg instead)
+       -2 : compile failed
+       other : dispatch rc -/
+@[export tgrad_matmul_small_lean]
+def matmulSmall (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  let Mn := M.toNat
+  let Kn := K.toNat
+  let Nn := N.toNat
+  -- For L13.B/C/D: route ALL non-sentinel shapes through the scalar
+  -- path. The dispatch dims for the scalar are always (M, N, 1)
+  -- regardless of what `pickDispatchPlan`'s formula says — the
+  -- production formula's `useTc=true` is meant for the captured-MSL
+  -- path (sentinel shapes only), not for shapes that happen to match
+  -- the formula but aren't in the L11 capture set. Caller (Python)
+  -- gates by `_TRIPLE_SET` membership; the scalar path here is the
+  -- correctness-only fallback for everything else.
+  if Mn < 1 ∨ Kn < 1 ∨ Nn < 1 then return -1
+  let libPtr ← compileOrCacheGetSmall Mn Kn Nn
+  if libPtr == 0 then return -2
+  -- Scalar dispatch: grid=(M, N, 1), tg=(1, 1, 1).
+  let totalX : USize := USize.ofNat Mn
+  let totalY : USize := USize.ofNat Nn
+  let totalZ : USize := 1
+  let fnName := s!"matmul_scalar_{Mn}x{Kn}x{Nn}"
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outPtr, aPtr, bPtr]
+    totalX totalY totalZ
+    1 1 1
+  pure rc.toInt32
+
+-- ----------------------------------------------------------------------
+-- L13.F: TC-eligible non-sentinel general matmul. Production now routes
+-- through the manual-load WMMA kernel from L13.F.STRICT.B/C. There is no
+-- scalar fallback for shapes meeting the TC-eligibility predicate.
+-- ----------------------------------------------------------------------
+
+initialize libCacheTcManual : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetTcManual (M K N : Nat) : IO UInt64 := do
+  let key := s!"manual:{M}x{K}x{N}"
+  let cache ← libCacheTcManual.get
+  let cached := cacheLookup key cache
+  if cached != 0 then
+    return cached
+  match Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoad M K N with
+  | .error _ => return 0
+  | .ok kd =>
+      let msl := Tgrad.Renderer.Metal.renderKernel kd
+      if msl.isEmpty then return 0
+      let lib ← Tgrad.Runtime.Metal.metalCompile msl
+      if lib == 0 then return 0
+      libCacheTcManual.modify (fun c => (key, lib) :: c)
+      pure lib
+
+/-- L13.F TC matmul. For shapes meeting the L13.F eligibility
+    constraints (M, K, N ≥ 128; M % 32 = 0; K % 8 = 0; N % 128 = 0).
+    Generates a Lean-owned manual-load WMMA kernel.
+    Returns -1 if shape is NOT TC-eligible (caller should route via
+    `tgrad_matmul_small` instead). -/
+@[export tgrad_matmul_tc_lean]
+def matmulTc (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  let Mn := M.toNat
+  let Kn := K.toNat
+  let Nn := N.toNat
+  if Mn < 128 ∨ Kn < 128 ∨ Nn < 128 ∨
+     Mn % 32 != 0 ∨ Kn % 8 != 0 ∨ Nn % 128 != 0 then
+    return -1
+  let libPtr ← compileOrCacheGetTcManual Mn Kn Nn
+  if libPtr == 0 then return -2
+  -- Dispatch: grid=(N/128, M/32, 1), tg=(32, 4, 1). Metal's
+  -- dispatch API takes total threads, so multiply grid by tg.
+  let totalX : USize := USize.ofNat ((Nn / 128) * 32)
+  let totalY : USize := USize.ofNat ((Mn / 32) * 4)
+  let totalZ : USize := 1
+  let fnName := s!"matmul_tc_manual_{Mn}x{Kn}x{Nn}"
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outPtr, aPtr, bPtr]
+    totalX totalY totalZ
+    32 4 1
+  pure rc.toInt32
+
+/-- L13.F.STRICT.B manual-load TC matmul. Installed as a distinct
+    entry so the bench harness can prove correctness/perf before
+    L13.F.STRICT.C makes it the production TC path. -/
+@[export tgrad_matmul_tc_manual_load_lean]
+def matmulTcManualLoad (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  let Mn := M.toNat
+  let Kn := K.toNat
+  let Nn := N.toNat
+  if Mn < 128 ∨ Kn < 128 ∨ Nn < 128 ∨
+     Mn % 32 != 0 ∨ Kn % 8 != 0 ∨ Nn % 128 != 0 then
+    return -1
+  let libPtr ← compileOrCacheGetTcManual Mn Kn Nn
+  if libPtr == 0 then return -2
+  -- Dispatch: grid=(N/128, M/32, 1), tg=(32, 4, 1). Metal's
+  -- dispatch API takes total threads, so multiply grid by tg.
+  let totalX : USize := USize.ofNat ((Nn / 128) * 32)
+  let totalY : USize := USize.ofNat ((Mn / 32) * 4)
+  let totalZ : USize := 1
+  let fnName := s!"matmul_tc_manual_{Mn}x{Kn}x{Nn}"
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outPtr, aPtr, bPtr]
+    totalX totalY totalZ
+    32 4 1
+  pure rc.toInt32
+
+/-- L13.F query: does Lean's manual-load TC decl consider this shape
+    TC-eligible? Pure check that Python can call BEFORE dispatch to decide
+    TC vs scalar routing. Returns 1 if eligible, 0 if not. -/
+@[export tgrad_matmul_tc_eligible_lean]
+def matmulTcEligible (M K N : USize) : IO UInt32 := do
+  let Mn := M.toNat
+  let Kn := K.toNat
+  let Nn := N.toNat
+  match Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoad Mn Kn Nn with
+  | .error _ => pure 0
+  | .ok _    => pure 1
+
+-- ----------------------------------------------------------------------
+-- L14.A: TensorRegistry + tgrad_tensor_from_buffer.
+--
+-- Python holds an opaque `UInt64` handle; Lean owns the underlying
+-- `Tensor` (UOp graph + dtype). L14.B's view methods (transpose,
+-- reshape, permute, expand, slice) consume a handle, look up the
+-- Tensor, compose a movement-node onto its uop, and register the
+-- result, returning a new handle. L14.A only ships the BUFFER path:
+-- Python allocates a buffer with `tgrad_tensor_alloc`, writes bytes
+-- in, then registers a Tensor whose uop is `.buffer (h, shape, dtype)`.
+-- ----------------------------------------------------------------------
+
+/-- Lean-side Tensor registry: opaque `UInt64` handle → `Tensor`. The
+    map is append-only at L14.A (release is L14.B+ work — for now
+    Python's existing `tgrad_tensor_free` reclaims the underlying
+    MTLBuffer, and the registry entry is never re-used). -/
+initialize tensorRegistry : IO.Ref (List (UInt64 × Tgrad.Tensor)) ← IO.mkRef []
+
+/-- Monotonic counter for the next handle to hand out. -/
+initialize nextTensorHandle : IO.Ref UInt64 ← IO.mkRef 1
+
+namespace TensorRegistry
+
+/-- Register a Tensor; return its handle. -/
+def register (t : Tgrad.Tensor) : IO UInt64 := do
+  let h ← nextTensorHandle.get
+  nextTensorHandle.set (h + 1)
+  tensorRegistry.modify (fun reg => (h, t) :: reg)
+  pure h
+
+/-- Look up the Tensor for a handle. Returns `none` if the handle was
+    never registered (or was released — but L14.A is append-only). -/
+def get? (h : UInt64) : IO (Option Tgrad.Tensor) := do
+  let reg ← tensorRegistry.get
+  pure (reg.find? (fun p => p.1 == h) |>.map Prod.snd)
+
+end TensorRegistry
+
+/-- Stable FFI dtype encoding. Matches what `python/tgrad.py`
+    passes for L14.A constructors. -/
+def dtypeOfCode (code : UInt8) : Tgrad.Dtype :=
+  match code with
+  | 0 => .bfloat16_
+  | 1 => .float32_
+  | 2 => .float16_
+  | 3 => .int32_
+  | _ => .bfloat16_  -- default; FFI callers should not exceed the table
+
+/-- L14.A: construct a `Tensor` with `uop := .buffer h shape dtype`,
+    register it, return the opaque handle.
+
+    `shape` is an Array USize (arbitrary rank); `dtypeCode` is the
+    stable FFI encoding (`dtypeOfCode`). The C trampoline marshals a
+    `const size_t* shape + size_t ndim` into the Lean Array. -/
+@[export tgrad_tensor_from_buffer_lean]
+def tensorFromBuffer
+    (bufHandle : UInt64) (shape : @& Array USize) (dtypeCode : UInt8) :
+    IO UInt64 := do
+  let dt   := dtypeOfCode dtypeCode
+  let dims : List Nat := shape.toList.map USize.toNat
+  let t    : Tgrad.Tensor := { uop := .buffer bufHandle dims dt, dtype := dt }
+  TensorRegistry.register t
+
+/-- L14.A: query the registered shape rank for a tensor handle. Lets
+    L14.B's view-method tests verify lookups round-trip via the FFI.
+    Returns 0 if the handle isn't registered. -/
+@[export tgrad_tensor_rank_lean]
+def tensorRank (h : UInt64) : IO USize := do
+  let some t ← TensorRegistry.get? h | pure 0
+  pure (USize.ofNat t.shape.length)
+
+/-- L14.A: query a single shape dim for a tensor handle. `i` is the
+    axis index (0-based). Returns 0 if handle/index invalid. -/
+@[export tgrad_tensor_shape_dim_lean]
+def tensorShapeDim (h : UInt64) (i : USize) : IO USize := do
+  let some t ← TensorRegistry.get? h | pure 0
+  pure (USize.ofNat ((t.shape[i.toNat]?).getD 0))
+
+/-- L14.A: query the underlying MTLBuffer pointer for a tensor handle. -/
+@[export tgrad_tensor_raw_buffer_lean]
+def tensorRawBuffer (h : UInt64) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h | pure 0
+  pure t.buffer.raw
+
+-- ----------------------------------------------------------------------
+-- L14.B.1: view-method @[export] entries.
+--
+-- Each takes an opaque tensor handle + op-specific args; composes a
+-- movement node onto the underlying Tensor's uop; registers the result;
+-- returns a new opaque handle. Pure: no buffer allocation, no kernel
+-- dispatch, no IO beyond IO.Ref bookkeeping.
+-- ----------------------------------------------------------------------
+
+/-- L14.B.1: `Tensor.transpose` (2-D PERMUTE [1, 0]). -/
+@[export tgrad_tensor_transpose_lean]
+def tensorTranspose (h : UInt64) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h
+    | throw <| IO.userError s!"tgrad_tensor_transpose: handle {h} not registered"
+  TensorRegistry.register t.transpose
+
+/-- L14.B.1: `Tensor.permute axes`. `axes` is the new axis order as
+    `Array USize`. -/
+@[export tgrad_tensor_permute_lean]
+def tensorPermute (h : UInt64) (axes : @& Array USize) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h
+    | throw <| IO.userError s!"tgrad_tensor_permute: handle {h} not registered"
+  let axesNat : List Nat := axes.toList.map USize.toNat
+  TensorRegistry.register (t.permute axesNat)
+
+/-- L14.B.1: `Tensor.reshape newShape`. `newShape` is `Array USize`. -/
+@[export tgrad_tensor_reshape_lean]
+def tensorReshape (h : UInt64) (newShape : @& Array USize) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h
+    | throw <| IO.userError s!"tgrad_tensor_reshape: handle {h} not registered"
+  let shape : List Nat := newShape.toList.map USize.toNat
+  TensorRegistry.register (t.reshape shape)
+
+/-- L14.B.1: `Tensor.expand newShape`. `newShape` is `Array USize`. -/
+@[export tgrad_tensor_expand_lean]
+def tensorExpand (h : UInt64) (newShape : @& Array USize) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h
+    | throw <| IO.userError s!"tgrad_tensor_expand: handle {h} not registered"
+  let shape : List Nat := newShape.toList.map USize.toNat
+  TensorRegistry.register (t.expand shape)
+
+/-- L14.B.1: `Tensor.slice slices`. `slices` is a flat `Array USize`
+    holding `[start_0, stop_0, step_0, start_1, stop_1, step_1, ...]`
+    per axis (3 USize per axis). -/
+@[export tgrad_tensor_slice_lean]
+def tensorSlice (h : UInt64) (slicesFlat : @& Array USize) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h
+    | throw <| IO.userError s!"tgrad_tensor_slice: handle {h} not registered"
+  let n := slicesFlat.size / 3
+  let slices : List Tgrad.Slice := List.range n |>.map (fun i =>
+    let start := (slicesFlat[3 * i]?).getD 0
+    let stop  := (slicesFlat[3 * i + 1]?).getD 0
+    let step  := (slicesFlat[3 * i + 2]?).getD 1
+    { start := start.toNat, stop := stop.toNat, step := step.toNat })
+  TensorRegistry.register (t.slice slices)
+
+/-- L14.B.1: query the UOp kind of a tensor handle's root. Returns a
+    code per `UOpKind.toStr` (`tgrad/python/tgrad.py` decodes):
+       0 = BUFFER, 1 = PERMUTE, 2 = RESHAPE, 3 = EXPAND, 4 = SLICE,
+       255 = other / handle unregistered.
+    Used by Python's matmul to route to `tgrad_matmul_view` when the
+    input has a non-BUFFER uop (L14.B.2.c replaced L14.B.1's typed
+    error). -/
+@[export tgrad_tensor_uop_kind_lean]
+def tensorUopKind (h : UInt64) : IO UInt8 := do
+  let some t ← TensorRegistry.get? h | pure 255
+  pure (match t.uop with
+    | .buffer _ _ _  => 0
+    | .permute _ _   => 1
+    | .reshape _ _   => 2
+    | .expand _ _    => 3
+    | .slice _ _     => 4
+    | _              => 255)
+
+-- ----------------------------------------------------------------------
+-- L14.B.2.c: view-aware matmul. Replaces the L14.B.1 typed-error
+-- guard (`MatmulOnNonBufferUop`) — when either input has a non-BUFFER
+-- uop, Python routes through this entry which calls
+-- `Pipeline.realizeView` (parametric scalar matmul with index UOps
+-- derived from the input uop chains). Returns the new opaque tensor
+-- handle for the output (with BUFFER root); 0 on error.
+-- ----------------------------------------------------------------------
+
+@[export tgrad_matmul_view_lean]
+def matmulView (aHandle bHandle : UInt64) : IO UInt64 := do
+  let some a ← TensorRegistry.get? aHandle | pure 0
+  let some b ← TensorRegistry.get? bHandle | pure 0
+  let res ← Tgrad.Pipeline.realizeView a b
+  match res with
+  | .error _ => pure 0
+  | .ok t    => TensorRegistry.register t
+
+end Tgrad.PythonFFI
+

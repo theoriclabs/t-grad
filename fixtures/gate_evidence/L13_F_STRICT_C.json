@@ -1,0 +1,25 @@
+{
+  "gate": "L13_F_STRICT_C",
+  "ts_utc": "2026-06-22T14:51:56Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "macOS-15.5-arm64-arm-64bit-Mach-O",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L13.F.STRICT.C \u2014 perf parity flip (manual-load kernel as production; \u00a71.RELAX rescinded)",
+  "perf_predicate": "ratio \u2264 1.5",
+  "relax_retracted": true,
+  "production_kernel": "tcMatmulKernelDeclManualLoad",
+  "old_kernel_status": "not referenced by PythonFFI production routing",
+  "pinned_total": 8,
+  "pinned_correct": 8,
+  "pinned_manual_load": 8,
+  "pinned_ratio_max": 0.8786,
+  "random_total": 10,
+  "random_correct": 10,
+  "random_wmma": 10,
+  "l13_f_evidence_sha256": "470ef20872591eeff68ce244f8c15a2019ef07adbd431d1475d3fe0b10b64620",
+  "hashes": {
+    "ffi_module_sha256": "baffa3568a6de1ce59d1f2bc67622ddec2e2e21c084d07c9fce8c6450b248a35",
+    "matmul_tc_module_sha256": "45ebae0cb6e8bc27ca39b1a5a8aa46df8c888d0d2d17ac4b1a4997759b317e21",
+    "l13_f_evidence_sha256": "470ef20872591eeff68ce244f8c15a2019ef07adbd431d1475d3fe0b10b64620"
+  }
+}

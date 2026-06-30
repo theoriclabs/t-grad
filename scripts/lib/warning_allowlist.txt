@@ -1,0 +1,17 @@
+# Warning patterns we accept as known-existing.
+# `check_warnings` greps the build log for lines containing "warning:"
+# and rejects any line that doesn't match one of these patterns.
+#
+# To add an allowlist entry: paste the warning text, prefix this file
+# with the date and the gate that introduced it. Removing entries is
+# fine — the next clean build proves it.
+#
+# Format: one regex per line (POSIX BRE, used with `grep -E -f`).
+# Lines starting with `#` are comments.
+#
+# Active entries (2026-05-14 — pre-Tgrad warnings inherited from the
+# Lean 4.29 toolchain's stdlib evolution):
+String\.trimLeft has been deprecated
+String\.trim has been deprecated
+String\.toList has been deprecated
+List\.asString has been deprecated

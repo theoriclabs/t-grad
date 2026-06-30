@@ -1,0 +1,247 @@
+[
+  {
+    "idx": 0,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 0
+    },
+    "src": []
+  },
+  {
+    "idx": 1,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 1000
+    },
+    "src": []
+  },
+  {
+    "idx": 2,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "a"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 3,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "b"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 4,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      2,
+      3
+    ]
+  },
+  {
+    "idx": 5,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "c"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 6,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      4,
+      5
+    ]
+  },
+  {
+    "idx": 7,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 1
+    },
+    "src": []
+  },
+  {
+    "idx": 8,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      6,
+      7
+    ]
+  },
+  {
+    "idx": 9,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "e"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 10,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      8,
+      9
+    ]
+  },
+  {
+    "idx": 11,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "f"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 12,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      10,
+      11
+    ]
+  },
+  {
+    "idx": 13,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 5
+    },
+    "src": []
+  },
+  {
+    "idx": 14,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      12,
+      13
+    ]
+  },
+  {
+    "idx": 15,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 30
+    },
+    "src": []
+  },
+  {
+    "idx": 16,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      14,
+      15
+    ]
+  },
+  {
+    "idx": 17,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 3
+    },
+    "src": []
+  },
+  {
+    "idx": 18,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      16,
+      17
+    ]
+  },
+  {
+    "idx": 19,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      18,
+      17
+    ]
+  },
+  {
+    "idx": 20,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      19,
+      7
+    ]
+  },
+  {
+    "idx": 21,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 4
+    },
+    "src": []
+  },
+  {
+    "idx": 22,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      20,
+      21
+    ]
+  }
+]

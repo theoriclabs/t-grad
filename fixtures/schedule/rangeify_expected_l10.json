@@ -1,0 +1,89 @@
+{
+  "records": [
+    {
+      "idx": 0,
+      "op": "CONST",
+      "dtype": "weakint",
+      "arg": {
+        "kind": "int",
+        "v": 2
+      },
+      "src": []
+    },
+    {
+      "idx": 1,
+      "op": "RANGE",
+      "dtype": "weakint",
+      "arg": {
+        "kind": "tuple",
+        "v": [
+          {
+            "kind": "int",
+            "v": 1
+          },
+          {
+            "kind": "str",
+            "v": "LOOP"
+          }
+        ]
+      },
+      "src": [
+        0
+      ]
+    },
+    {
+      "idx": 2,
+      "op": "CONST",
+      "dtype": "weakint",
+      "arg": {
+        "kind": "int",
+        "v": 3
+      },
+      "src": []
+    },
+    {
+      "idx": 3,
+      "op": "MUL",
+      "dtype": "weakint",
+      "arg": null,
+      "src": [
+        1,
+        2
+      ]
+    },
+    {
+      "idx": 4,
+      "op": "RANGE",
+      "dtype": "weakint",
+      "arg": {
+        "kind": "tuple",
+        "v": [
+          {
+            "kind": "int",
+            "v": 0
+          },
+          {
+            "kind": "str",
+            "v": "LOOP"
+          }
+        ]
+      },
+      "src": [
+        2
+      ]
+    },
+    {
+      "idx": 5,
+      "op": "ADD",
+      "dtype": "weakint",
+      "arg": null,
+      "src": [
+        3,
+        4
+      ]
+    }
+  ],
+  "roots": [
+    5
+  ]
+}

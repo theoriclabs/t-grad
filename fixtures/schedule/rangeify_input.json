@@ -1,0 +1,29 @@
+{
+  "chain_forward": [
+    {
+      "op": "RESHAPE",
+      "in_shape": [
+        4
+      ],
+      "arg": [
+        2,
+        2
+      ]
+    },
+    {
+      "op": "PERMUTE",
+      "in_shape": [
+        2,
+        2
+      ],
+      "arg": [
+        1,
+        0
+      ]
+    }
+  ],
+  "out_shape": [
+    2,
+    2
+  ]
+}

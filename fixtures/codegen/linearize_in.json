@@ -1,0 +1,87 @@
+[
+  {
+    "idx": 0,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 0
+    },
+    "src": []
+  },
+  {
+    "idx": 1,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 100
+    },
+    "src": []
+  },
+  {
+    "idx": 2,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "a"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 3,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "b"
+    },
+    "src": [
+      0,
+      1
+    ]
+  },
+  {
+    "idx": 4,
+    "op": "ADD",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      2,
+      3
+    ]
+  },
+  {
+    "idx": 5,
+    "op": "MUL",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      2,
+      3
+    ]
+  },
+  {
+    "idx": 6,
+    "op": "MUL",
+    "dtype": "int",
+    "arg": null,
+    "src": [
+      4,
+      5
+    ]
+  },
+  {
+    "idx": 7,
+    "op": "SINK",
+    "dtype": "void",
+    "arg": null,
+    "src": [
+      6
+    ]
+  }
+]

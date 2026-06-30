@@ -1,0 +1,14 @@
+{
+  "gate": "L14_B",
+  "ts_utc": "2026-06-22T14:51:59Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L14.B umbrella — view methods (5 movement ctors) + index-UOp-driven matmul codegen + 16 pinned view-matmul cases passing",
+  "sub_gates_green": ["L14_B_1", "L14_B_2", "L14_B_3"],
+  "hashes": {
+    "L14_B_1_evidence_sha256": "95062774b54979efd6687f3fa4b272f9301641e21351660249a151bfe7396425",
+    "L14_B_2_evidence_sha256": "3834de3ec30b22b1d0f0aa23479135b898dfe3e563511050254a25507ff20f1a",
+    "L14_B_3_evidence_sha256": "45e1b8da2c7ea0930f8ac837ba3d971b1de9bcd92267735b6530df45c3b3dceb"
+  }
+}

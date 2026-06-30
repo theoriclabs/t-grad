@@ -1,0 +1,17 @@
+{
+  "gate": "L13_F_STRICT_A",
+  "ts_utc": "2026-06-22T14:51:56Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L13.F.STRICT.A — Stmt grammar for tg memory + barriers + per-thread WMMA loads",
+  "new_ctors": ["threadgroupDecl", "threadgroupBarrier", "threadgroupLoad",
+                "threadgroupStore", "perThreadWmmaLoad"],
+  "synthetic_kernel_compiled": true,
+  "l13_f_regression": "pass",
+  "l12_regression": "pass",
+  "hashes": {
+    "metal_renderer_sha256": "e30d41f3e3964436a064423506c4d0700ccc88ba611f6d4c902e516f3907ad28",
+    "synthetic_kernel_msl_sha256": "97a19b59c59e909a74fab61105c4ad96bc98f596144cbe907507944a2b21fa5e"
+  }
+}

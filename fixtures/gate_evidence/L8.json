@@ -1,0 +1,12 @@
+{
+  "gate": "L8",
+  "ts_utc": "2026-06-22T14:28:50Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L8.a — algebraic emit for simple Metal kernels (copy_kernel); WMMA matmul stays L3-captured",
+  "hashes": {
+    "emit_output_sha256":   "cb2362449896710072a3bf8b95f9a5c9145cdb2625e9426a5ba6953e5df31c3a",
+    "fixture_sha256":       "cb2362449896710072a3bf8b95f9a5c9145cdb2625e9426a5ba6953e5df31c3a"
+  }
+}

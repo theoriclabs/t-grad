@@ -1,0 +1,14 @@
+{
+  "gate": "L14_B_2",
+  "ts_utc": "2026-06-22T14:51:58Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L14.B.2 umbrella — index-UOp-driven matmul codegen + Schedule.Rangeify wired into Pipeline.realize",
+  "sub_gates_green": ["L14_B_2_a", "L14_B_2_b", "L14_B_2_c"],
+  "hashes": {
+    "L14_B_2_a_evidence_sha256": "d3f873d701ec29720d2bbc2694f708e40d11d9bb3895286b3cd446ba7de99590",
+    "L14_B_2_b_evidence_sha256": "5550ed8e42d4536f0935b4276007714eb0a49342523bab3e3e6d856989f2d804",
+    "L14_B_2_c_evidence_sha256": "aaa079f28827de9588db7dc4fb26347004b2a462fefdc97229f6d4267104d1b1"
+  }
+}

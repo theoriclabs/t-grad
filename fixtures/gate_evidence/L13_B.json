@@ -1,0 +1,15 @@
+{
+  "gate": "L13_B",
+  "ts_utc": "2026-06-22T14:41:20Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L13.B — scalar matmul for below-TC-tile shapes; correctness only",
+  "below_tc_tile_total":   5,
+  "below_tc_tile_correct": 5,
+  "hashes": {
+    "bench_jsonl_sha256":     "0638f2cef2a67b93625668d4c4c0c14af9df3c8d016e8a81fdc54d6f1c00664e",
+    "manifest_sha256":        "e3a2d5b87242f7e0f94b682a414ff149eac46e642f1ecc4ed7df0c033c3c065a",
+    "matmul_scalar_sha256":   "698905cb0ab928ec1210d688861c25135c9608fc8be2a5262963c213816b68e0"
+  }
+}

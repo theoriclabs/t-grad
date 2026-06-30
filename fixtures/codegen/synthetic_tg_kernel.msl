@@ -1,0 +1,15 @@
+#include <metal_stdlib>
+using namespace metal;
+kernel void synthetic_tg_kernel(device float* data0, device const float* data1, uint3 gid [[threadgroup_position_in_grid]], uint3 lid [[thread_position_in_threadgroup]]) {
+  threadgroup float tg_a[64];
+  int gidx0 = gid.x;
+  int lidx0 = lid.x;
+  int idx = ((gidx0 << 6) + lidx0);
+  float val0 = data1[idx];
+  tg_a[lidx0] = val0;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  float val1 = tg_a[lidx0];
+  simdgroup_float8x8 mat_a = simdgroup_float8x8(0);
+  mat_a.thread_elements()[0] = val1;
+  data0[idx] = mat_a.thread_elements()[0];
+}

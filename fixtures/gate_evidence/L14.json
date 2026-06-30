@@ -1,0 +1,14 @@
+{
+  "gate": "L14",
+  "ts_utc": "2026-06-22T14:52:00Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L14 umbrella — matmul through movement-op views (Tensor.uop refactor + view methods + 16 pinned + 20 random)",
+  "sub_gates_green": ["L14_A", "L14_B", "L14_C"],
+  "hashes": {
+    "L14_A_evidence_sha256": "a9e867fdf5d5994b6ef410c11b469a8165bc88719fa03d8c5fe25e625a924032",
+    "L14_B_evidence_sha256": "53239c613f1fe708dd7af903ace0c1a63e55a60da6ba279a8df24aa0dbd0b160",
+    "L14_C_evidence_sha256": "44751b4c51de14e61d53c13c2bab1bc89146f8d38864743d22768ce3968ee8cd"
+  }
+}

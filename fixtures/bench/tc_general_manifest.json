@@ -1,0 +1,82 @@
+[
+  {
+    "M": 1024,
+    "K": 1024,
+    "N": 3072,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "1024x1024x3072",
+    "bucket": "known-M/K, new-N"
+  },
+  {
+    "M": 1536,
+    "K": 1024,
+    "N": 1024,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "1536x1024x1024",
+    "bucket": "new-M"
+  },
+  {
+    "M": 1024,
+    "K": 1536,
+    "N": 1024,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "1024x1536x1024",
+    "bucket": "new-K"
+  },
+  {
+    "M": 1536,
+    "K": 1536,
+    "N": 1536,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "1536x1536x1536",
+    "bucket": "all-new mid"
+  },
+  {
+    "M": 2048,
+    "K": 1536,
+    "N": 3072,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "2048x1536x3072",
+    "bucket": "mixed large"
+  },
+  {
+    "M": 3072,
+    "K": 1024,
+    "N": 1536,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "3072x1024x1536",
+    "bucket": "tall-ish"
+  },
+  {
+    "M": 1024,
+    "K": 2048,
+    "N": 3072,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "1024x2048x3072",
+    "bucket": "wide-ish"
+  },
+  {
+    "M": 3072,
+    "K": 2048,
+    "N": 1024,
+    "dist": "gauss",
+    "tc_eligible": true,
+    "sentinel": false,
+    "shape": "3072x2048x1024",
+    "bucket": "large tall"
+  }
+]

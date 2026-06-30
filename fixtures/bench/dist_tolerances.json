@@ -1,0 +1,7 @@
+{
+  "gauss":             {"rtol": 2e-2, "atol": 2e-2},
+  "wide_mag":          {"rtol": 5e-2, "atol": 5e-2},
+  "sparse":            {"rtol": 2e-2, "atol": 2e-2},
+  "pre_bf16":          {"rtol": 2e-2, "atol": 2e-2},
+  "adversarial_small": {"rtol": 5e-2, "atol": 1e-30}
+}

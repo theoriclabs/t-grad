@@ -1,0 +1,982 @@
+[
+  {
+    "a": "bool",
+    "b": "bool",
+    "lub": "bool"
+  },
+  {
+    "a": "bool",
+    "b": "weakint",
+    "lub": "weakint"
+  },
+  {
+    "a": "bool",
+    "b": "int8",
+    "lub": "int8"
+  },
+  {
+    "a": "bool",
+    "b": "uint8",
+    "lub": "uint8"
+  },
+  {
+    "a": "bool",
+    "b": "int16",
+    "lub": "int16"
+  },
+  {
+    "a": "bool",
+    "b": "uint16",
+    "lub": "uint16"
+  },
+  {
+    "a": "bool",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "bool",
+    "b": "uint32",
+    "lub": "uint32"
+  },
+  {
+    "a": "bool",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "bool",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "bool",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "bool",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bool",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "bool",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "weakint",
+    "b": "bool",
+    "lub": "weakint"
+  },
+  {
+    "a": "weakint",
+    "b": "weakint",
+    "lub": "weakint"
+  },
+  {
+    "a": "weakint",
+    "b": "int8",
+    "lub": "int8"
+  },
+  {
+    "a": "weakint",
+    "b": "uint8",
+    "lub": "uint8"
+  },
+  {
+    "a": "weakint",
+    "b": "int16",
+    "lub": "int16"
+  },
+  {
+    "a": "weakint",
+    "b": "uint16",
+    "lub": "uint16"
+  },
+  {
+    "a": "weakint",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "weakint",
+    "b": "uint32",
+    "lub": "uint32"
+  },
+  {
+    "a": "weakint",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "weakint",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "weakint",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "weakint",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "weakint",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "weakint",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "int8",
+    "b": "bool",
+    "lub": "int8"
+  },
+  {
+    "a": "int8",
+    "b": "weakint",
+    "lub": "int8"
+  },
+  {
+    "a": "int8",
+    "b": "int8",
+    "lub": "int8"
+  },
+  {
+    "a": "int8",
+    "b": "uint8",
+    "lub": "int16"
+  },
+  {
+    "a": "int8",
+    "b": "int16",
+    "lub": "int16"
+  },
+  {
+    "a": "int8",
+    "b": "uint16",
+    "lub": "int32"
+  },
+  {
+    "a": "int8",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "int8",
+    "b": "uint32",
+    "lub": "int64"
+  },
+  {
+    "a": "int8",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "int8",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "int8",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "int8",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "int8",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "int8",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "uint8",
+    "b": "bool",
+    "lub": "uint8"
+  },
+  {
+    "a": "uint8",
+    "b": "weakint",
+    "lub": "uint8"
+  },
+  {
+    "a": "uint8",
+    "b": "int8",
+    "lub": "int16"
+  },
+  {
+    "a": "uint8",
+    "b": "uint8",
+    "lub": "uint8"
+  },
+  {
+    "a": "uint8",
+    "b": "int16",
+    "lub": "int16"
+  },
+  {
+    "a": "uint8",
+    "b": "uint16",
+    "lub": "uint16"
+  },
+  {
+    "a": "uint8",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "uint8",
+    "b": "uint32",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint8",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "uint8",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint8",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "uint8",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "uint8",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "uint8",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "int16",
+    "b": "bool",
+    "lub": "int16"
+  },
+  {
+    "a": "int16",
+    "b": "weakint",
+    "lub": "int16"
+  },
+  {
+    "a": "int16",
+    "b": "int8",
+    "lub": "int16"
+  },
+  {
+    "a": "int16",
+    "b": "uint8",
+    "lub": "int16"
+  },
+  {
+    "a": "int16",
+    "b": "int16",
+    "lub": "int16"
+  },
+  {
+    "a": "int16",
+    "b": "uint16",
+    "lub": "int32"
+  },
+  {
+    "a": "int16",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "int16",
+    "b": "uint32",
+    "lub": "int64"
+  },
+  {
+    "a": "int16",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "int16",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "int16",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "int16",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "int16",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "int16",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "uint16",
+    "b": "bool",
+    "lub": "uint16"
+  },
+  {
+    "a": "uint16",
+    "b": "weakint",
+    "lub": "uint16"
+  },
+  {
+    "a": "uint16",
+    "b": "int8",
+    "lub": "int32"
+  },
+  {
+    "a": "uint16",
+    "b": "uint8",
+    "lub": "uint16"
+  },
+  {
+    "a": "uint16",
+    "b": "int16",
+    "lub": "int32"
+  },
+  {
+    "a": "uint16",
+    "b": "uint16",
+    "lub": "uint16"
+  },
+  {
+    "a": "uint16",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "uint16",
+    "b": "uint32",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint16",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "uint16",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint16",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "uint16",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "uint16",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "uint16",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "int32",
+    "b": "bool",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "weakint",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "int8",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "uint8",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "int16",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "uint16",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "int32",
+    "lub": "int32"
+  },
+  {
+    "a": "int32",
+    "b": "uint32",
+    "lub": "int64"
+  },
+  {
+    "a": "int32",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "int32",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "int32",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "int32",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "int32",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "int32",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "uint32",
+    "b": "bool",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint32",
+    "b": "weakint",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint32",
+    "b": "int8",
+    "lub": "int64"
+  },
+  {
+    "a": "uint32",
+    "b": "uint8",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint32",
+    "b": "int16",
+    "lub": "int64"
+  },
+  {
+    "a": "uint32",
+    "b": "uint16",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint32",
+    "b": "int32",
+    "lub": "int64"
+  },
+  {
+    "a": "uint32",
+    "b": "uint32",
+    "lub": "uint32"
+  },
+  {
+    "a": "uint32",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "uint32",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint32",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "uint32",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "uint32",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "uint32",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "int64",
+    "b": "bool",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "weakint",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "int8",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "uint8",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "int16",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "uint16",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "int32",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "uint32",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "int64",
+    "lub": "int64"
+  },
+  {
+    "a": "int64",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "int64",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "int64",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "int64",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "int64",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "uint64",
+    "b": "bool",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "weakint",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "int8",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "uint8",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "int16",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "uint16",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "int32",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "uint32",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "int64",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "uint64",
+    "lub": "uint64"
+  },
+  {
+    "a": "uint64",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "uint64",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "uint64",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "uint64",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "float16",
+    "b": "bool",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "weakint",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "int8",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "uint8",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "int16",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "uint16",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "int32",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "uint32",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "int64",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "uint64",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "float16",
+    "lub": "float16"
+  },
+  {
+    "a": "float16",
+    "b": "bfloat16",
+    "lub": "float32"
+  },
+  {
+    "a": "float16",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "float16",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "bfloat16",
+    "b": "bool",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "weakint",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "int8",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "uint8",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "int16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "uint16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "int32",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "uint32",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "int64",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "uint64",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "float16",
+    "lub": "float32"
+  },
+  {
+    "a": "bfloat16",
+    "b": "bfloat16",
+    "lub": "bfloat16"
+  },
+  {
+    "a": "bfloat16",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "bfloat16",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "float32",
+    "b": "bool",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "weakint",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "int8",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "uint8",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "int16",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "uint16",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "int32",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "uint32",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "int64",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "uint64",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "float16",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "bfloat16",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "float32",
+    "lub": "float32"
+  },
+  {
+    "a": "float32",
+    "b": "float64",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "bool",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "weakint",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "int8",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "uint8",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "int16",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "uint16",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "int32",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "uint32",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "int64",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "uint64",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "float16",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "bfloat16",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "float32",
+    "lub": "float64"
+  },
+  {
+    "a": "float64",
+    "b": "float64",
+    "lub": "float64"
+  }
+]

@@ -1,0 +1,6 @@
+#include <metal_stdlib>
+using namespace metal;
+kernel void synthetic_indexed(device bfloat* data0, device const bfloat* data1, uint gidx0 [[thread_position_in_grid]]) {
+  bfloat val0 = *(data1+((gidx0*64)+gidx0));
+  *(data0+((gidx0*64)+gidx0)) = ((bfloat)((val0)));
+}

@@ -1,0 +1,26 @@
+{
+  "assignment": [
+    {
+      "logical": 0,
+      "physical": 0
+    },
+    {
+      "logical": 1,
+      "physical": 0
+    },
+    {
+      "logical": 2,
+      "physical": 1
+    },
+    {
+      "logical": 3,
+      "physical": 2
+    },
+    {
+      "logical": 4,
+      "physical": 0
+    }
+  ],
+  "physical_count": 3,
+  "peak_bytes": 64
+}

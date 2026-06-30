@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tgrad"
+version = "1.0.0"
+description = "Lean 4 demo runtime for a bounded bf16 Metal matmul path"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "WOW21, Inc." }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+dev = [
+  "build",
+  "mypy",
+  "ruff",
+]
+
+[tool.setuptools]
+py-modules = ["tgrad", "tgrad_bench"]
+package-dir = {"" = "python"}
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+files = ["python"]
+ignore_missing_imports = true
+check_untyped_defs = true

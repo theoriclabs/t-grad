@@ -1,0 +1,71 @@
+{
+  "gate": "L15_C",
+  "ts_utc": "2026-06-22T14:52:03Z",
+  "host_profile": "apple_m4_mini_release",
+  "platform": "Darwin 24.5.0 arm64",
+  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "scope": "L15.C \u2014 verdict + EXPERIMENT_RESULT.md authoring (criteria 7-8)",
+  "criteria": [
+    {
+      "criterion": "lean_better_evidence",
+      "verdict": "pass",
+      "artifact_paths": [
+        "Tgrad/EXPERIMENT_RESULT.md"
+      ],
+      "evidence": "lean_invariants_named=7/>=5, with_file=7/7, with_negative_case=7/7"
+    },
+    {
+      "criterion": "honesty",
+      "verdict": "pass",
+      "artifact_paths": [
+        "Tgrad/EXPERIMENT_RESULT.md"
+      ],
+      "evidence": "not_claimed_required=4/4, overclaim_hits=0/0 [], slice_named_precisely=True"
+    }
+  ],
+  "lean_invariants": [
+    {
+      "name": "`Pipeline.dispatchDimsFor` exhaustive over 11 ShapeSentinel cases",
+      "file": "Tgrad/Tgrad/Pipeline.lean",
+      "negative_case": "deleting any sentinel branch leaves"
+    },
+    {
+      "name": "`pickDispatchPlan_matches_capture` proved by `decide`",
+      "file": "Tgrad/Tgrad/Codegen/Opt/Heuristic.lean",
+      "negative_case": "changing `pickDispatchPlan` to return wrong"
+    },
+    {
+      "name": "`Schedule.Rangeify.rangeify` on the realize path",
+      "file": "Tgrad/Tgrad/Pipeline.lean",
+      "negative_case": "removing the `runRangeifyAndTrace` call drops the"
+    },
+    {
+      "name": "`renderKernel : KernelDecl \u2192 String` is pure",
+      "file": "Tgrad/Tgrad/Renderer/Metal.lean",
+      "negative_case": "changing the signature to `IO String` would let"
+    },
+    {
+      "name": "`UOp` movement-op constructors with typed `Slice`",
+      "file": "Tgrad/Tgrad/UOp.lean",
+      "negative_case": "a `.slice` constructor that takes a `List Nat`"
+    },
+    {
+      "name": "`viewIndexUOpForA / viewIndexUOpForB` panic on unsupported chains",
+      "file": "Tgrad/Tgrad/Pipeline.lean",
+      "negative_case": "feeding an unhandled movement-op chain (e.g."
+    },
+    {
+      "name": "`scalarMatmulKernelDeclWithIdx` parametric over index UOps",
+      "file": "Tgrad/Tgrad/Renderer/MatmulScalar.lean",
+      "negative_case": "the kernel function name encodes a"
+    }
+  ],
+  "result": "yes",
+  "experiment_result_word_count": 1534,
+  "experiment_result_sha256": "b82a0dcf27d8afd4515204463fa034fe4248acac23d4d68bc4264a21b80690d3",
+  "hashes": {
+    "l15_a_evidence_sha256": "9b410b0fcb9e45b5b637ec0302712594aea920099eaa41cff728a011a6060524",
+    "l15_b_evidence_sha256": "704468f98c1261066b88c5c27ebc7001e1c4108b05d6441a74666b655b63e665",
+    "memo_sha256": "b82a0dcf27d8afd4515204463fa034fe4248acac23d4d68bc4264a21b80690d3"
+  }
+}

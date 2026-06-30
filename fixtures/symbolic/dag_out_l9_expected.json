@@ -1,0 +1,35 @@
+[
+  {
+    "idx": 0,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 0
+    },
+    "src": []
+  },
+  {
+    "idx": 1,
+    "op": "CONST",
+    "dtype": "int",
+    "arg": {
+      "kind": "int",
+      "v": 256
+    },
+    "src": []
+  },
+  {
+    "idx": 2,
+    "op": "DEFINE_VAR",
+    "dtype": "int",
+    "arg": {
+      "kind": "str",
+      "v": "x"
+    },
+    "src": [
+      0,
+      1
+    ]
+  }
+]

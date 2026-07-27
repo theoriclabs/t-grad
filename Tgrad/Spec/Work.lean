@@ -285,18 +285,27 @@ def workItems : List WorkItem :=
       dependsOn := [ew "codegen.route-sentinels", ew "gates.semantic-codegen"],
       runtimeScope := [rw "product.lower-tc-matmul", rw "product.render-metal"],
       touches := [.renderer, .gateHarness],
-      writes := ["Tgrad/Renderer/MatmulDecls.lean", "scripts/dev/lower_matmul.py",
-        "Tgrad.lean", "Main.lean", "scripts/gates/L12.sh"],
+      writes := ["EXPERIMENT_RESULT.md", "GROWING_TGRAD.md", "Main.lean",
+        "PLAN_CORRECTNESS_AND_CODEGEN.md", "PLAN_TINYGRAD_COMPAT.md", "README.md",
+        "Tgrad.lean", "Tgrad/Pipeline.lean", "Tgrad/PythonFFI.lean",
+        "Tgrad/Renderer/MatmulDecls.lean", "Tgrad/Renderer/MatmulScalar.lean",
+        "Tgrad/Renderer/Metal.lean", "c/tgrad_python.c", "python/tgrad.py",
+        "scripts/dev/l15_b_audit.py", "scripts/dev/lower_matmul.py",
+        "scripts/differential_codegen.sh", "scripts/gates/L12.sh",
+        "scripts/gates/L12_falsifiability.md",
+        "scripts/gates/L13_F_STRICT_B_falsifiability.md", "scripts/gates/L14_A.sh",
+        "scripts/gates/L14_B_2_a_falsifiability.md", "scripts/gates/L14_B_2_b.sh",
+        "scripts/gates/L14_B_2_b_falsifiability.md"],
       authoringResources := [.sourceTree],
       verificationResources := [.leanBuildTree, .metalGpu, .tmpNamespace],
       cost := 1, goalDistance := 0,
       validation := plannedValidation
-        "no runtime/build reference to transcribed decls and no source-byte-equality gate layer"
-        "rg MatmulDecls/lower_matmul; retire Layer C while retaining C3; build; run semantic gate"
-        "zero transcription references; Layer C3 plus non-aliasing remain; all 11 generated kernels pass"
-        [.build, .semantic, .unitRegression],
+        "no runtime/build dependency on transcribed declarations and no source-byte-equality gate layer"
+        "inspect exact Git effects; build; run assertions, 11-shape semantic differential, and 50-case generated numerical sweep"
+        "artifacts deleted; only explicit absence/history references remain; Nodup and semantic differential remain independent; all 11 generated kernels and 50 numerical rows pass"
+        [.build, .unitRegression, .semantic, .numerical, .differential],
       recovery := "restore files from git while preserving generated routing work",
-      progress := .planned },
+      progress := .complete "9f2ab91" },
     { id := ew "evidence.audit-tool", title := "make evidence provenance mechanically auditable",
       phase := .promote, authority := .evidence,
       closesFindings := [], dependsOn := [],
@@ -500,14 +509,14 @@ def growthCases : List Growth.Case :=
         [.architecture, .supportedDomain, .maintainability]
         .bounded .loadBearing
         "make parameterized TC lowering authoritative for sentinels"],
-      stage := .selected,
+      stage := .promoted,
       promotion := promote ["verify.codegen-differential", "verify.numpy-differential"]
         [.build, .numerical, .semantic, .differential]
-        "11/11 generated routes are numerically equivalent before transcription deletion"
-        "retain the captured kernel as reference and revert only divergent routing",
+        "all production sentinels use generated declarations; transcription/build dependencies are absent; Nodup and 11/11 source-different execution remain green"
+        "retain captured kernels only as executable references and revert only divergent generated routing",
       epistemic := .confirmed
-        "fd945b1 makes wide generated declarations and tcLaunchDims authoritative for all sentinels and aligned general shapes; deletion remains"
-        "64/96/128 boundary routes pass numpy, eligibility rejects zero-grid domains, and 11/11 captured/generated outputs remain bit-identical" },
+        "9f2ab91 completes the fd945b1 generated route by deleting the per-shape declarations/parser and making semantic L12 authoritative"
+        "exact tree 1401305: build/assertions green, 50/50 numerical, and 11/11 source-different captured/generated outputs bit-identical" },
     { id := "G-semantic-codegen-verifier",
       findingIds := ["F-byte-equality-gate"],
       observations := [observe "verify.codegen-differential" "captured versus generated"
@@ -521,11 +530,11 @@ def growthCases : List Growth.Case :=
       stage := .promoted,
       promotion := promote ["verify.codegen-differential", "spec.check-growth-loop"]
         [.build, .numerical, .semantic, .differential, .provenance, .resourceIsolation]
-        "L12 retains its green transcription layer and adds 11/11 execution equivalence with source inequality; wrong-but-distinct store/load mutations are caught"
-        "retain Layer C until transcription deletion; never remove C3 or the independent non-aliasing theorem",
+        "L12 requires 11/11 execution equivalence with source inequality; wrong-but-distinct store/load mutations are caught independently of collision proofs"
+        "never remove the semantic differential or the independent non-aliasing theorem",
       epistemic := .confirmed
-        "aa67497 makes the a6d5958 differential a load-bearing L12 C3 layer: 11/11 in 5.1s; both c->c+2 and 24K+1->24K+2 diverge while build remains green"
-        "executable gate layer and reproduced falsifiability rows" },
+        "aa67497 added C3 before deletion; 9f2ab91 retires only transcription byte equality and keeps 11/11 semantic execution load-bearing"
+        "executable gate layer, source inequality, Nodup theorem, and reproduced wrong-but-distinct falsifiability rows" },
     { id := "G-symmetric-performance",
       findingIds := ["F-performance-methodology"],
       observations := [observe "verify.performance" "generated matmul comparison"
@@ -1188,7 +1197,134 @@ def liveEvolutionEvents : List Event :=
           [ "MatmulDecls and lower_matmul remain as transcription scaffolding",
             "L12 Layer C still checks transcription byte equality until deletion",
             "performance has not been rebaselined across a symmetric boundary",
-            "dead threadgroup declarations and barrier marker remain structural-gate debt" ] } ]
+            "dead threadgroup declarations and barrier marker remain structural-gate debt" ] },
+    .attemptStarted
+      { id := { value := "attempt-delete-transcription-20260726" },
+        intent := ew "codegen.delete-transcription",
+        actor := "codex-primary",
+        base :=
+          { commit := "96d3790e736a755bf3c8af7ea37033190b82cd17",
+            tree := "37f64c5d6937aedbec84db4b0118c01f53d18889",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .modify, target := "EXPERIMENT_RESULT.md" },
+            { kind := .modify, target := "GROWING_TGRAD.md" },
+            { kind := .modify, target := "Main.lean" },
+            { kind := .modify, target := "PLAN_CORRECTNESS_AND_CODEGEN.md" },
+            { kind := .modify, target := "PLAN_TINYGRAD_COMPAT.md" },
+            { kind := .modify, target := "README.md" },
+            { kind := .modify, target := "Tgrad.lean" },
+            { kind := .modify, target := "Tgrad/Pipeline.lean" },
+            { kind := .modify, target := "Tgrad/PythonFFI.lean" },
+            { kind := .delete, target := "Tgrad/Renderer/MatmulDecls.lean" },
+            { kind := .modify, target := "Tgrad/Renderer/MatmulScalar.lean" },
+            { kind := .modify, target := "Tgrad/Renderer/Metal.lean" },
+            { kind := .modify, target := "c/tgrad_python.c" },
+            { kind := .modify, target := "python/tgrad.py" },
+            { kind := .modify, target := "scripts/dev/l15_b_audit.py" },
+            { kind := .delete, target := "scripts/dev/lower_matmul.py" },
+            { kind := .modify, target := "scripts/differential_codegen.sh" },
+            { kind := .modify, target := "scripts/gates/L12.sh" },
+            { kind := .modify, target := "scripts/gates/L12_falsifiability.md" },
+            { kind := .modify, target := "scripts/gates/L13_F_STRICT_B_falsifiability.md" },
+            { kind := .modify, target := "scripts/gates/L14_A.sh" },
+            { kind := .modify, target := "scripts/gates/L14_B_2_a_falsifiability.md" },
+            { kind := .modify, target := "scripts/gates/L14_B_2_b.sh" },
+            { kind := .modify, target := "scripts/gates/L14_B_2_b_falsifiability.md" } ],
+        lease :=
+          { token := "codex-primary-delete-transcription",
+            resources := [.sourceTree], validThroughEpoch := 2000 } },
+    .candidateProduced
+      { id := { value := "candidate-delete-transcription-1401305" },
+        attempt := { value := "attempt-delete-transcription-20260726" },
+        tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+        observedEffects :=
+          [ { kind := .modify, target := "EXPERIMENT_RESULT.md" },
+            { kind := .modify, target := "GROWING_TGRAD.md" },
+            { kind := .modify, target := "Main.lean" },
+            { kind := .modify, target := "PLAN_CORRECTNESS_AND_CODEGEN.md" },
+            { kind := .modify, target := "PLAN_TINYGRAD_COMPAT.md" },
+            { kind := .modify, target := "README.md" },
+            { kind := .modify, target := "Tgrad.lean" },
+            { kind := .modify, target := "Tgrad/Pipeline.lean" },
+            { kind := .modify, target := "Tgrad/PythonFFI.lean" },
+            { kind := .delete, target := "Tgrad/Renderer/MatmulDecls.lean" },
+            { kind := .modify, target := "Tgrad/Renderer/MatmulScalar.lean" },
+            { kind := .modify, target := "Tgrad/Renderer/Metal.lean" },
+            { kind := .modify, target := "c/tgrad_python.c" },
+            { kind := .modify, target := "python/tgrad.py" },
+            { kind := .modify, target := "scripts/dev/l15_b_audit.py" },
+            { kind := .delete, target := "scripts/dev/lower_matmul.py" },
+            { kind := .modify, target := "scripts/differential_codegen.sh" },
+            { kind := .modify, target := "scripts/gates/L12.sh" },
+            { kind := .modify, target := "scripts/gates/L12_falsifiability.md" },
+            { kind := .modify, target := "scripts/gates/L13_F_STRICT_B_falsifiability.md" },
+            { kind := .modify, target := "scripts/gates/L14_A.sh" },
+            { kind := .modify, target := "scripts/gates/L14_B_2_a_falsifiability.md" },
+            { kind := .modify, target := "scripts/gates/L14_B_2_b.sh" },
+            { kind := .modify, target := "scripts/gates/L14_B_2_b_falsifiability.md" } ],
+        summary := "delete transcription artifacts, switch CLI and audits to generated declarations, and make semantic L12 authoritative" },
+    .checkRecorded
+      { id := { value := "check-delete-transcription-build-9f2ab91" },
+        candidate := { value := "candidate-delete-transcription-1401305" },
+        tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "lake build Tgrad:shared TgradSpec tgrad-spec tgrad-tests tgrad-cli; make -C c dylib",
+        artifactDigest := "sha256:fd8cb271292b84d9d5964469aef7daaaca2d0b4804fba67843b0713b77fc7e7a" },
+    .checkRecorded
+      { id := { value := "check-delete-transcription-unit-9f2ab91" },
+        candidate := { value := "candidate-delete-transcription-1401305" },
+        tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+        validator := rw "verify.unit-tests", obligation := .unitRegression,
+        outcome := .passed,
+        command := ".lake/build/bin/tgrad-tests; require assertion marker and real View/rangeify assertions",
+        artifactDigest := "sha256:a7a3396240e8acbf0c2110996c37b5da957d98e5fcddb989b334b8416a260388" },
+    .checkRecorded
+      { id := { value := "check-delete-transcription-semantic-9f2ab91" },
+        candidate := { value := "candidate-delete-transcription-1401305" },
+        tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+        validator := rw "verify.codegen-differential", obligation := .semantic,
+        outcome := .passed,
+        command := "exact-tree git audit: deleted files/imports/old dispatch/byte-equality layer absent; generated route and Nodup theorem names present",
+        artifactDigest := "sha256:8df85b5b7553f26b87658a2fd5c1269ebda0c09395dfac62db7ff83d9692b2f8" },
+    .checkRecorded
+      { id := { value := "check-delete-transcription-numerical-9f2ab91" },
+        candidate := { value := "candidate-delete-transcription-1401305" },
+        tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+        validator := rw "verify.numpy-differential", obligation := .numerical,
+        outcome := .passed,
+        command := "serial alternate-generated-cache sweep: 50/50 distributions correct; legacy performance ratio is diagnostic only",
+        artifactDigest := "sha256:cf7f9ad4859b5aad1a8d0a9d2d92a89ba05d3ef3ec640db25b7b315ceda5a60f" },
+    .checkRecorded
+      { id := { value := "check-delete-transcription-differential-9f2ab91" },
+        candidate := { value := "candidate-delete-transcription-1401305" },
+        tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+        validator := rw "verify.codegen-differential", obligation := .differential,
+        outcome := .passed,
+        command := "bash scripts/differential_codegen.sh: 11/11 source-different and bit-identical over 240 MB",
+        artifactDigest := "sha256:d594b04cf28e07e50c37b2340ba5eddce1018a9c9c78e77563bf2571545f19aa" },
+    .promoted
+      { growthCase := "G-generated-sentinels",
+        candidate := { value := "candidate-delete-transcription-1401305" },
+        checkRuns :=
+          [ { value := "check-delete-transcription-build-9f2ab91" },
+            { value := "check-delete-transcription-unit-9f2ab91" },
+            { value := "check-delete-transcription-semantic-9f2ab91" },
+            { value := "check-delete-transcription-numerical-9f2ab91" },
+            { value := "check-delete-transcription-differential-9f2ab91" } ],
+        requiredObligations := [.build, .unitRegression, .semantic, .numerical, .differential],
+        acceptedBy := ["harsh", "codex-primary"],
+        target :=
+          { commit := "9f2ab912cb25d8b6bc2c13d4dca12e4ab7330d7f",
+            tree := "1401305a6facaa4cc99ec6c5c266ed24fe925ad5",
+            dirty := false },
+        residualRisks :=
+          [ "performance remains unknown until symmetric same-session measurement",
+            "captured MSL remains as an executable differential oracle",
+            "committed release evidence still has absent-commit and stale-hash provenance",
+            "alternate generated cache and historical gates retain migration debt",
+            "many untouched gates still share fixed /tmp paths" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
   replay itemIds liveEvolutionEvents
@@ -1196,8 +1332,8 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 0 && state.candidates.length == 8 &&
-      state.checks.length == 35 && state.promotions.length == 6 &&
+      state.activeAttempts.length == 0 && state.candidates.length == 9 &&
+      state.checks.length == 40 && state.promotions.length == 7 &&
       state.abandoned.length == 2
   | .error _ => false
 
@@ -1337,8 +1473,8 @@ theorem routing_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_safe_frontier_is_transcription_deletion :
-    frontierIds = [ew "codegen.delete-transcription"] := by
+theorem current_safe_frontier_is_symmetric_performance :
+    frontierIds = [ew "perf.rebaseline"] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :
@@ -1375,6 +1511,20 @@ theorem generated_routing_candidate_has_required_checks :
         runs.any (fun run => run.obligation == .differential)) = true := by
   native_decide
 
+theorem transcription_deletion_candidate_has_required_checks :
+    (match liveEvolutionState with
+    | .error _ => false
+    | .ok state =>
+        let runs := state.checks.filter (fun run =>
+          run.candidate.value == "candidate-delete-transcription-1401305" &&
+          run.outcome.passed?)
+        runs.any (fun run => run.obligation == .build) &&
+        runs.any (fun run => run.obligation == .unitRegression) &&
+        runs.any (fun run => run.obligation == .semantic) &&
+        runs.any (fun run => run.obligation == .numerical) &&
+        runs.any (fun run => run.obligation == .differential)) = true := by
+  native_decide
+
 theorem codegen_differential_candidate_has_complementary_checks :
     (match liveEvolutionState with
     | .error _ => false
@@ -1406,8 +1556,19 @@ theorem warp_parameterization_is_promoted_and_released :
       completedIds.contains (ew "codegen.warp-parameter")) = true := by
   native_decide
 
-theorem transcription_deletion_is_ready :
-    (readyItems.map (·.id)).contains (ew "codegen.delete-transcription") = true := by
+theorem transcription_deletion_is_promoted_and_released :
+    (livePromotedIntentIds.contains (ew "codegen.delete-transcription") &&
+      completedIds.contains (ew "codegen.delete-transcription") &&
+      !(liveActiveIntentIds.contains (ew "codegen.delete-transcription"))) = true := by
+  native_decide
+
+theorem generated_sentinels_case_matches_runtime_and_finding_state :
+    ((growthCases.find? (fun growthCase => growthCase.id == "G-generated-sentinels")).map
+        (fun growthCase => growthCase.stage == .promoted) = some true &&
+      (Runtime.workUnitFor? (rw "product.lower-tc-matmul")).map
+        (fun unit => unit.isState .loadBearing) = some true &&
+      (findings.find? (fun finding => finding.id == "F-transcribed-sentinel-codegen")).map
+        (fun finding => !finding.isOpen) = some true) := by
   native_decide
 
 private def commaSeparated (values : List Growth.EvolutionWorkId) : String :=

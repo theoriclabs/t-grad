@@ -286,12 +286,13 @@ number is the serial, same-session, dispatch-boundary-matched run represented
 by `perf.rebaseline`; a regression is an acceptable result and must be
 reported rather than hidden behind the old fixture.
 
-The deletion migration produced one useful but deliberately unpromoted
-diagnostic: the generated alternate-cache path was correct on 50/50 rows, but
-only 23/50 rows met the old frozen-baseline `ratio <= 1.5` predicate
-(`ratio_median = 1.6302`, `ratio_max = 4.4785`, one measured sample). This is
-not the promised honest benchmark—the boundary and baseline are still wrong—
-but it proves the old performance predicate cannot remain entangled with the
+The deletion migration produced useful but deliberately unpromoted
+diagnostics: the generated alternate-cache path was correct on 50/50 rows in
+two serial one-sample probes, while the old frozen-baseline predicate varied
+from 23/50 to 32/50 (`ratio_median` 1.6302 vs 1.3020; `ratio_max` 4.4785 vs
+3.1005). This is not the promised honest benchmark—the boundary, baseline,
+and sample count are still wrong—and its variance reinforces that point. It
+does prove the old performance predicate cannot remain entangled with the
 semantic gate. L12 now promotes correctness only; `perf.rebaseline` owns the
 performance question.
 

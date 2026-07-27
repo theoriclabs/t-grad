@@ -213,11 +213,12 @@ The codegen and provenance work added three rules for verification work:
    subject; making a known-red auditor fatal earlier would add friction, not
    integrity.
 4. **Semantic and performance gates must not hold each other hostage.** The
-   first generated-path pilot remained 50/50 correct while missing the old
-   frozen-baseline ratio on 27 rows. That ratio is not admissible performance
-   evidence, but it demonstrates the architectural boundary: L12 certifies
-   generated semantics; the separately scheduled `perf.rebaseline` certifies
-   performance under symmetric measurement.
+   generated-path pilots remained 50/50 correct while the old one-sample
+   frozen-baseline ratio varied from 23/50 to 32/50 passing rows. Those ratios
+   are not admissible performance evidence, but they demonstrate the
+   architectural boundary: L12 certifies generated semantics; the separately
+   scheduled `perf.rebaseline` certifies performance under symmetric
+   measurement.
 
 ## 5. Capability, execution, observation, and evidence are different
 

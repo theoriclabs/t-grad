@@ -80,14 +80,14 @@ def findings : List Finding :=
         "exact tree 790d413 was isolated-build/GPU checked on bdc01b0 and committed unchanged" },
     { id := "F-transcribed-sentinel-codegen", severity := .high,
       component := .renderer,
-      description := "reference-only MatmulDecls still transcribes captured tinygrad arithmetic strings",
-      state := .confirmed .open
-        "fd945b1 removed it from production dispatch, but the file/transpiler and L12 byte-equality layer remain" },
+      description := "per-shape Lean declarations transcribed captured tinygrad arithmetic strings",
+      state := .confirmed (.remediated "9f2ab91")
+        "tree 1401305 deletes the declarations/parser, removes all product imports, and retains 11/11 source-different executable differentials" },
     { id := "F-byte-equality-gate", severity := .high,
       component := .gateHarness,
       description := "L12 relied on transcription round-trip without semantic generation evidence",
       state := .confirmed (.remediated "aa67497")
-        "Layer C3 now requires 11/11 non-identical generated sources to execute bit-identically; Layer C remains until transcription deletion" },
+        "aa67497 added C3 before deletion; 9f2ab91 retired byte equality and made the 11/11 semantic differential authoritative" },
     { id := "F-performance-methodology", severity := .critical,
       component := .evidenceStore,
       description := "published ratios compare asymmetric measurement boundaries",
@@ -126,8 +126,8 @@ def remediatedFindings : List Finding := findings.filter (fun finding =>
   | some (.remediated _) => true
   | _ => false)
 
-example : openFindings.length = 3 := by native_decide
-example : remediatedFindings.length = 9 := by native_decide
+example : openFindings.length = 2 := by native_decide
+example : remediatedFindings.length = 10 := by native_decide
 example : findings.all (fun finding => finding.state.hasUpgradePath) = true := by
   native_decide
 example : findingCoverage.hasUpgradePath = true := by native_decide

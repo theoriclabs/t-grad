@@ -189,9 +189,9 @@ def workUnits : List WorkUnit :=
     implemented "product.lower-tc-matmul" "tensor-core matmul lowering"
       .product .lower [.uopGraph, .launchPlan] [.kernelDecl]
       .renderer [.hostMemory] [.outputElements, .reductionElements]
-      ["Tgrad/Renderer/MatmulTc.lean"] .bounded
-      "render generated TC kernels and differentially compare tile addressing"
-      "wide generation, eligibility, and tcLaunchDims are authoritative; the legacy strict constructor remains only for gate migration",
+      ["Tgrad/Renderer/MatmulTc.lean", "Tgrad/Pipeline.lean"] .loadBearing
+      "render and execute generated TC kernels; differentially compare every sentinel against the independent captured oracle"
+      "the generated route is authoritative for its explicit aligned domain; general graph-to-kernel lowering remains outside this matmul-specialized capability",
     implemented "product.render-metal" "Metal source rendering"
       .product .render [.kernelDecl] [.metalSource]
       .renderer [.hostMemory] [.fixedHostOverhead]
@@ -352,6 +352,11 @@ theorem view_materialization_candidate_is_bounded :
       (fun unit => unit.isState .bounded) = some true := by
   native_decide
 
+theorem tensor_core_lowering_is_load_bearing :
+    (workUnitFor? (workId "product.lower-tc-matmul")).map
+      (fun unit => unit.isState .loadBearing) = some true := by
+  native_decide
+
 theorem performance_and_evidence_are_not_promoted :
     (workUnitFor? (workId "verify.performance")).map
         (fun unit => unit.isState .bypassed) = some true &&
@@ -375,7 +380,7 @@ surface visible at compile time. -/
 #check (Tgrad.Pipeline.materializeView :
   Tgrad.Tensor -> IO (Except Tgrad.PipelineError Tgrad.Tensor))
 #check (Tgrad.Renderer.Metal.renderKernel : Tgrad.Renderer.Metal.KernelDecl -> String)
-#check (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoad :
+#check (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide :
   Nat -> Nat -> Nat -> Except Tgrad.Renderer.Metal.CodegenError Tgrad.Renderer.Metal.KernelDecl)
 #check (Tgrad.Runtime.Metal.metalCompile : String -> IO UInt64)
 #check (Tgrad.Runtime.Metal.metalDispatch :

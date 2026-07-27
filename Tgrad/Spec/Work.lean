@@ -349,8 +349,9 @@ def workItems : List WorkItem :=
       phase := .design, authority := .userGoal,
       closesFindings := [], dependsOn := [], runtimeScope := [],
       touches := [.specification, .gateHarness, .evidenceStore],
-      writes := ["scripts/dev/capture_tinygrad_contract.py",
-        "fixtures/upstream", "Tgrad/Spec/ParityTarget.lean", "TgradSpec.lean"],
+      writes := ["scripts/parity", "fixtures/parity",
+        "Tgrad/Spec/ParityTarget.lean", "Tgrad/Spec/Parity.lean",
+        "Tgrad/Spec/Findings.lean", "PARITY.md"],
       authoringResources := [.sourceTree],
       verificationResources := [.leanBuildTree, .tmpNamespace, .evidenceStore],
       cost := 3, goalDistance := 0,
@@ -360,11 +361,50 @@ def workItems : List WorkItem :=
         "the pin is exact; two captures agree; every manifest has provenance; mutations fail; no count or expected value is hand-authored; targetUpstream becomes confirmed only after review"
         [.build, .apiContract, .semantic, .provenance, .humanReview],
       recovery := "leave targetUpstream unknown, retain the candidate snapshot as research input, and repair the extractor rather than editing generated manifests",
-      progress := .planned },
+      progress := .complete "8c87034" },
+    { id := ew "harness.namespace-temporaries",
+      title := "namespace every gate and devcheck temporary artifact",
+      phase := .build, authority := .userGoal,
+      closesFindings := [], dependsOn := [], runtimeScope := [],
+      touches := [.gateHarness],
+      writes := ["scripts/lib/run_context.sh", "scripts/lib/checks.sh",
+        "scripts/gate.sh", "scripts/devcheck.sh",
+        "scripts/runtime_independence.sh", "scripts/differential_codegen.sh",
+        "scripts/dev/l15_a_audit.py", "scripts/dev/test_run_context.sh",
+        "scripts/gates"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .tmpNamespace],
+      cost := 4, goalDistance := 0,
+      validation := plannedValidation
+        "zero fixed /tmp/tgrad_* paths and one owned run root inherited by every nested gate"
+        "bash -n every changed shell script; run two representative non-GPU scenarios concurrently; inspect distinct artifacts and cleanup/keep behavior; do not run the gate sweep while authoring"
+        "concurrent runs cannot clobber; direct and nested entry points initialize safely; only the root owner cleans; invalid child paths reject; rg /tmp/tgrad_ scripts is empty"
+        [.build, .semantic, .safety, .resourceIsolation],
+      recovery := "retain serial verification and revert the affected script batch if any direct or nested entry point loses its artifacts",
+      progress := .inProgress "agent-carver" },
+    { id := ew "harness.paired-performance",
+      title := "author a live paired performance observation harness",
+      phase := .build, authority := .userGoal,
+      closesFindings := [], dependsOn := [ew "codegen.delete-transcription"],
+      runtimeScope := [rw "verify.performance"],
+      touches := [.gateHarness],
+      writes := ["scripts/perf/paired_runtime.py", "scripts/perf/README.md",
+        "scripts/perf/__init__.py", "scripts/dev/test_paired_runtime.py"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree],
+      cost := 3, goalDistance := 0,
+      validation := plannedValidation
+        "deterministic fake-adapter tests for paired AB/BA ordering, raw observations, summary statistics, and pre-timing correctness rejection"
+        "run CPU-only focused tests twice; compare artifacts; inject output mismatch; inspect schema for exact revisions, trees, environment, boundaries, session variance, and absence of a verdict"
+        "both orders occur; raw count is exact; reruns match; wrong outputs produce no timed evidence; no frozen baseline, threshold, or verdict field exists"
+        [.build, .semantic, .performance, .provenance, .resourceIsolation],
+      recovery := "keep verify.performance missing and delete the harness candidate if its fake calibration or metadata contract is incomplete",
+      progress := .inProgress "agent-descartes" },
     { id := ew "perf.rebaseline", title := "measure symmetric generated-kernel performance",
       phase := .verify, authority := .evidence,
       closesFindings := ["F-performance-methodology"],
-      dependsOn := [ew "codegen.delete-transcription"],
+      dependsOn := [ew "codegen.delete-transcription",
+        ew "harness.paired-performance"],
       runtimeScope := [rw "verify.performance"],
       touches := [.gateHarness, .evidenceStore],
       writes := ["fixtures/perf/generated_codegen.json", "EXPERIMENT_RESULT.md"],
@@ -435,7 +475,27 @@ private def promote
 findings, evolution work, desired capability deltas, and reflexive validators.
 The case does not encode how an agent invents a repair. -/
 def growthCases : List Growth.Case :=
-  [ { id := "G-renderer-runtime",
+  [ { id := "G-upstream-contract",
+      findingIds := ["F-upstream-ops-understatement",
+        "F-upstream-tensor-mixin-understatement"],
+      observations := [observe "verify.upstream-contract" "pinned official tinygrad tree"
+        "the API and clean-checkout captures agree and generate 590 unique well-formed Lean requirements with no implicit exclusions"
+        "run the offline mutation suite, local --check, official API --check, generated-target --check, and detached specification build"
+        "canonical manifest, generated Lean target, mutation failures, and exact-tree build artifact"],
+      evolutionWork := [ew "parity.pin-upstream"],
+      deltas := [delta "verify.upstream-contract" .addCapability
+        [.supportedDomain, .observability, .provenance] .missing .loadBearing
+        "replace a prose candidate and unknown denominator with a reproducible foreign inventory and checked Lean requirement skeleton"],
+      stage := .promoted,
+      promotion := promote ["verify.upstream-contract", "verify.lean-build",
+          "spec.check-growth-loop"]
+        [.build, .apiContract, .semantic, .provenance, .humanReview]
+        "two capture paths agree; calibrated mutations fail; targetUpstream is confirmed while every coverage cell remains unknown"
+        "restore targetUpstream to unknown and retain the manifest as unpromoted research input",
+      epistemic := .confirmed
+        "tinygrad 19c4d736f2bc is the reviewed convergence target; this confirms only the denominator"
+        "8c87034" },
+    { id := "G-renderer-runtime",
       findingIds := ["F-runtime-file-replay"],
       observations := [observe "product.render-metal" "sentinel matmul"
         "runtime source is produced by renderKernel"
@@ -1529,7 +1589,180 @@ def liveEvolutionEvents : List Event :=
           [ "raw timing samples from the three L11 repeats were not committed",
             "verify.performance remains bypassed until both sides are paired live",
             "26 evidence files still name the phantom commit",
-            "the current commit adds the promotion record after the promoted candidate tree" ] } ]
+            "the current commit adds the promotion record after the promoted candidate tree" ] },
+    .attemptStarted
+      { id := { value := "attempt-parity-pin-upstream-20260727" },
+        intent := ew "parity.pin-upstream", actor := "agent-boyle",
+        base :=
+          { commit := "d82d97992fcae3a9314bb45f5885505c70fa0f0a",
+            tree := "95bdfcc22ed893bca8dc88205f61fe002166cc6a",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .add, target := "scripts/dev/capture_tinygrad_contract.py" },
+            { kind := .add, target := "scripts/dev/test_capture_tinygrad_contract.py" },
+            { kind := .add, target := "fixtures/upstream/19c4d736f2bc8e26d21f08b28ffd6298408da00f" },
+            { kind := .add, target := "Tgrad/Spec/ParityTarget.lean" },
+            { kind := .modify, target := "TgradSpec.lean" } ],
+        lease :=
+          { token := "bootstrap-parity-pin-agent-boyle",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .attemptStarted
+      { id := { value := "attempt-harness-namespace-temporaries-20260727" },
+        intent := ew "harness.namespace-temporaries", actor := "agent-carver",
+        base :=
+          { commit := "d82d97992fcae3a9314bb45f5885505c70fa0f0a",
+            tree := "95bdfcc22ed893bca8dc88205f61fe002166cc6a",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .add, target := "scripts/lib/run_context.sh" },
+            { kind := .add, target := "scripts/dev/test_run_context.sh" },
+            { kind := .modify, target := "scripts/lib/checks.sh" },
+            { kind := .modify, target := "scripts/gate.sh" },
+            { kind := .modify, target := "scripts/devcheck.sh" },
+            { kind := .modify, target := "scripts/runtime_independence.sh" },
+            { kind := .modify, target := "scripts/differential_codegen.sh" },
+            { kind := .modify, target := "scripts/dev/l15_a_audit.py" },
+            { kind := .modify, target := "scripts/gates" } ],
+        lease :=
+          { token := "bootstrap-temp-namespace-agent-carver",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .attemptStarted
+      { id := { value := "attempt-harness-paired-performance-20260727" },
+        intent := ew "harness.paired-performance", actor := "agent-descartes",
+        base :=
+          { commit := "d82d97992fcae3a9314bb45f5885505c70fa0f0a",
+            tree := "95bdfcc22ed893bca8dc88205f61fe002166cc6a",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .add, target := "scripts/perf/paired_runtime.py" },
+            { kind := .add, target := "scripts/perf/README.md" },
+            { kind := .add, target := "scripts/perf/__init__.py" },
+            { kind := .add, target := "scripts/dev/test_paired_runtime.py" } ],
+        lease :=
+          { token := "bootstrap-paired-perf-agent-descartes",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .attemptAbandoned
+      { value := "attempt-parity-pin-upstream-20260727" }
+      "ownership transferred before authoring; agent-boyle made no repository changes and the Claude worker owns the non-overlapping scripts/parity extractor",
+    .attemptStarted
+      { id := { value := "attempt-parity-pin-upstream-claude-20260727" },
+        intent := ew "parity.pin-upstream", actor := "claude-window-2-tab-1",
+        base :=
+          { commit := "d82d97992fcae3a9314bb45f5885505c70fa0f0a",
+            tree := "95bdfcc22ed893bca8dc88205f61fe002166cc6a",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .add, target := "scripts/parity" },
+            { kind := .add, target := "fixtures/parity/upstream_19c4d736f2bc.json" },
+            { kind := .add, target := "Tgrad/Spec/ParityTarget.lean" },
+            { kind := .modify, target := "TgradSpec.lean" } ],
+        lease :=
+          { token := "coord-window-2-tab-1-parity-pin",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .candidateProduced
+      { id := { value := "candidate-parity-extractor-3ed1e49" },
+        attempt := { value := "attempt-parity-pin-upstream-claude-20260727" },
+        tree := "dcbe77daa1a713336f54ee3578fe77a7dc56e6fc",
+        observedEffects :=
+          [ { kind := .add, target := "scripts/parity" },
+            { kind := .add, target := "fixtures/parity/upstream_19c4d736f2bc.json" } ],
+        summary := "foreign AST extraction produced the first concrete denominator but deliberately did not promote targetUpstream" },
+    .attemptAbandoned
+      { value := "attempt-parity-pin-upstream-claude-20260727" }
+      "the extraction candidate was retained, but promotion requires an explicit exclusions ledger, generated Lean requirements, product drift pins, and reviewed target selection",
+    .attemptStarted
+      { id := { value := "attempt-parity-pin-upstream-codex-20260727" },
+        intent := ew "parity.pin-upstream", actor := "codex-primary",
+        base :=
+          { commit := "3ed1e49506260aced45528c371334c293eec34d4",
+            tree := "dcbe77daa1a713336f54ee3578fe77a7dc56e6fc",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .modify, target := "scripts/parity/extract_upstream.py" },
+            { kind := .add, target := "scripts/parity/render_lean_target.py" },
+            { kind := .add, target := "scripts/parity/test_target_generation.py" },
+            { kind := .modify, target := "fixtures/parity/upstream_19c4d736f2bc.json" },
+            { kind := .add, target := "Tgrad/Spec/ParityTarget.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Parity.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Findings.lean" },
+            { kind := .modify, target := "PARITY.md" } ],
+        lease :=
+          { token := "codex-primary-parity-target-promotion",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .candidateProduced
+      { id := { value := "candidate-parity-target-8c87034" },
+        attempt := { value := "attempt-parity-pin-upstream-codex-20260727" },
+        tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+        observedEffects :=
+          [ { kind := .modify, target := "scripts/parity/extract_upstream.py" },
+            { kind := .add, target := "scripts/parity/render_lean_target.py" },
+            { kind := .add, target := "scripts/parity/test_target_generation.py" },
+            { kind := .modify, target := "fixtures/parity/upstream_19c4d736f2bc.json" },
+            { kind := .add, target := "Tgrad/Spec/ParityTarget.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Parity.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Findings.lean" },
+            { kind := .modify, target := "PARITY.md" } ],
+        summary := "reviewed upstream pin, explicit exclusions and section hashes, deterministic Lean generation, 590 derived requirements, product drift pins, and anti-understatement findings" },
+    .checkRecorded
+      { id := { value := "check-parity-target-build-8c87034" },
+        candidate := { value := "candidate-parity-target-8c87034" },
+        tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "detached 8c87034 worktree: lake build tgrad-spec; run tgrad-spec and require target confirmed=true",
+        artifactDigest := "sha256:9d8df1edde988072d844a8edad0b5bcde9cb46f35bac892ec7cbe0cdd1978022" },
+    .checkRecorded
+      { id := { value := "check-parity-target-api-8c87034" },
+        candidate := { value := "candidate-parity-target-8c87034" },
+        tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+        validator := rw "verify.upstream-contract", obligation := .apiContract,
+        outcome := .passed,
+        command := "official GitHub API and clean 19c4d736 checkout both --check the 297 methods, 5 properties, 52 dtype names, 82 Ops, 16 backends, and 138 test files",
+        artifactDigest := "sha256:0d4d2e018129d7e3aad48d6794e921435826ac37c881e4ac5e10ee0e3449eb05" },
+    .checkRecorded
+      { id := { value := "check-parity-target-semantic-8c87034" },
+        candidate := { value := "candidate-parity-target-8c87034" },
+        tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+        validator := rw "verify.upstream-contract", obligation := .semantic,
+        outcome := .passed,
+        command := "render_lean_target --check; native_decide proves 590 generated requirement rows are unique and well formed; target contract cells remain unknown",
+        artifactDigest := "sha256:0c929b7a82ab8d13077f80ee5349c70522fdfb73c0b4bc293662bd293f5f6a91" },
+    .checkRecorded
+      { id := { value := "check-parity-target-provenance-8c87034" },
+        candidate := { value := "candidate-parity-target-8c87034" },
+        tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+        validator := rw "verify.upstream-contract", obligation := .provenance,
+        outcome := .passed,
+        command := "six offline tests reject the wrong Ops location, missing Tensor mixins, stale rehashed Ops inventory, corrupted content hash, and implicit exclusions; local/API captures agree",
+        artifactDigest := "sha256:210324965d302087cf78ef6c67ffc0cc930e1b336ea8c2c6dc277921ea5e8c82" },
+    .checkRecorded
+      { id := { value := "check-parity-target-review-8c87034" },
+        candidate := { value := "candidate-parity-target-8c87034" },
+        tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+        validator := rw "spec.check-growth-loop", obligation := .humanReview,
+        outcome := .passed,
+        command := "owner reviewed 3ed1e49, verified the official revision, required product pins/self-reference labels/evidence wording, and authorized replacing unknown with the generated pin",
+        artifactDigest := "sha256:57652041e1a5523fc32e4ca99e8e4b847b9f57d840298a3cc89192ee74548bf8" },
+    .promoted
+      { growthCase := "G-upstream-contract",
+        candidate := { value := "candidate-parity-target-8c87034" },
+        checkRuns :=
+          [ { value := "check-parity-target-build-8c87034" },
+            { value := "check-parity-target-api-8c87034" },
+            { value := "check-parity-target-semantic-8c87034" },
+            { value := "check-parity-target-provenance-8c87034" },
+            { value := "check-parity-target-review-8c87034" } ],
+        requiredObligations :=
+          [.build, .apiContract, .semantic, .provenance, .humanReview],
+        acceptedBy := ["harsh", "codex-primary", "claude-window-2-tab-1"],
+        target :=
+          { commit := "8c8703470b8bf4a51553c5d5db4dbe424ced8af6",
+            tree := "081c50f1ac029ab496fec91d8b5828d54cb7bdae",
+            dirty := false },
+        residualRisks :=
+          [ "targetContract is still unknown because no immutable Tgrad subject/profile coverage matrix exists",
+            "test-file requirements are coarse inventory rows until the upstream adapter extracts test cases and applicability",
+            "the candidate commit predates this promotion record" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
   replay itemIds liveEvolutionEvents
@@ -1537,9 +1770,9 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 0 && state.candidates.length == 11 &&
-      state.checks.length == 46 && state.promotions.length == 8 &&
-      state.abandoned.length == 3
+      state.activeAttempts.length == 2 && state.candidates.length == 13 &&
+      state.checks.length == 51 && state.promotions.length == 9 &&
+      state.abandoned.length == 5
   | .error _ => false
 
 def liveActiveIntentIds : List Growth.EvolutionWorkId :=
@@ -1678,8 +1911,8 @@ theorem routing_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_safe_frontier_contains_two_disjoint_trust_packets :
-    frontierIds = [ew "perf.rebaseline", ew "parity.pin-upstream"] := by
+theorem current_authoring_frontier_is_fully_claimed :
+    frontierIds = [] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :
@@ -1800,6 +2033,14 @@ theorem transcription_deletion_is_promoted_and_released :
     (livePromotedIntentIds.contains (ew "codegen.delete-transcription") &&
       completedIds.contains (ew "codegen.delete-transcription") &&
       !(liveActiveIntentIds.contains (ew "codegen.delete-transcription"))) = true := by
+  native_decide
+
+theorem upstream_contract_is_promoted_and_released :
+    (livePromotedIntentIds.contains (ew "parity.pin-upstream") &&
+      completedIds.contains (ew "parity.pin-upstream") &&
+      !(liveActiveIntentIds.contains (ew "parity.pin-upstream")) &&
+      Parity.targetUpstream.isConfirmed &&
+      Parity.targetRequirements.length == ParityTarget.requirementCount) = true := by
   native_decide
 
 theorem generated_sentinels_case_matches_runtime_and_finding_state :

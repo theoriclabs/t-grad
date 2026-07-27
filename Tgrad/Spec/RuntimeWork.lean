@@ -243,6 +243,16 @@ def workUnits : List WorkUnit :=
       ["lakefile.lean", "lean-toolchain"] .loadBearing
       "lake build the product and specification roots"
       "mechanical correctness does not imply runtime or numerical correctness",
+    implemented "verify.upstream-contract" "pinned upstream contract validation"
+      .verification .validate [.candidateRevision, .scenario] [.validationEvidence, .report]
+      .gateHarness [.sourceTree, .tmpNamespace] [.scenarioCount, .evidenceCount]
+      ["scripts/parity/extract_upstream.py",
+       "scripts/parity/render_lean_target.py",
+       "scripts/parity/test_target_generation.py",
+       "fixtures/parity/upstream_19c4d736f2bc.json",
+       "Tgrad/Spec/ParityTarget.lean"] .loadBearing
+      "capture the exact official revision twice, verify canonical and section hashes, render the generated Lean inventory, check 590 unique well-formed requirements, and reject calibrated source/hash/exclusion mutations"
+      "this establishes the foreign denominator and its drift detection; it does not classify a single Tgrad coverage cell or produce parity evidence",
     implemented "verify.unit-tests" "Lean assertion suite"
       .verification .validate [.candidateRevision, .scenario] [.validationEvidence]
       .gateHarness [.sourceTree, .leanBuildTree] [.scenarioCount]

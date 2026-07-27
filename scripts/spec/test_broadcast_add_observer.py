@@ -275,6 +275,8 @@ class ProtocolTests(unittest.TestCase):
 
     def test_common_probe_and_all_branch_sources_compile(self) -> None:
         compile(observer.PROBE_SOURCE, "<broadcast-add-probe>", "exec")
+        self.assertIn("tensor.tolist()", observer.PROBE_SOURCE)
+        self.assertNotIn("tensor.numpy()", observer.PROBE_SOURCE)
         sources = []
         for mutation_id, function in observer.MUTATION_BRANCH_FUNCTIONS.items():
             source = observer.probe_function_source(function)

@@ -309,8 +309,13 @@ def dtype_name(value):
 
 def exact_readback(tensor):
     import numpy as np
-    array = np.asarray(tensor.numpy())
     logical_dtype = dtype_name(tensor.dtype)
+    # The pinned upstream revision's Buffer.numpy constructs an ndarray but
+    # accidentally omits its return. The requirement names logical readback,
+    # not that convenience method. Use the public tolist boundary and rebuild
+    # canonical storage from the separately observed dtype and shape.
+    shape = tuple(int(value) for value in tensor.shape)
+    array = np.asarray(tensor.tolist()).reshape(shape)
     if logical_dtype == "float32":
         storage = np.asarray(array, dtype="<f4")
         tokens = [float(value).hex() for value in storage.reshape(-1)]
@@ -322,7 +327,7 @@ def exact_readback(tensor):
         tokens = [repr(value.item() if hasattr(value, "item") else value)
                   for value in storage.reshape(-1)]
     payload = {
-        "shape": [int(value) for value in array.shape],
+        "shape": list(shape),
         "dtype": logical_dtype,
         "storage_dtype": storage.dtype.str,
         "storage_hex": storage.tobytes(order="C").hex(),

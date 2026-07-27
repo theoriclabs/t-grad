@@ -198,6 +198,77 @@ theorem reduce_names_separate_axes :
         (fun d => d.name) := by
   native_decide
 
+
+/-! ## Fused reduce-of-elementwise
+
+  `reduce add (mul a b)` is matmul. Lowering it literally — materialise
+  the elementwise product, then reduce it — allocates `M*N*K` elements:
+  two gigabytes at 1024³. tinygrad never does that; its scheduler fuses
+  the pair into one kernel whose accumulator consumes the product as it
+  is produced.
+
+  This is that fused lowering, generically: one thread per output
+  element, accumulating `a OP_ew b` along the contracted axis, with no
+  intermediate. It is the general path that makes matmul expressible
+  without a matmul-shaped generator.
+
+  It is not a replacement for the WMMA kernels. Those stay as an
+  optimisation for shapes that qualify; this is the correct-everywhere
+  fallback they are selected *over*. The differential is what keeps the
+  two honest about agreeing.
+-/
+
+/-- Fused `reduce(redOp) over axis of (a ewOp b)`, keepdim.
+
+    Operand indices are supplied by the caller from the `View` algebra
+    and may reference the output coordinates `gidx0`/`gidx1` and the
+    contraction variable `ridx0`, so expanded and permuted operands need
+    no special handling. -/
+def fusedReduceKernelDecl (redOp ewOp : BinOp) (outRows outCols bound : Nat)
+    (aIdx bIdx : UOp) (aTy bTy outTy : Dtype) (tag : String) :
+    Option KernelDecl :=
+  match elementwiseOpStr redOp, reduceInit redOp, elementwiseOpStr ewOp,
+        mslScalarType aTy, mslScalarType bTy, mslScalarType outTy with
+  | some redStr, some init, some ewStr, some aS, some bS, some outS =>
+    let outIdx : UOp :=
+      .binop .add
+        (.binop .mul (.var "gidx0" .int32_)
+                     (.const .int32_ (.i (Int.ofNat outCols))) .int32_)
+        (.var "gidx1" .int32_) .int32_
+    some
+      { name := s!"fused_{reduceOpName redOp}_{elementwiseOpName ewOp}_{aTy.toStr}_{bTy.toStr}_{outTy.toStr}_{tag}_{outRows}x{outCols}x{bound}",
+        wmmaArgs := [],
+        args     := [
+          .buffer { qualifier := "device", baseType := outS, name := "data0" },
+          .buffer { qualifier := "device", baseType := aS,   name := "data1" },
+          .buffer { qualifier := "device", baseType := bS,   name := "data2" },
+          .attr   { baseType := "uint3", name := "gid",
+                    attrStr := "[[threadgroup_position_in_grid]]" },
+        ],
+        body     := [
+          .declInt "gidx0" "gid.x" (some s!"{outRows}"),
+          .declInt "gidx1" "gid.y" (some s!"{outCols}"),
+          .declFloat "acc" init,
+          .forLoop "ridx0" bound [
+            .loadIndexed s!"{aS} val0" "data1" aIdx,
+            .loadIndexed s!"{bS} val1" "data2" bIdx,
+            .assign "acc" s!"acc{redStr}(((float)val0){ewStr}((float)val1))"
+          ],
+          .storeIndexedAs outS "data0" outIdx "acc"
+        ],
+        trailingNewline := false }
+  | _, _, _, _, _, _ => none
+
+/-- The fused kernel's identity must separate both operators, not just
+    one: `reduce add (mul ..)` and `reduce add (add ..)` are different
+    computations that would otherwise share a cache entry. -/
+theorem fused_names_separate_inner_operator :
+    (fusedReduceKernelDecl .add .mul 4 4 4 (.var "i" .int32_) (.var "j" .int32_)
+        .bfloat16_ .bfloat16_ .bfloat16_ "t").map (fun d => d.name)
+      ≠ (fusedReduceKernelDecl .add .add 4 4 4 (.var "i" .int32_) (.var "j" .int32_)
+        .bfloat16_ .bfloat16_ .bfloat16_ "t").map (fun d => d.name) := by
+  native_decide
+
 end Metal
 end Renderer
 end Tgrad

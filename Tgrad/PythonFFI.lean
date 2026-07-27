@@ -739,6 +739,62 @@ private def runReduce (op : BinOp) (a : Tgrad.Tensor) (axis : Nat) :
                   outShape outTy))
   | _, _, _ => return none
 
+initialize libCacheFused : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+/-- Lower `reduce(redOp) over the last axis of (a ewOp b)` as ONE kernel.
+
+    This is the general contraction path, and the reason matmul does not
+    need a matmul-shaped generator. `a @ b` is
+    `reduce add (mul (expand a) (expand b))` over the contracted axis;
+    lowering that literally would allocate the `M*N*K` product first —
+    two gigabytes at 1024³ — so the elementwise op is instead consumed
+    inside the accumulator loop and never materialised. That is what
+    tinygrad's scheduler does, and the operand indices come from the
+    `View` algebra, so the expands and the permute cost nothing.
+
+    Slow but correct: one thread per output element, no tiling, no
+    threadgroup memory, no WMMA. The specialised kernels remain the fast
+    route for shapes that qualify; this is the path they are chosen
+    *over*, and `scripts/differential_codegen.sh` is what keeps the two
+    answering identically. -/
+private def runFusedReduce (redOp ewOp : BinOp) (a b : Tgrad.Tensor) :
+    IO (Option Tgrad.Tensor) := do
+  let aShape := a.shape
+  if aShape.length != 3 || b.shape != aShape then return none
+  match aShape[0]?, aShape[1]?, aShape[2]?,
+        Tgrad.Schedule.viewOfUOp a.uop, Tgrad.Schedule.viewOfUOp b.uop with
+  | some d0, some d1, some d2, some va, some vb => do
+    let vars : List UOp :=
+      [.var "gidx0" .int32_, .var "gidx1" .int32_, .var "ridx0" .int32_]
+    let aIdx := Tgrad.Schedule.View.indexOf va vars
+    let bIdx := Tgrad.Schedule.View.indexOf vb vars
+    let outTy := Tgrad.Dtype.lub a.dtype b.dtype
+    let tag := toString (String.hash (aIdx.renderIndexExpr ++ "|" ++ bIdx.renderIndexExpr))
+    match Tgrad.Renderer.Metal.fusedReduceKernelDecl redOp ewOp d0 d1 d2
+            aIdx bIdx a.dtype b.dtype outTy tag with
+    | none => return none
+    | some decl => do
+      let cache ← libCacheFused.get
+      let cached := cacheLookup decl.name cache
+      let lib ← if cached != 0 then pure cached else do
+        let msl := Tgrad.Renderer.Metal.renderKernel decl
+        let l ← Tgrad.Runtime.Metal.metalCompile msl
+        if l != 0 then libCacheFused.modify (fun c => (decl.name, l) :: c)
+        pure l
+      if lib == 0 then return none
+      let outBytes := d0 * d1 * outTy.sizeBytes
+      let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+      if outBuf == 0 then return none
+      let rc ← Tgrad.Runtime.Metal.metalDispatch lib decl.name
+        #[outBuf, a.buffer.raw, b.buffer.raw]
+        (USize.ofNat d0) (USize.ofNat d1) 1 1 1 1
+      if rc != 0 then
+        Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+        return none
+      pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+                  [d0, d1, 1] outTy))
+  | _, _, _, _, _ => return none
+
 /-- Materialise a graph and return a handle to the result.
 
     The accepted shape today is the matmul marker
@@ -755,9 +811,22 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
   let some t ← TensorRegistry.get? h | return 0
   match t.uop with
   | .reduce .add (.binop .mul aU bU _) _ =>
+      -- Operand dtypes come from their own leaves only on the general
+      -- path; the rank-2 route below is pinned to bf16 by its sentinel
+      -- fixtures and must keep reading them as bf16.
       let a : Tgrad.Tensor := { uop := aU, dtype := .bfloat16_ }
       let b : Tgrad.Tensor := { uop := bU, dtype := .bfloat16_ }
       let aShape := a.shape
+      -- Rank 3 is the general contraction written out as a graph. It
+      -- goes to the fused kernel; the rank-2 marker below keeps the
+      -- specialised WMMA route for the shapes that earn it.
+      if aShape.length == 3 then
+        match (← runFusedReduce .add .mul
+                  { uop := aU, dtype := aU.dtypeOf }
+                  { uop := bU, dtype := bU.dtypeOf }) with
+        | none     => return 0
+        | some out => TensorRegistry.register out
+      else
       let bShape := b.shape
       let some M := aShape[0]? | return 0
       let some K := aShape[1]? | return 0

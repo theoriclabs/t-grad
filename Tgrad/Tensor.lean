@@ -82,6 +82,17 @@ where
   -- left one is representative. Broadcasting between differing shapes
   -- is rejected before a graph is built, not silently resolved here.
   | .binop _ a _ _      => walk a
+  -- Keepdim, matching what the reduce kernels actually write: a
+  -- contracted axis becomes 1 rather than vanishing, so rank is stable
+  -- across a reduction. This arm used to be absent, which meant a
+  -- reduce node fell through to the panic and reported rank 0 --- one
+  -- of the `panicsToDefault` morphisms `Ontology.lean` grades.
+  | .reduce _ body axes =>
+      let ax := axes.filterMap fun u =>
+        match u with
+        | .const _ (.i n) => some n.toNat
+        | _               => none
+      (walk body).mapIdx fun i d => if ax.contains i then 1 else d
   | _                   => panic! "L14.B.1: Tensor.shape: unsupported uop kind"
 
 /-- Derived: extract the underlying MTLBuffer handle from the BUFFER

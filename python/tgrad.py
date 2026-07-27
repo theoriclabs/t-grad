@@ -548,6 +548,10 @@ class Tensor:
         """Return exact logical readback using Python's nested-list shape."""
         return self.numpy().tolist()
 
+    def realize(self) -> "Tensor":
+        """A materialized Tgrad Tensor realizes to the identical object."""
+        return self
+
     # L14.B.1: view methods — compose movement nodes on the Lean-side
     # uop; return a new Tensor sharing the underlying buffer. Pure
     # graph transforms; no buffer allocation; no kernel dispatch.

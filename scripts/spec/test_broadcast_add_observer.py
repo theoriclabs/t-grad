@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 
 from scripts.spec import observe_broadcast_add as observer
+from scripts.spec import promote_broadcast_add_diagnostic as promoter
 
 
 def definition() -> tuple[dict, dict, dict]:
@@ -461,6 +462,13 @@ class ArtifactAndPolicyTests(unittest.TestCase):
 
     def test_diagnostic_blocker_is_not_an_observation_kind(self) -> None:
         self.assertNotEqual("observation", "diagnostic_blocker")
+
+    def test_diagnostic_promoter_refuses_an_observation(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            source = Path(raw) / "observation.json"
+            source.write_text(json.dumps({"result_kind": "observation"}))
+            with self.assertRaisesRegex(RuntimeError, "only a diagnostic blocker"):
+                promoter.promote(source, Path(raw) / "destination")
 
     def test_normalization_handles_macos_path_aliases(self) -> None:
         with tempfile.TemporaryDirectory() as one, tempfile.TemporaryDirectory() as two:

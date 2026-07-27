@@ -585,8 +585,14 @@ fabricates its own faults has not demonstrated sensitivity to faulty behavior.
 The accepted architecture launches eight isolated child probes whose faults
 act before observation and whose literal streams, branch source,
 configuration, executable-tree identity, and replay closure are all bound.
-This instrument is still only implemented, not yet exercised against either
-subject.
+The first pinned-upstream execution then failed before a baseline could exist:
+the frozen revision's Metal initialization receives `None` from `UTF8String`
+and cannot realize/read back the legal inputs. The replayable diagnostic
+artifact is stored under
+`fixtures/requirements/observations/05a83ab54d49812233cc60f8a5d37e676009d2914c5a58d668e67c6ac83d5cee/`.
+It is a diagnostic blocker with `baseline_eligible=false`; it is not silently
+accepted as calibration, an observation pass, or evidence about Tgrad. This
+correctly stops the baseline-first protocol before a TGrad run.
 
 ## How to know whether the method is working
 

@@ -1,0 +1,3 @@
+def mut_accept_incompatible(state, scenario, Tensor, dtypes):
+    # Return a real constructed Tensor rather than fabricating observations.
+    return construct(scenario["left"], Tensor, dtypes)

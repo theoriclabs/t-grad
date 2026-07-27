@@ -1,0 +1,388 @@
+{
+  "against": "upstream",
+  "aggregate": {
+    "files": 41,
+    "files_collect_error": 0,
+    "files_fail": 0,
+    "files_pass": 41,
+    "files_timeout": 0,
+    "tests_errors": 0,
+    "tests_failed": 0,
+    "tests_passed": 1237,
+    "tests_skipped": 334
+  },
+  "group": "backend",
+  "ran_at_utc": "2026-07-27T09:50:44Z",
+  "results": [
+    {
+      "collected": 23,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_arange.py",
+      "passed": 17,
+      "skipped": 6,
+      "status": "pass"
+    },
+    {
+      "collected": 78,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_asm_gemm.py",
+      "passed": 9,
+      "skipped": 69,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_call.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 25,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_const_folding.py",
+      "passed": 23,
+      "skipped": 2,
+      "status": "pass"
+    },
+    {
+      "collected": 42,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_custom_kernel.py",
+      "passed": 40,
+      "skipped": 2,
+      "status": "pass"
+    },
+    {
+      "collected": 215,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_dtype.py",
+      "passed": 180,
+      "skipped": 35,
+      "status": "pass"
+    },
+    {
+      "collected": 59,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_dtype_alu.py",
+      "passed": 45,
+      "skipped": 14,
+      "status": "pass"
+    },
+    {
+      "collected": 16,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_edgecases.py",
+      "passed": 14,
+      "skipped": 2,
+      "status": "pass"
+    },
+    {
+      "collected": 20,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_encodings.py",
+      "passed": 0,
+      "skipped": 20,
+      "status": "pass"
+    },
+    {
+      "collected": 11,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_graph.py",
+      "passed": 4,
+      "skipped": 7,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_interop.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_isel.py",
+      "passed": 0,
+      "skipped": 3,
+      "status": "pass"
+    },
+    {
+      "collected": 26,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_jit.py",
+      "passed": 20,
+      "skipped": 6,
+      "status": "pass"
+    },
+    {
+      "collected": 27,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_linearizer.py",
+      "passed": 21,
+      "skipped": 6,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_linearizer_dumb.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 9,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_llama_kernels.py",
+      "passed": 4,
+      "skipped": 5,
+      "status": "pass"
+    },
+    {
+      "collected": 35,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_multitensor.py",
+      "passed": 31,
+      "skipped": 4,
+      "status": "pass"
+    },
+    {
+      "collected": 43,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_nn.py",
+      "passed": 0,
+      "skipped": 43,
+      "status": "pass"
+    },
+    {
+      "collected": 424,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_ops.py",
+      "passed": 416,
+      "skipped": 8,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_opt_gemm.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 39,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_optim.py",
+      "passed": 0,
+      "skipped": 39,
+      "status": "pass"
+    },
+    {
+      "collected": 19,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_pickle.py",
+      "passed": 18,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 11,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_profiler.py",
+      "passed": 7,
+      "skipped": 4,
+      "status": "pass"
+    },
+    {
+      "collected": 15,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_quantize_onnx.py",
+      "passed": 0,
+      "skipped": 15,
+      "status": "pass"
+    },
+    {
+      "collected": 18,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_randomness.py",
+      "passed": 18,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 36,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_rangeify.py",
+      "passed": 29,
+      "skipped": 7,
+      "status": "pass"
+    },
+    {
+      "collected": 13,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_renderer_failures.py",
+      "passed": 7,
+      "skipped": 6,
+      "status": "pass"
+    },
+    {
+      "collected": 56,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_schedule.py",
+      "passed": 52,
+      "skipped": 4,
+      "status": "pass"
+    },
+    {
+      "collected": 39,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_setitem.py",
+      "passed": 38,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 16,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_softmax_fusion.py",
+      "passed": 8,
+      "skipped": 8,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_stunning.py",
+      "passed": 2,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_subbuffer.py",
+      "passed": 13,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 21,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_symbolic_jit.py",
+      "passed": 21,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 34,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_symbolic_ops.py",
+      "passed": 34,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 73,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_tensor.py",
+      "passed": 68,
+      "skipped": 5,
+      "status": "pass"
+    },
+    {
+      "collected": 30,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_tensor_variable.py",
+      "passed": 30,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_to_numpy.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 17,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_transcendental.py",
+      "passed": 16,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 45,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_uops.py",
+      "passed": 37,
+      "skipped": 8,
+      "status": "pass"
+    },
+    {
+      "collected": 5,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_wait_loop.py",
+      "passed": 4,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/backend/test_zero_copy.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    }
+  ],
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+}

@@ -206,9 +206,11 @@ The codegen and provenance work added three rules for verification work:
    all 11 kernels. Structural non-aliasing and behavioural placement therefore
    remain independently required.
 3. **Auditing, repairing, and enforcing are different work.** The provenance
-   auditor can mechanically report 37 absent-commit files, 73 unresolved
+   auditor now mechanically reports 37 absent-commit files, 77 unresolved
    hashes, 28 bad roll-ups, and 27 writer mismatches without rewriting any
-   evidence. Regeneration is an owner-authorized serial GPU operation.
+   evidence. The unresolved count was 73 at `bdc01b0`; deleting four stale
+   hash targets correctly changed the observation. Regeneration is an
+   owner-authorized serial GPU operation.
    Enforcement becomes honest only after regeneration produces a passing
    subject; making a known-red auditor fatal earlier would add friction, not
    integrity.

@@ -347,7 +347,7 @@ ULP-tolerance fallback because `metal_alloc.m:134` compiles with
 ### Evidence provenance: observable before enforceable
 
 `bdc01b0` turns the manual provenance review into a calibrated auditor. The
-committed set reports 37/37 files naming an absent commit, 73/115 unresolved
+committed set reports 37/37 files naming an absent commit, 77/115 unresolved
 non-transient hashes, 28 roll-up disagreements, and 27 writer-key mismatches;
 synthetic evidence tied to HEAD passes. The audit is deliberately diagnostic.
 Making a known-red check fatal would create a blocker without repairing its

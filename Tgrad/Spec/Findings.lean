@@ -97,7 +97,7 @@ def findings : List Finding :=
       component := .evidenceStore,
       description := "committed evidence names an absent commit and stale hashes",
       state := .confirmed .open
-        "repeatable audit bdc01b0: 37/37 absent commit, 73/115 unresolved hashes, 28 roll-up disagreements, 27 writer-key mismatches" },
+        "bdc01b0 baseline was 37/37 absent and 73/115 unresolved; after deleting four stale hash targets the current audit reports 77/115, with 28 roll-up and 27 writer-key mismatches" },
     { id := "F-division-semantics", severity := .medium,
       component := .rewriteEngine,
       description := "constant fold, Python oracle, and C renderer disagree for negatives",

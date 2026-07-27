@@ -155,7 +155,7 @@ python3 scripts/dev/evidence_provenance_audit.py
 ```
 
 It currently exits nonzero by design: 37/37 files name an absent commit,
-73/115 non-transient hashes are unresolved, 28 roll-ups disagree, and 27
+77/115 non-transient hashes are unresolved, 28 roll-ups disagree, and 27
 files use a host key their own gate script does not emit. The auditor becomes
 a fatal release predicate only after an owner-authorized serial regeneration.
 

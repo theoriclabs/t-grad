@@ -1,0 +1,127 @@
+{
+  "against": "tgrad",
+  "aggregate": {
+    "files": 12,
+    "files_collect_error": 11,
+    "files_fail": 1,
+    "files_pass": 0,
+    "files_timeout": 0,
+    "tests_errors": 11,
+    "tests_failed": 1,
+    "tests_passed": 0,
+    "tests_skipped": 0
+  },
+  "group": "backend",
+  "ran_at_utc": "2026-07-27T09:56:02Z",
+  "results": [
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_dtype.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_dtype_alu.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_edgecases.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_interop.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_ops.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_optim.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_setitem.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_stunning.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_symbolic_jit.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_symbolic_ops.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 1,
+      "file": "test/backend/test_to_numpy.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "fail"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_transcendental.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    }
+  ],
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+}

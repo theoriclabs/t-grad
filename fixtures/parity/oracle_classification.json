@@ -1,0 +1,2118 @@
+{
+  "schema_version": 1,
+  "upstream": {
+    "repository": "tinygrad/tinygrad",
+    "commit": "19c4d736f2bc8e26d21f08b28ffd6298408da00f",
+    "test_directories": [
+      "test/null",
+      "test/unit",
+      "test/backend"
+    ]
+  },
+  "classification_policy": {
+    "unit": "file",
+    "basis": "Imports and representative asserted behavior in the pinned upstream source; no Tgrad implementation or score was consulted.",
+    "mixed_file_rule": "A file with substantive tinygrad-specific representation, codegen, renderer, scheduler, optimizer, or runtime assertions is internal_repr even when it also contains public numerical checks.",
+    "classes": {
+      "api_surface": "Asserts representation-independent, observable behavior of the public Tensor, dtype, or device API.",
+      "internal_repr": "Asserts tinygrad-specific UOp, graph, codegen, renderer, scheduler, optimizer, or runtime implementation details.",
+      "infrastructure": "Asserts tinygrad's supporting tools, services, interchange formats, caches, loaders, or visualization/profiling facilities.",
+      "ambiguous": "The file does not contain enough evidence to assign one of the other classes without guessing."
+    }
+  },
+  "totals": {
+    "files": 141,
+    "by_class": {
+      "api_surface": 34,
+      "internal_repr": 80,
+      "infrastructure": 24,
+      "ambiguous": 3
+    },
+    "by_group": {
+      "null": {
+        "files": 55,
+        "by_class": {
+          "api_surface": 4,
+          "internal_repr": 38,
+          "infrastructure": 12,
+          "ambiguous": 1
+        }
+      },
+      "unit": {
+        "files": 44,
+        "by_class": {
+          "api_surface": 18,
+          "internal_repr": 16,
+          "infrastructure": 9,
+          "ambiguous": 1
+        }
+      },
+      "backend": {
+        "files": 42,
+        "by_class": {
+          "api_surface": 12,
+          "internal_repr": 26,
+          "infrastructure": 3,
+          "ambiguous": 1
+        }
+      }
+    }
+  },
+  "files": [
+    {
+      "group": "null",
+      "filename": "__init__.py",
+      "class": "ambiguous",
+      "rationale": "The empty package initializer has no imports, test bodies, or assertions from which to infer a contract.",
+      "imports": []
+    },
+    {
+      "group": "null",
+      "filename": "test_attention.py",
+      "class": "internal_repr",
+      "rationale": "It imports TinyJit and UOp and asserts schedule program counts and JIT-cache shape rather than attention values.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, dtypes, TinyJit, UOp",
+        "from tinygrad.llm.model import apply_rope as apply_rope_new, precompute_freqs_cis",
+        "from test.helpers import assert_jit_cache_len"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_autogen.py",
+      "class": "infrastructure",
+      "rationale": "It imports tinygrad.runtime.support.autogen and validates generated ctypes bindings and C interop.",
+      "imports": [
+        "import ctypes, struct, subprocess, tempfile, unittest",
+        "from tinygrad.helpers import OSX, WIN",
+        "from tinygrad.runtime.support.c import DLL, record, Field",
+        "from tinygrad.runtime.support import c",
+        "from tinygrad.runtime.support.autogen import gen",
+        "from tinygrad.runtime.support.c import POINTER",
+        "from tinygrad.runtime.support.c import POINTER"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_compile_failures.py",
+      "class": "internal_repr",
+      "rationale": "It imports tinygrad.codegen and compile_linear and checks compiler/code-generation failures and emitted instructions.",
+      "imports": [
+        "import unittest, io",
+        "from contextlib import redirect_stdout",
+        "from tinygrad import Tensor, dtypes, Device",
+        "from tinygrad.helpers import OSX",
+        "from tinygrad.engine.realize import compile_linear",
+        "from tinygrad.codegen import to_program"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_const_folding.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops and UOp and asserts rewritten node opcodes, dtypes, arguments, and constant graph structure.",
+      "imports": [
+        "import unittest, itertools, math",
+        "from tinygrad import Tensor, dtypes, Context",
+        "from tinygrad.dtype import DType, ConstType, Invalid",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from test.helpers import full_rewrite",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_device.py",
+      "class": "internal_repr",
+      "rationale": "It imports Compiler and runtime compiler implementations and asserts renderer/compiler selection and compilation-cache internals alongside device parsing.",
+      "imports": [
+        "import unittest, os, subprocess",
+        "from unittest.mock import patch",
+        "from tinygrad import Tensor",
+        "from tinygrad.device import Device, Compiler, enumerate_devices_str",
+        "from tinygrad.helpers import diskcache_get, diskcache_put, getenv, Context, Target, WIN, OSX, DEV",
+        "from tinygrad.runtime.support.c import DLL",
+        "from tinygrad.runtime.support.compiler_cpu import ClangCompiler",
+        "from tinygrad.runtime.support.compiler_llvm import CPULLVMCompiler",
+        "from tinygrad.runtime.support.compiler_amd import HIPCompiler",
+        "from tinygrad.runtime.support.compiler_llvm import AMDLLVMCompiler",
+        "from tinygrad.runtime.support.compiler_cpu import ClangCompiler",
+        "from tinygrad.runtime.support.compiler_llvm import CPULLVMCompiler",
+        "from tinygrad.runtime.support.compiler_llvm import CPULLVMCompiler"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_disk_cache.py",
+      "class": "infrastructure",
+      "rationale": "It imports the diskcache helpers and tests cache tables, serialization, decorators, and cross-process behavior.",
+      "imports": [
+        "import unittest",
+        "import pickle",
+        "from tinygrad.helpers import diskcache_get, diskcache_put, diskcache, diskcache_clear",
+        "from multiprocessing import Process, Queue",
+        "from multiprocessing import Process"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_dtype.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and public dtype objects and asserts dtype conversion, naming, singleton, pickling, and numeric cast results.",
+      "imports": [
+        "import unittest, pickle",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.dtype import dtypes, DType, to_dtype, Invalid, InvalidType",
+        "from tinygrad.dtype import can_lossless_cast"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_dtype_spec.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor, Device, and dtype functions and checks public dtype predicates, promotion, truncation, and values against NumPy and PyTorch.",
+      "imports": [
+        "import unittest, math, struct, operator",
+        "from tinygrad import Tensor, Device",
+        "from tinygrad.dtype import DTYPES_DICT, dtypes, Invalid, truncate, float_to_fp16, float_to_bf16, _to_np_dtype, least_upper_dtype, least_upper_float",
+        "from tinygrad.helpers import getenv",
+        "from hypothesis import given, settings, strategies as strat",
+        "import numpy as np",
+        "import torch"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_elf.py",
+      "class": "infrastructure",
+      "rationale": "It imports the ELF loader and Clang compiler support and tests object loading, linking, and external-symbol diagnostics.",
+      "imports": [
+        "import unittest, subprocess, platform",
+        "from tinygrad.runtime.support.compiler_cpu import ClangCompiler",
+        "from tinygrad.runtime.support.elf import elf_loader"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_gc.py",
+      "class": "internal_repr",
+      "rationale": "It imports Buffer, run_linear, and UOp and asserts object counts, reference counts, and graph lifetime behavior.",
+      "imports": [
+        "import gc, inspect",
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad.device import Buffer",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.uop.ops import UOp",
+        "from tinygrad.tensor import Tensor"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_gpudims.py",
+      "class": "internal_repr",
+      "rationale": "It imports codegen.gpudims, UOp, Ops, and Renderer and asserts SPECIAL/RANGE graph layout and grouped-dimension lowering.",
+      "imports": [
+        "import unittest, math",
+        "import z3",
+        "from tinygrad.codegen.gpudims import get_grouped_dims, add_gpudims",
+        "from tinygrad.uop.ops import UOp, Ops, KernelInfo, AxisType",
+        "from tinygrad.uop.validate import uops_to_z3",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.renderer import Renderer",
+        "from tinygrad.helpers import flatten, dedup, Target"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_gradient.py",
+      "class": "internal_repr",
+      "rationale": "It imports compute_gradient and UOp and evaluates symbolic gradient UOp expressions and realization state directly.",
+      "imports": [
+        "from typing import Callable",
+        "import unittest, math",
+        "import torch",
+        "from tinygrad import Tensor",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UOp",
+        "from tinygrad.mixin.gradient import compute_gradient"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_graph_rewrite.py",
+      "class": "internal_repr",
+      "rationale": "It imports graph-rewrite, pattern, and UOp primitives and asserts rewritten opcode, identity, source, and argument structure.",
+      "imports": [
+        "import unittest, math",
+        "from tinygrad import dtypes",
+        "from tinygrad.dtype import AddrSpace",
+        "from tinygrad.helpers import all_same, Context",
+        "from tinygrad.uop.ops import GroupOp, UOp, Ops, exec_alu, PatternMatcher, TrackedPatternMatcher, UPat",
+        "from test.helpers import full_rewrite",
+        "from hypothesis import given, strategies as strat",
+        "import inspect",
+        "from tinygrad.uop.ops import graph_rewrite, _substitute, track_rewrites",
+        "from tinygrad.uop.symbolic import symbolic_simple"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_hcq_iface.py",
+      "class": "internal_repr",
+      "rationale": "It imports low-level HCQ, USB, and MMIO interfaces and tests their memory-view and register-access mechanics directly.",
+      "imports": [
+        "import unittest, array, time",
+        "from tinygrad.helpers import mv_address",
+        "from tinygrad.runtime.support.hcq import MMIOInterface",
+        "from tinygrad.runtime.support.usb import USBMMIOInterface",
+        "from test.mockgpu.usb import MockUSB"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_helpers.py",
+      "class": "infrastructure",
+      "rationale": "It imports tinygrad.helpers broadly and tests context variables, formatting, fetching, memory views, decorators, and utility functions.",
+      "imports": [
+        "import ctypes, gzip, unittest, timeit, pickle",
+        "from tinygrad import Variable",
+        "from tinygrad.helpers import Context, ContextVar, argfix, colored, word_wrap, mv_address, count, all_same",
+        "from tinygrad.tensor import is_numpy_ndarray",
+        "from tinygrad.helpers import merge_dicts, strip_parens, prod, round_up, fetch, fully_flatten, from_mv, to_mv, polyN, time_to_str, cdiv, cmod, getbits",
+        "from tinygrad.helpers import ceildiv, ansistrip, get_shape",
+        "from tinygrad.tensor import Tensor",
+        "import numpy as np",
+        "from PIL import Image",
+        "from PIL import Image",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UOp",
+        "from test.helpers import eval_uop"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_indexing.py",
+      "class": "api_surface",
+      "rationale": "It imports only Tensor from tinygrad and asserts public indexing shapes and user-facing index errors.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_linearizer_failures.py",
+      "class": "internal_repr",
+      "rationale": "It constructs UOp kernels and invokes to_program to test a specific linearizer failure case.",
+      "imports": [
+        "import unittest",
+        "from tinygrad.uop.ops import UOp, Ops, AxisType, KernelInfo",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.device import Device",
+        "from tinygrad.codegen import to_program"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_linearizer_rewrite.py",
+      "class": "internal_repr",
+      "rationale": "It imports to_program and optimizer options and asserts rewritten program sources, applied options, and kernel metadata.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Context, Device",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.codegen.opt import Opt, OptOps",
+        "from tinygrad.uop.ops import KernelInfo"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_llm_server.py",
+      "class": "infrastructure",
+      "rationale": "It imports the LLM server and validates its OpenAI-compatible streaming, request, response, and usage protocol.",
+      "imports": [
+        "import unittest, threading, time, json",
+        "from unittest.mock import Mock, patch",
+        "from tinygrad.llm.cli import FallbackTemplate",
+        "from tinygrad.llm.serve import LLMServer",
+        "from openai import OpenAI",
+        "from openai import BadRequestError",
+        "import requests as req",
+        "from tinygrad.llm.serve import LLMServer",
+        "import jinja2",
+        "from openai import OpenAI"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_llm_tokenizer.py",
+      "class": "infrastructure",
+      "rationale": "It imports the LLM tokenizer and template helpers and tests tokenization tables, templates, and tokenizer performance.",
+      "imports": [
+        "import unittest, base64, functools, re, sys, time, unicodedata",
+        "from tinygrad.llm.cli import SimpleTokenizer, FallbackTemplate",
+        "from tinygrad.helpers import fetch"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_memory_planner.py",
+      "class": "internal_repr",
+      "rationale": "It imports schedule.memory and UOp and asserts arena reuse, aliasing, offsets, pinning, and replacement-map identity.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import dtypes",
+        "from tinygrad.uop.ops import UOp, Ops",
+        "from tinygrad.schedule.memory import memory_plan_rewrite"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_method_cache.py",
+      "class": "internal_repr",
+      "rationale": "It replaces Device.compiler.compile_cached and verifies that equivalent Tensor graphs reuse compiled methods.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Device, Variable",
+        "from examples.gpt2 import Transformer",
+        "from tinygrad.nn.state import get_state_dict"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_microbenchmarks.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp and profiles UOp construction, simplification, and topological graph size.",
+      "imports": [
+        "import unittest, time",
+        "from tinygrad import dtypes, Tensor, UOp, getenv",
+        "from tinygrad.helpers import Profiling"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_mnist_dataset.py",
+      "class": "infrastructure",
+      "rationale": "It imports the MNIST dataset loader and checks loader realization through a global kernel counter.",
+      "imports": [
+        "import unittest",
+        "from tinygrad.helpers import GlobalCounters",
+        "from tinygrad.nn.datasets import mnist"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_multitensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports JIT and Ops and primarily asserts multi-buffer allocation sizes, kernel counts, and scheduler memory behavior.",
+      "imports": [
+        "import gc, unittest",
+        "from tinygrad import Tensor, GlobalCounters, dtypes",
+        "from tinygrad.engine.jit import TinyJit",
+        "from tinygrad.helpers import Context",
+        "import functools",
+        "from tinygrad.uop.ops import Ops"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_pattern_matcher.py",
+      "class": "internal_repr",
+      "rationale": "It imports PatternMatcher, UPat, Ops, and UOp and asserts pattern fields, matches, captures, and rewritten node identity.",
+      "imports": [
+        "import unittest, itertools",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import Ops, UOp, GroupOp",
+        "from tinygrad.uop.ops import PatternMatcher, UPat"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_process_replay.py",
+      "class": "infrastructure",
+      "rationale": "It imports the external process-replay utility and checks reproducible replay of codegen programs and optimization choices.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Device, Context",
+        "from tinygrad.codegen import do_to_program",
+        "from tinygrad.codegen.opt import Opt, OptOps",
+        "from test.external.process_replay.process_replay import replay_to_program",
+        "from test.helpers import replace_opts"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_real_world.py",
+      "class": "internal_repr",
+      "rationale": "It imports TinyJit and GlobalCounters and gates model graphs on compiled-kernel counts, memory use, and JIT capture coverage rather than model outputs.",
+      "imports": [
+        "import unittest, time, gc",
+        "import numpy as np",
+        "from tinygrad.nn import optim",
+        "from tinygrad.nn.state import get_parameters",
+        "from tinygrad.engine.jit import TinyJit",
+        "from tinygrad import Tensor, Device, GlobalCounters, dtypes, Variable",
+        "from tinygrad.helpers import Context",
+        "from test.helpers import slow, jit_cache_count",
+        "from extra.lr_scheduler import OneCycleLR",
+        "from test.helpers import derandomize_model",
+        "from examples.gpt2 import Transformer as GPT2Transformer",
+        "from examples.hlb_cifar10 import SpeedyResNet, hyp",
+        "from extra.models.llama import Transformer as LLaMaTransformer",
+        "from examples.stable_diffusion import UNetModel, unet_params",
+        "from extra.models.unet import ResBlock",
+        "from extra.models.bert import BertForPretraining",
+        "from examples.beautiful_mnist import Model",
+        "from examples.mlperf.helpers import get_fake_data_bert"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_rearrange_einops.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and asserts observable rearrange shapes and element ordering.",
+      "imports": [
+        "import numpy as np",
+        "import unittest",
+        "from tinygrad import Tensor"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_resnet.py",
+      "class": "infrastructure",
+      "rationale": "It imports extra.models.resnet and exercises pretrained-weight loading rather than Tensor numerical behavior.",
+      "imports": [
+        "import unittest",
+        "from extra.models import resnet"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_rewrite_bottom_up_gate.py",
+      "class": "internal_repr",
+      "rationale": "It imports BottomUpGate, PatternMatcher, graph_rewrite, and UOp and checks traversal and rewrite ordering.",
+      "imports": [
+        "import unittest",
+        "from tinygrad.uop.ops import PatternMatcher, UOp, graph_rewrite, Ops, UPat, BottomUpGate"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_schedule.py",
+      "class": "internal_repr",
+      "rationale": "It imports scheduler, UOp, codegen, and realization primitives and extensively asserts schedule nodes, fusion, buffers, and kernel counts.",
+      "imports": [
+        "import gc, unittest, time",
+        "from typing import cast",
+        "from tinygrad import nn, dtypes, Device, Tensor, getenv",
+        "from tinygrad.uop.ops import UOp, Ops, GroupOp, UPat, KernelInfo",
+        "from tinygrad.helpers import DEBUG, GlobalCounters, Context",
+        "from tinygrad.engine.realize import compile_linear, run_linear",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.helpers import all_same",
+        "from tinygrad.dtype import Invalid"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_schedule_cache.py",
+      "class": "internal_repr",
+      "rationale": "It imports schedule_cache and asserts cache entries, variable bindings, and scheduler event counts.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Variable, Context",
+        "from tinygrad.helpers import cpu_events",
+        "from tinygrad.schedule import schedule_cache"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_simplify_valid_idx.py",
+      "class": "internal_repr",
+      "rationale": "It imports indexing and symbolic rewrite passes and asserts rendered predicates and rewritten UOp validity structure.",
+      "imports": [
+        "import unittest, itertools",
+        "from tinygrad.codegen.late.coalesce import indexing_simplify",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UOp, Ops, graph_rewrite",
+        "from tinygrad.uop.symbolic import simplify_valid, sym, pm_move_where_on_load",
+        "from tinygrad.helpers import Context",
+        "from test.helpers import full_rewrite",
+        "from test.null.test_uop_symbolic import check_uop_against_string",
+        "from z3 import Ints, Solver, And, If, Not, unsat",
+        "from tinygrad.codegen.late.coalesce import indexing_simplify",
+        "from tinygrad.uop.ops import graph_rewrite",
+        "from tinygrad.uop.symbolic import sym",
+        "from tinygrad.dtype import Invalid",
+        "from tinygrad.dtype import Invalid"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_symbolic_failures.py",
+      "class": "internal_repr",
+      "rationale": "It imports Variable but directly tests UOp simplify, substitute, and ssimplify behavior on symbolic expression graphs.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Variable"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_symbolic_tensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports the private _broadcast_shape helper and asserts UOp bindings, unbind maps, and contiguous-view offsets in addition to shapes.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Variable",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.uop.ops import _broadcast_shape"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_tensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops, UOp, renderers, and to_program and asserts STORE/INDEX nodes, generated dtypes, and buffer identity alongside Tensor behavior.",
+      "imports": [
+        "import numpy as np",
+        "import unittest",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.nir import NIRRenderer",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.dtype import DType"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_tensor_io.py",
+      "class": "infrastructure",
+      "rationale": "It imports TensorIO and tests its file-like construction, seek, and bounds behavior.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, dtypes",
+        "from tinygrad.nn.state import TensorIO"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_tensor_metadata.py",
+      "class": "internal_repr",
+      "rationale": "It imports private metadata and capture state and asserts metadata attached to Tensor UOps and scheduled calls.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, dtypes",
+        "from tinygrad.tensor import _METADATA",
+        "from tinygrad.engine.realize import capturing",
+        "from tinygrad.helpers import Context",
+        "import subprocess, os"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_tensor_uop_mixin.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp rewrite primitives and asserts Tensor operations produce the identical interned UOp objects as direct UOp operations.",
+      "imports": [
+        "import math, unittest",
+        "from dataclasses import replace",
+        "from tinygrad import Tensor, dtypes, Context",
+        "from tinygrad.uop.ops import ParamArg, UOp, UPat, Ops, PatternMatcher, graph_rewrite"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_tensor_uop_representation.py",
+      "class": "internal_repr",
+      "rationale": "It imports UPat, Ops, and UOp and asserts Tensor parent/child UOp identity, mutation, and realization representation.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor",
+        "from tinygrad.uop.ops import UPat, Ops, UOp"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_tqdm.py",
+      "class": "infrastructure",
+      "rationale": "It imports tinygrad's tqdm implementation and compares its formatting, timing, iteration, and performance with tqdm.",
+      "imports": [
+        "import time, random, unittest, itertools",
+        "from unittest.mock import patch",
+        "from io import StringIO",
+        "from collections import namedtuple",
+        "from tqdm import tqdm",
+        "from tinygrad.helpers import tqdm as tinytqdm, trange",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_transcendental_helpers.py",
+      "class": "internal_repr",
+      "rationale": "It imports codegen transcendental decomposition helpers and evaluates their generated UOp expressions directly.",
+      "imports": [
+        "import unittest, math",
+        "import numpy as np",
+        "from tinygrad import dtypes",
+        "from tinygrad.uop.ops import UOp",
+        "from tinygrad.codegen.decomp.transcendental import payne_hanek_reduction, cody_waite_reduction, frexp, rintk, pow2if",
+        "from test.helpers import eval_uop"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uop_graph.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp graph and rewrite primitives and asserts node dtype, opcode, source ordering, identity, and graph simplification.",
+      "imports": [
+        "import unittest, pytest",
+        "from tinygrad import dtypes, Variable",
+        "from tinygrad.dtype import AddrSpace",
+        "from tinygrad.helpers import DEBUG, Context",
+        "from tinygrad.uop.ops import Ops, UOp, UPat, PatternMatcher, graph_rewrite, GroupOp, AxisType, broadcast_axes",
+        "from tinygrad.uop.symbolic import sym",
+        "from test.helpers import to_uops_list",
+        "from tinygrad import Device",
+        "from tinygrad.codegen.simplify import pm_reduce_collapse",
+        "from tinygrad.schedule.rangeify import pm_mops",
+        "from tinygrad.schedule.rangeify import pm_mops",
+        "from tinygrad.schedule.rangeify import pm_const_buffer_folding, BufferizeOpts",
+        "from tinygrad.schedule.rangeify import pm_const_buffer_folding, BufferizeOpts"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uop_repr.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp and asserts exact repr strings, including constructor arguments and shared-node formatting.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import UOp, dtypes"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uop_resolve.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp and resolve and tests truth, integer, and float coercion of constant and symbolic UOp expressions.",
+      "imports": [
+        "import unittest",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UOp, resolve"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uop_symbolic.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp symbolic, spec, and validation passes and asserts symbolic node identity, rendering, bounds, and rewrites.",
+      "imports": [
+        "import unittest, pickle, functools, math",
+        "import z3",
+        "from tinygrad.dtype import dtypes, ConstType, DType, Invalid",
+        "from test.helpers import get_uops",
+        "from tinygrad.uop.ops import UOp, Ops, graph_rewrite, sym_infer",
+        "from tinygrad.uop.spec import spec_shared, type_verify",
+        "from tinygrad.uop.symbolic import sym, commutative, pm_simplify_valid, pm_move_where_on_load",
+        "from tinygrad.uop.validate import uops_to_z3",
+        "from tinygrad.codegen.simplify import pm_split_ranges, pm_flatten_range"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uop_vmin_vmax.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp and Ops and asserts internal vmin/vmax analysis on constructed expression nodes.",
+      "imports": [
+        "import unittest, math",
+        "from tinygrad.uop.ops import UOp, Ops",
+        "from tinygrad.dtype import dtypes, Invalid"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uops.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp specs, rewrite passes, and opcodes and asserts graph typing, ordering, repr round trips, and node structure.",
+      "imports": [
+        "import math, unittest",
+        "import numpy as np",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.helpers import Timing, Context, cdiv",
+        "from tinygrad.dtype import dtypes, AddrSpace, ConstFloat, Invalid",
+        "from tinygrad.device import Device",
+        "from tinygrad.uop.ops import Ops, ParamArg, UOp, UPat, dtype_from_uop, exec_alu, graph_rewrite, pm_lower_index_dtype",
+        "from tinygrad.uop.spec import spec_program, spec_shared, type_verify",
+        "from tinygrad.uop.symbolic import sym, pm_remove_invalid",
+        "from test.helpers import eval_uop, to_uops_list"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_uops_stats.py",
+      "class": "internal_repr",
+      "rationale": "It imports codegen, Estimates, UOp, and optimizer options and asserts operation, memory, and generated-program estimates.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor",
+        "from tinygrad.helpers import GlobalCounters",
+        "from tinygrad.engine.realize import compile_linear, estimate_uop",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.renderer import Estimates",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.codegen.opt import Opt, OptOps, KernelOptError",
+        "from tinygrad.device import Device",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from test.helpers import replace_opts"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_upat_compile.py",
+      "class": "internal_repr",
+      "rationale": "It imports UPat compilation internals and checks generated matcher code and rewrite behavior.",
+      "imports": [
+        "import unittest",
+        "from tinygrad.helpers import DEBUG, Context",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UPat, track_rewrites, GroupOp, Ops",
+        "from tinygrad.uop.upat import _get_code, upat_compile",
+        "import dis"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_validate_oob.py",
+      "class": "internal_repr",
+      "rationale": "It constructs buffer-index UOps and asserts the internal verifier accepts or rejects specific graph patterns.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import dtypes, Variable",
+        "from tinygrad.dtype import AddrSpace",
+        "from tinygrad.helpers import Context",
+        "from tinygrad.uop.ops import Ops, UOp, AxisType",
+        "from test.helpers import to_uops_list"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_viz.py",
+      "class": "infrastructure",
+      "rationale": "It imports tinygrad.viz and tests rewrite serialization, visualization rendering, profiling display, and CLI behavior.",
+      "imports": [
+        "import unittest, decimal, sys, json, contextlib, tempfile, pickle, io, math",
+        "from pathlib import Path",
+        "from dataclasses import dataclass",
+        "from typing import Generator",
+        "from tinygrad.uop.ops import UOp, UPat, Ops, PatternMatcher, TrackedPatternMatcher, graph_rewrite, track_rewrites, profile_matches",
+        "from tinygrad.uop.symbolic import sym",
+        "from tinygrad.dtype import dtypes, AddrSpace",
+        "from tinygrad.helpers import colored, ansistrip, flatten, TracingKey, ProfileRangeEvent, ProfileEvent, Context, cpu_events, profile_marker",
+        "from tinygrad.helpers import cpu_profile, ProfilePointEvent, unwrap, VIZ, BEAM",
+        "from tinygrad.device import Buffer",
+        "from tinygrad.uop.ops import tracked_keys, tracked_ctxs, uop_fields, active_rewrites, active_group, _name_cnt, RewriteTrace",
+        "from tinygrad.viz.serve import load_rewrites, get_full_rewrite, uop_to_json, VizData, get_render, addrspace_colors",
+        "from tinygrad.codegen import do_to_program",
+        "from tinygrad.uop.ops import _substitute",
+        "import gc",
+        "from tinygrad import Tensor, Device, TinyJit, Variable, function",
+        "from tinygrad.device import ProfileDeviceEvent, ProfileGraphEvent, ProfileGraphEntry",
+        "from tinygrad.viz.serve import get_profile",
+        "from tinygrad.viz.cli import decode_profile",
+        "from tinygrad.uop.ops import KernelInfo",
+        "from tinygrad.renderer.amd.dsl import s",
+        "from tinygrad.runtime.autogen.amd.rdna3.ins import s_add_u32, s_branch, s_cbranch_execz, s_cbranch_scc0, s_cbranch_scc1, s_cmp_eq_i32, s_cmp_eq_u64, s_code_end, s_endpgm, s_mov_b32, s_nop",
+        "from extra.gemm.amd_asm_matmul import Kernel",
+        "from tinygrad.viz.cli import main, get_arg_parser"
+      ]
+    },
+    {
+      "group": "null",
+      "filename": "test_winograd.py",
+      "class": "internal_repr",
+      "rationale": "It asserts Winograd schedule counts and internal operation-count ratios, with only an incidental public dtype check.",
+      "imports": [
+        "import unittest, sys",
+        "from tinygrad import Tensor, GlobalCounters, dtypes, Context",
+        "from tinygrad.helpers import WINO"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "__init__.py",
+      "class": "ambiguous",
+      "rationale": "The empty package initializer has no imports, test bodies, or assertions from which to infer a contract.",
+      "imports": []
+    },
+    {
+      "group": "unit",
+      "filename": "test_allreduce.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops and inspects scheduled COPY pairs, sinks, and internal copy dtypes for all-reduce strategies.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, dtypes",
+        "from tinygrad.helpers import Context",
+        "from tinygrad.uop.ops import Ops"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_assign.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops and UOp and repeatedly asserts backing-buffer identity, hand-built store/after graphs, and exact kernel counts alongside values.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import dtypes, Tensor, TinyJit, GlobalCounters, Variable",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from tinygrad.helpers import temp, DEV, Context",
+        "from tinygrad import nn"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_attention.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and LLM layers and compares observable attention, rotary embedding, state, and top-k values with references.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, dtypes",
+        "from tinygrad.llm.model import GatedDeltaNetBlock, SSMConfig, TransformerBlock, TransformerConfig, apply_rope as apply_rope_new, precompute_freqs_cis, pairwise_topk"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_call.py",
+      "class": "internal_repr",
+      "rationale": "It constructs UOp function bodies for Tensor.call and asserts symbolic PARAM substitution and custom-call scheduling as well as results.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, function",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UOp, Ops"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_callify.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and dtypes and checks only the values and dtypes observable after the public callify operation.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, dtypes"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_conv.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and checks convolution and activation values against direct and NumPy references.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.helpers import Context",
+        "from tinygrad.nn import Conv2d"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_cpu.py",
+      "class": "internal_repr",
+      "rationale": "It imports CPU renderers and to_program and asserts whether a specific assembly instruction is emitted.",
+      "imports": [
+        "import unittest, io",
+        "from contextlib import redirect_stdout",
+        "from tinygrad import Tensor, Device",
+        "from tinygrad.helpers import Target",
+        "from tinygrad.renderer.nir import LVPRenderer",
+        "from tinygrad.renderer.isa.x86 import X86Renderer",
+        "from tinygrad.codegen import to_program"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_disk_tensor.py",
+      "class": "infrastructure",
+      "rationale": "It imports state loaders, safetensor helpers, and DiskDevice and validates on-disk layouts, model files, and serialization behavior.",
+      "imports": [
+        "import os, pathlib, tempfile, unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.dtype import DType, DTYPES_DICT",
+        "from tinygrad.nn.state import safe_load, safe_save, get_state_dict, torch_load",
+        "from tinygrad.helpers import Timing, fetch, OSX, dedup, Context",
+        "from test.helpers import slow",
+        "import torch",
+        "import torch",
+        "import torch",
+        "from safetensors.torch import save_file",
+        "import os",
+        "from safetensors import safe_open",
+        "from extra.models.efficientnet import EfficientNet",
+        "from safetensors import safe_open",
+        "import struct",
+        "import json",
+        "from tinygrad.helpers import GlobalCounters",
+        "import torch",
+        "from safetensors.torch import save_file",
+        "from safetensors.numpy import save_file as np_save_file",
+        "import struct",
+        "from tinygrad.runtime.ops_disk import DiskDevice",
+        "from tinygrad.runtime.ops_disk import DiskDevice"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_dtype_spec.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor, Device, and dtypes and compares creation, casting, reduction, and dtype results with NumPy and PyTorch.",
+      "imports": [
+        "import unittest, math, subprocess",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.dtype import dtypes, DType, DTYPES_DICT",
+        "from tinygrad.device import Device",
+        "from tinygrad.helpers import getenv, DEBUG, EMULATED_DTYPES",
+        "from test.helpers import slow",
+        "from hypothesis import given, settings, strategies as strat",
+        "import numpy as np",
+        "import torch"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_dtype_weak.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp specs and dtype_from_uop and asserts weak-dtype node typing, verifier failures, virtual storage, and lowering details.",
+      "imports": [
+        "import tempfile, unittest, math",
+        "from tinygrad import Tensor, dtypes, TinyJit",
+        "from tinygrad.helpers import Context",
+        "from tinygrad.dtype import least_upper_float",
+        "from tinygrad.uop.ops import UOp, Ops, dtype_from_uop",
+        "from tinygrad.uop.spec import spec_shared, type_verify",
+        "from tinygrad.engine.jit import JitError",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_function.py",
+      "class": "internal_repr",
+      "rationale": "It imports custom-function internals, UOp, Ops, KernelInfo, and ProgramInfo and asserts graph names, captures, precompilation, and custom kernels.",
+      "imports": [
+        "import numpy as np",
+        "import unittest",
+        "from tinygrad.function import function",
+        "from tinygrad import Tensor, GlobalCounters, Device",
+        "from tinygrad.dtype import dtypes, Invalid",
+        "from tinygrad.uop.ops import UOp, Ops, KernelInfo, ProgramInfo",
+        "from tinygrad.function import _function"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_getitem_ops.py",
+      "class": "internal_repr",
+      "rationale": "It supplements numeric indexing checks with exact GlobalCounters operation budgets that constrain optimizer implementation.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, GlobalCounters"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_gguf.py",
+      "class": "infrastructure",
+      "rationale": "It imports tinygrad.llm.gguf and generated GGML bindings and validates GGUF parsing and quantized interchange decoding.",
+      "imports": [
+        "import os, struct, unittest, tempfile, pathlib, sys",
+        "from tinygrad import dtypes, Tensor, fetch, Device",
+        "from tinygrad.helpers import disable_gc",
+        "from tinygrad.llm.gguf import _ggml_iq_grid, ggml_data_to_tensor, gguf_load",
+        "from tinygrad.runtime.autogen import ggml_common as _ggml",
+        "import numpy as np",
+        "from gguf import GGUFReader, GGUFValueType, GGMLQuantizationType, GGML_QUANT_SIZES, dequantize, quantize",
+        "from gguf.quants import IQ2_S, IQ3_S, IQ3_XXS"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_gradient.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp, Ops, and KernelInfo and constructs implicit-broadcast and multi-output gradient graphs and custom kernels alongside public gradient checks.",
+      "imports": [
+        "import unittest, math",
+        "import numpy as np",
+        "from tinygrad import Tensor",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.uop.ops import UOp, KernelInfo, Ops"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_hashing.py",
+      "class": "api_surface",
+      "rationale": "It uses Tensor hashing operations and compares output bytes with standard SHA-3 and SHAKE reference implementations.",
+      "imports": [
+        "from typing_extensions import Callable",
+        "import hashlib, random, unittest",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.helpers import DEV",
+        "from test.helpers import slow",
+        "from tinygrad.uop.ops import UOp",
+        "from tinygrad.engine.jit import TinyJit"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_hcq_graph.py",
+      "class": "internal_repr",
+      "rationale": "It imports HCQGraph and constructs PROGRAM UOps to assert graph-runner support decisions for runtime interfaces.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Device, Tensor",
+        "from tinygrad.engine.jit import TinyJit",
+        "from tinygrad.uop.ops import UOp, Ops",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.runtime.graph.hcq import HCQGraph",
+        "from tinygrad.runtime.support.hcq import HCQCompiled",
+        "from tinygrad.runtime.support.usb import USBMMIOInterface",
+        "from test.mockgpu.usb import MockUSB"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_helpers.py",
+      "class": "infrastructure",
+      "rationale": "It imports helper utilities and tests polynomial evaluation, ndarray detection, and the garbage-collection decorator.",
+      "imports": [
+        "import unittest, gc",
+        "import numpy as np",
+        "from tinygrad.helpers import polyN, disable_gc",
+        "from tinygrad.tensor import Tensor, is_numpy_ndarray"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_indexing.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and compares public indexing and assignment results and errors with NumPy.",
+      "imports": [
+        "import unittest, random, warnings",
+        "import numpy as np",
+        "from tinygrad import Tensor, dtypes, Device, TinyJit, Variable",
+        "from tinygrad.helpers import all_same, prod",
+        "from test.helpers import slow"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_invalid_tensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports Buffer, run_linear, Invalid, Ops, and UOp and directly executes and inspects invalid-sentinel UOp graphs.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor",
+        "from tinygrad.device import Buffer",
+        "from tinygrad.dtype import Invalid, dtypes",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.uop.ops import Ops, UOp"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_jit.py",
+      "class": "internal_repr",
+      "rationale": "It imports JIT internals and UOp and asserts cache lengths, capture contents, beam activation, and compilation behavior beyond numeric results.",
+      "imports": [
+        "import unittest, numpy as np",
+        "from test.helpers import assert_jit_cache_len",
+        "from tinygrad import Tensor, TinyJit, Context, UOp, dtypes",
+        "from tinygrad.engine.jit import JitError",
+        "from unittest.mock import patch",
+        "from tinygrad.helpers import getenv as _getenv",
+        "from tinygrad import nn"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_jit_cases.py",
+      "class": "api_surface",
+      "rationale": "It imports only TinyJit and Tensor and asserts observable results for explicit and implicit JIT inputs and outputs.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import TinyJit, Tensor"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_jit_footguns.py",
+      "class": "api_surface",
+      "rationale": "It exercises TinyJit through Tensor inputs and asserts user-visible aliasing results, errors, and workarounds.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, TinyJit, Device",
+        "from tinygrad.engine.jit import JitError",
+        "from tinygrad.helpers import JIT",
+        "from tinygrad import Variable",
+        "from tinygrad import Variable"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_linalg.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and compares SVD, QR, and eigendecomposition results with algebraic and NumPy references.",
+      "imports": [
+        "import unittest, functools",
+        "from tinygrad import Tensor, Context",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_llm_mla.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and LLM model layers and asserts observable MLA output equivalence, state keys, and output shape.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor",
+        "from tinygrad.llm.model import Transformer, TransformerConfig, apply_rope, MLATransformerBlock, precompute_freqs_cis",
+        "from tinygrad import nn"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_llm_moe.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and transformer blocks and compares mixture-of-experts outputs with numerical references.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from dataclasses import replace",
+        "from tinygrad import Tensor",
+        "from tinygrad.llm.model import TransformerBlock, TransformerConfig"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_llm_server.py",
+      "class": "infrastructure",
+      "rationale": "It tests model generation cache reuse, chunking, and sampling controls that support the LLM serving workflow.",
+      "imports": [
+        "import unittest",
+        "from unittest.mock import patch",
+        "from tinygrad import Tensor, UOp",
+        "from tinygrad.schedule import schedule_cache",
+        "from tinygrad.llm.model import Transformer, TransformerConfig",
+        "from dataclasses import replace",
+        "from tinygrad.uop.ops import resolve",
+        "from dataclasses import replace"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_masked_tensor.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and asserts masked multiplication and addition shapes and values.",
+      "imports": [
+        "import unittest",
+        "from tinygrad.tensor import Tensor"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_metal_graph.py",
+      "class": "internal_repr",
+      "rationale": "It constructs mock UOp buffers and asserts MetalGraph support decisions based on internal buffer opcodes and offsets.",
+      "imports": [
+        "import unittest",
+        "from unittest.mock import MagicMock",
+        "from tinygrad import Device",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.runtime.graph.metal import MetalGraph"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_multitensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops and UOp and asserts sharding-axis fields, schedule nodes, buffer layout, copy topology, and kernel counts alongside values.",
+      "imports": [
+        "import unittest, numpy as np",
+        "from tinygrad import Tensor, Variable, Context, Device, TinyJit, GlobalCounters, dtypes, UOp, nn, getenv",
+        "from tinygrad.nn.state import get_parameters, get_state_dict",
+        "from tinygrad.uop.ops import Ops",
+        "from test.helpers import not_support_multi_device, needs_second_gpu, slow",
+        "from hypothesis import given, strategies as strat, settings",
+        "from extra.lr_scheduler import OneCycleLR",
+        "from extra.models.resnet import ResNet18",
+        "from extra.lr_scheduler import OneCycleLR",
+        "from extra.lr_scheduler import OneCycleLR",
+        "from extra.lr_scheduler import OneCycleLR",
+        "from examples.hlb_cifar10 import UnsyncedBatchNorm",
+        "from examples.hlb_cifar10 import UnsyncedBatchNorm",
+        "from tinygrad.nn import BatchNorm2d"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_objc.py",
+      "class": "infrastructure",
+      "rationale": "It imports the Objective-C runtime support layer and tests descriptor generation for class methods.",
+      "imports": [
+        "import sys, unittest",
+        "from tinygrad.runtime.support.objc import Spec, id_"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_randomness.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and nn and statistically compares public random distributions and initializer outputs with NumPy and PyTorch.",
+      "imports": [
+        "import unittest, math, torch",
+        "import numpy as np",
+        "from functools import partial",
+        "from tinygrad import nn, dtypes, Tensor, Device, TinyJit, Variable",
+        "from tinygrad.helpers import OSX"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_realize_is_realize.py",
+      "class": "internal_repr",
+      "rationale": "It imports Tensor but asserts the is_realized state of Tensor UOps and their sources directly.",
+      "imports": [
+        "import tempfile, unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, Device, dtypes, Variable"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_rearrange_einops.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and compares public rearrange shapes and values with NumPy/einops references.",
+      "imports": [
+        "import numpy as np",
+        "import unittest",
+        "from tinygrad import Tensor"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_schedule_cache.py",
+      "class": "internal_repr",
+      "rationale": "It imports schedule_cache and KernelInfo and asserts cache sizes and reuse for scheduled and custom kernels.",
+      "imports": [
+        "import unittest",
+        "import functools",
+        "from tinygrad import Tensor, Variable, UOp",
+        "from tinygrad.uop.ops import KernelInfo",
+        "from tinygrad.schedule import schedule_cache"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_setitem_schedule.py",
+      "class": "internal_repr",
+      "rationale": "It asserts exact kernel and memory counters around setitem scheduling in addition to final Tensor values.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, dtypes, GlobalCounters"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_shm_tensor.py",
+      "class": "api_surface",
+      "rationale": "It uses Tensor and Device with SHM storage and asserts cross-process numerical round trips.",
+      "imports": [
+        "import unittest",
+        "import multiprocessing.shared_memory as shared_memory",
+        "from tinygrad.helpers import WIN",
+        "from tinygrad import Tensor, Device",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_symbolic_tensor.py",
+      "class": "api_surface",
+      "rationale": "It imports Variable and Tensor and asserts the public padded Tensor values for a bound symbolic extent.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Variable",
+        "from tinygrad.tensor import Tensor"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_system_pci_scan_bus.py",
+      "class": "infrastructure",
+      "rationale": "It mocks sysfs and tests the runtime system's PCI device-discovery helper.",
+      "imports": [
+        "import sys",
+        "import pytest",
+        "import tinygrad.runtime.support.system as system"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_tar.py",
+      "class": "infrastructure",
+      "rationale": "It imports tar_extract and validates archive keys, contents, sizes, and error handling.",
+      "imports": [
+        "import unittest, tarfile, io, os, pathlib, tempfile",
+        "import numpy as np",
+        "from tinygrad import Tensor",
+        "from tinygrad.nn.state import tar_extract"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_tensor_data.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and dtypes and asserts public bytes, data memoryview, shape, format, and value behavior.",
+      "imports": [
+        "import unittest, struct",
+        "from tinygrad import Tensor, dtypes",
+        "from tinygrad.uop.ops import UOp"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_tensor_io.py",
+      "class": "infrastructure",
+      "rationale": "It imports TensorIO and tests its file-like read and end-of-file behavior.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor",
+        "from tinygrad.nn.state import TensorIO"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_tinyfs.py",
+      "class": "infrastructure",
+      "rationale": "It imports fs_store, fs_load, and tinyfs hashing helpers and tests storage, chunking, hashes, and round trips.",
+      "imports": [
+        "import json, math, os, socketserver, threading, unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, dtypes",
+        "from tinygrad.helpers import CHUNK_SIZE",
+        "from tinygrad.nn.state import fs_store, fs_load",
+        "from extra.tinyfs.fetch_file import hash_file, _python_hash_1mb"
+      ]
+    },
+    {
+      "group": "unit",
+      "filename": "test_winograd.py",
+      "class": "api_surface",
+      "rationale": "It compares public convolution outputs with and without Winograd and with a padded convolution reference.",
+      "imports": [
+        "import unittest, sys",
+        "import numpy as np",
+        "from tinygrad import Tensor, GlobalCounters, Context, nn",
+        "from tinygrad.helpers import WINO"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "__init__.py",
+      "class": "ambiguous",
+      "rationale": "The empty package initializer has no imports, test bodies, or assertions from which to infer a contract.",
+      "imports": []
+    },
+    {
+      "group": "backend",
+      "filename": "test_arange.py",
+      "class": "internal_repr",
+      "rationale": "It imports compilation and estimate helpers and asserts schedule length and operation-count complexity in addition to arange values.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, GlobalCounters, dtypes, nn, Device, Variable",
+        "from tinygrad.helpers import Context, getenv, DEV",
+        "from tinygrad.engine.realize import run_linear, estimate_uop, compile_linear",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from test.helpers import needs_second_gpu",
+        "import torch",
+        "from tinygrad.renderer.cstyle import CStyleLanguage",
+        "from tinygrad.renderer.cstyle import CStyleLanguage",
+        "from tinygrad.renderer.cstyle import CStyleLanguage",
+        "from extra.models.llama import precompute_freqs_cis, apply_rotary_emb"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_asm_gemm.py",
+      "class": "internal_repr",
+      "rationale": "It calls backend-specific extra assembly GEMM kernels directly, so its numerical checks validate a particular kernel implementation rather than Tensor matmul.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Device, dtypes, Context",
+        "from tinygrad.helpers import getenv, system, DEV",
+        "from extra.gemm.cdna_asm_gemm import asm_gemm, hk_bf16_atb_gemm",
+        "from test.helpers import needs_second_gpu",
+        "from examples.mlperf.models.flat_llama import FP8_DTYPE, quantize_fp8, FP8_MAX",
+        "import numpy as np",
+        "import numpy as np",
+        "import functools",
+        "from extra.gemm.cdna_asm_gemm import custom_hk_mxfp8_gemm",
+        "from extra.gemm.cdna_asm_gemm import quantize_mxfp8",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_call.py",
+      "class": "internal_repr",
+      "rationale": "It builds CALL and custom-kernel UOps and tests their C-style renderer and foreign-function execution.",
+      "imports": [
+        "import unittest, ctypes",
+        "from tinygrad import Tensor, UOp",
+        "from tinygrad.device import Device",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.renderer.cstyle import CStyleLanguage",
+        "from tinygrad.uop.ops import KernelInfo"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_const_folding.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops and UOp and asserts deviceless CONST nodes, absent COPY schedule nodes, and folding-specific graph behavior.",
+      "imports": [
+        "import unittest, math",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.dtype import DTYPES_DICT",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from tinygrad.codegen.decomp.op import threefry2x32",
+        "import numpy as np",
+        "from test.helpers import not_support_multi_device"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_custom_kernel.py",
+      "class": "internal_repr",
+      "rationale": "It constructs custom UOp kernels with KernelInfo, AxisType, and Ops and tests their execution and scheduling.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, UOp, GlobalCounters, Context, Device",
+        "from tinygrad.dtype import AddrSpace, dtypes, Invalid",
+        "from tinygrad.uop.ops import KernelInfo, AxisType, Ops",
+        "from tinygrad.engine.realize import compile_linear",
+        "from tinygrad import function",
+        "from tinygrad import function",
+        "from tinygrad.device import Device"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_dtype.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor, Device, and dtypes and compares public cast, bitcast, promotion, overflow, and dtype values with NumPy and PyTorch.",
+      "imports": [
+        "import contextlib, unittest, math",
+        "import numpy as np",
+        "import torch",
+        "from typing import Any, List",
+        "from tinygrad.helpers import getenv, DEBUG, EMULATED_DTYPES, DEV",
+        "from tinygrad.dtype import DType, DTYPES_DICT, least_upper_dtype, fp8_to_float, float_to_fp8, _to_np_dtype, _to_torch_dtype, truncate",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.nir import NIRRenderer",
+        "from tinygrad import Context, Device, Tensor, dtypes",
+        "from hypothesis import given, settings, strategies as strat",
+        "from test.helpers import rand_for_dtype, min_normal",
+        "from test.unit.test_dtype_spec import _assert_eq, core_dtypes, dtype_ints, dtype_floats, FP8E4M3_MAX, FP8E5M2_MAX, FP8E4M3FNUZ_MAX, FP8E5M2FNUZ_MAX",
+        "import pytest"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_dtype_alu.py",
+      "class": "api_surface",
+      "rationale": "It applies Tensor ALU operations across dtypes and compares observable scalar and array results with reference arithmetic.",
+      "imports": [
+        "import unittest, operator, math",
+        "from tinygrad import Context, Tensor, dtypes, Device",
+        "from tinygrad.dtype import DType, truncate, fp8_to_float",
+        "from tinygrad.helpers import EMULATED_DTYPES, DEV, getenv",
+        "from tinygrad.tensor import _to_np_dtype",
+        "from tinygrad.runtime.ops_python import from_storage_scalar",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.nir import NIRRenderer",
+        "from tinygrad.uop import Ops",
+        "import numpy as np",
+        "import pytest",
+        "from hypothesis import assume, given, strategies as strat, settings"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_edgecases.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and nn and compares public edge-case values and errors with NumPy and PyTorch.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "import torch",
+        "from tinygrad import Tensor, dtypes, nn, Context",
+        "from tinygrad.device import Device",
+        "from tinygrad.helpers import DEV",
+        "from tinygrad.renderer.nir import NIRRenderer"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_encodings.py",
+      "class": "internal_repr",
+      "rationale": "It imports x86 renderer registers and opcodes and asserts exact encoded instruction bytes.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Device",
+        "from tinygrad.uop.ops import UOp, Ops",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.renderer.isa.x86 import X86Ops, X86Renderer, RBP, RDI, RSP, RSI, RAX, RDX, XMM, GPR, imm, def_reg"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_graph.py",
+      "class": "internal_repr",
+      "rationale": "It imports MultiGraphRunner, Buffer, run_linear, and UOp and directly tests internal graph ordering and raw-buffer effects.",
+      "imports": [
+        "import numpy as np",
+        "import functools, unittest",
+        "from tinygrad.device import Device, Buffer",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.helpers import Context",
+        "from tinygrad.dtype import dtypes",
+        "from tinygrad.engine.jit import MultiGraphRunner",
+        "from tinygrad.engine.realize import run_linear, compile_linear",
+        "from tinygrad.uop.ops import UOp, Ops, buffers",
+        "from test.helpers import needs_second_gpu"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_interop.py",
+      "class": "api_surface",
+      "rationale": "It transfers Tensor storage to and from PyTorch and compares observable values and writes.",
+      "imports": [
+        "import unittest, os",
+        "import torch",
+        "import numpy as np",
+        "from tinygrad.helpers import DEV",
+        "from tinygrad.tensor import Tensor",
+        "from tinygrad.device import Device",
+        "from tinygrad.dtype import _from_torch_dtype, _to_torch_dtype"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_isel.py",
+      "class": "internal_repr",
+      "rationale": "It imports x86 instruction selection internals and asserts selected opcodes and UOp source structure.",
+      "imports": [
+        "import unittest",
+        "from typing import cast",
+        "from tinygrad import Device",
+        "from tinygrad.uop import Ops",
+        "from tinygrad.uop.ops import UOp, dtypes, graph_rewrite",
+        "from tinygrad.renderer.isa.x86 import X86Renderer, X86Ops",
+        "from tinygrad.renderer.isa import IselContext"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_jit.py",
+      "class": "internal_repr",
+      "rationale": "It imports graph classes and UOp and asserts captured linear programs, graph calls, cache layout, and backend JIT internals.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from test.helpers import assert_jit_cache_len, call_is_graph, not_support_multi_device, needs_second_gpu",
+        "from test.unit.test_jit import _simple_test",
+        "from tinygrad import Tensor, Variable, TinyJit, Device, dtypes",
+        "from tinygrad.engine.jit import graph_class",
+        "from tinygrad.helpers import JIT, DEV, GlobalCounters",
+        "from tinygrad.uop.ops import Ops",
+        "from tinygrad.renderer.isa.x86 import X86Renderer",
+        "from tinygrad.runtime.graph.hcq import HCQGraph",
+        "from tinygrad.engine.jit import MultiGraphRunner"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_linearizer.py",
+      "class": "internal_repr",
+      "rationale": "It imports codegen, UOp, Ops, renderers, and optimizer options and asserts linear node order, opcodes, ranges, and buffers.",
+      "imports": [
+        "import numpy as np",
+        "import unittest",
+        "from tinygrad.codegen.opt import Opt, OptOps",
+        "from tinygrad.uop.ops import UOp, Ops, GroupOp, AxisType, buffers",
+        "from tinygrad.device import Device, Buffer",
+        "from tinygrad.tensor import Tensor, _to_np_dtype",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.helpers import Context, flatten, dedup, TC_SELECT, TC_OPT, DEV",
+        "from tinygrad.dtype import DType, dtypes, AddrSpace",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.cstyle import CUDARenderer",
+        "from tinygrad.renderer.isa import ISARenderer",
+        "from test.helpers import replace_opts",
+        "from tinygrad.uop.render import print_uops"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_linearizer_dumb.py",
+      "class": "internal_repr",
+      "rationale": "It constructs a UOp kernel with explicit optimizer options to reproduce a linearizer/beam failure.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Device, dtypes",
+        "from tinygrad.uop.ops import UOp, Ops, AxisType, KernelInfo",
+        "from tinygrad.codegen.opt.search import Opt, OptOps",
+        "from tinygrad.codegen import to_program"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_llama_kernels.py",
+      "class": "internal_repr",
+      "rationale": "It calls backend-specific extra Llama and fused-attention kernels directly rather than testing the public Tensor operations they replace.",
+      "imports": [
+        "import unittest, functools",
+        "from tinygrad import Tensor, Device, dtypes, Context, GlobalCounters",
+        "from tinygrad.helpers import getenv",
+        "from examples.mlperf.models.flat_llama import FP8_DTYPE, quantize_fp8",
+        "from extra.llama_kernels.fused_ce import fused_ce_loss",
+        "from extra.llama_kernels import local_abs_max",
+        "from extra.llama_kernels.quantize_fp8_delayed import quantize_fp8_delayed, quantize_fp8_scalar",
+        "from extra.models.llama import apply_rotary_emb, precompute_freqs_cis",
+        "from extra.thunder.amd.fa import custom_fused_qkv_rope_backward, fused_qkv_rope",
+        "from test.helpers import needs_second_gpu",
+        "from test.backend.test_asm_gemm import has_hipcc"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_multitensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports realization and UOp primitives and asserts exact COPY schedule positions, schedule counts, capture state, and kernel counts.",
+      "imports": [
+        "import unittest, random",
+        "from tinygrad import Tensor, Device, nn, GlobalCounters, TinyJit, dtypes, Variable",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from tinygrad.helpers import getenv, prod, Context",
+        "from tinygrad.nn.state import get_parameters",
+        "from tinygrad.engine.realize import run_linear, compile_linear",
+        "import numpy as np",
+        "from hypothesis import given, strategies as strat, settings",
+        "from test.helpers import not_support_multi_device, needs_second_gpu, slow, call_is_graph",
+        "from tinygrad.nn.optim import LARS",
+        "from extra.models.resnet import ResNet18",
+        "from extra.models.llama import Transformer",
+        "from tinygrad.helpers import fetch",
+        "from examples.llama3 import build_transformer"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_nn.py",
+      "class": "internal_repr",
+      "rationale": "It imports Ops and run_linear and asserts scheduled SINK counts, operation budgets, and internal sharding-axis fields alongside layer values.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "import torch",
+        "from tinygrad import Tensor, Device, TinyJit, dtypes",
+        "from tinygrad.uop.ops import Ops",
+        "from tinygrad.helpers import GlobalCounters, Context",
+        "from tinygrad.nn import Conv1d, ConvTranspose1d, Conv2d, ConvTranspose2d, Linear, Embedding",
+        "from tinygrad.nn import BatchNorm, LayerNorm, LayerNorm2d, GroupNorm, InstanceNorm, RMSNorm, LSTMCell",
+        "from tinygrad.nn.state import load_state_dict",
+        "from tinygrad.engine.realize import run_linear",
+        "from test.helpers import not_support_multi_device, needs_second_gpu, slow"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_ops.py",
+      "class": "api_surface",
+      "rationale": "It exercises the public Tensor operation surface and compares shapes, dtypes, values, and exceptions primarily with PyTorch and NumPy.",
+      "imports": [
+        "import time, math, unittest, functools, platform, warnings, sys",
+        "import numpy as np",
+        "from typing import List, Callable",
+        "import torch",
+        "from tinygrad.helpers import getenv, DEBUG, DEV, IMAGE, Context",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.tensor import _to_np_dtype",
+        "from tinygrad.renderer.nir import NIRRenderer",
+        "import tinygrad.nn.torch"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_opt_gemm.py",
+      "class": "internal_repr",
+      "rationale": "It injects explicit codegen optimizer options into UOp GEMM programs and validates those specialized generated kernels.",
+      "imports": [
+        "import numpy as np",
+        "import unittest",
+        "from tinygrad import Tensor",
+        "from tinygrad.helpers import get_single_element",
+        "from tinygrad.codegen.opt import Opt, OptOps",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.uop.ops import Ops, UOp",
+        "from test.helpers import replace_opts"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_optim.py",
+      "class": "api_surface",
+      "rationale": "It imports public optimizers and compares parameter updates, losses, devices, and errors with PyTorch.",
+      "imports": [
+        "import numpy as np",
+        "import torch",
+        "import unittest",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.nn.optim import Adam, SGD, AdamW, Muon, LAMB",
+        "from tinygrad.helpers import Context",
+        "from test.helpers import needs_second_gpu, slow"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_pickle.py",
+      "class": "infrastructure",
+      "rationale": "It tests serialization of code objects, pattern matchers, UOps, buffers, Tensor state, JIT objects, and context variables.",
+      "imports": [
+        "import unittest, pickle, types, tracemalloc",
+        "import numpy as np",
+        "from tinygrad import Tensor, Device, TinyJit, Variable, dtypes",
+        "from tinygrad.helpers import GlobalCounters, ContextVar, Context, DEV",
+        "from tinygrad.uop.ops import PatternMatcher, UPat, UOp",
+        "from tinygrad.uop.symbolic import sym",
+        "from tinygrad.device import Device",
+        "import io"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_profiler.py",
+      "class": "infrastructure",
+      "rationale": "It imports profiling event types and validates kernel, copy, graph, timing, and device-profile event streams.",
+      "imports": [
+        "import unittest, struct, contextlib, statistics, gc",
+        "from tinygrad import Device, Tensor, dtypes, TinyJit",
+        "from tinygrad.helpers import DEV, Context, ProfileRangeEvent, cpu_profile, cpu_events, ProfilePointEvent, dedup",
+        "from tinygrad.device import Buffer, BufferSpec, Compiled, ProfileDeviceEvent, ProfileGraphEvent",
+        "from tinygrad.runtime.support.hcq import HCQCompiled",
+        "from tinygrad.engine.realize import get_runtime",
+        "from tinygrad.codegen import to_program",
+        "from test.backend.test_graph import helper_alloc_rawbuffer, helper_exec_op, helper_test_graphs"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_quantize_onnx.py",
+      "class": "infrastructure",
+      "rationale": "It imports ONNX tooling and the OnnxRunner and validates model quantization, loading, and interchange execution.",
+      "imports": [
+        "import numpy as np",
+        "import tempfile, unittest",
+        "from tinygrad import Tensor, Context, Device, dtypes, UOp",
+        "from tinygrad.uop.ops import Ops",
+        "from tinygrad.dtype import AddrSpace",
+        "from tinygrad.codegen.opt import Opt, OptOps",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.codegen import to_program",
+        "from test.helpers import replace_opts",
+        "import onnx",
+        "from onnx import helper, numpy_helper, TensorProto",
+        "from onnxruntime.quantization import quantize_static, QuantFormat, QuantType, CalibrationDataReader",
+        "import onnx",
+        "from tinygrad.nn.onnx import OnnxRunner",
+        "from examples.benchmark_onnx import load_onnx_model"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_randomness.py",
+      "class": "internal_repr",
+      "rationale": "It imports codegen and renderer internals and asserts generated opcodes, private RNG caches, tensor counts, and kernel reuse as well as distributions.",
+      "imports": [
+        "import unittest, math",
+        "from tinygrad import dtypes, Tensor, Device",
+        "from tinygrad.helpers import getenv, DEV",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.uop.ops import Ops",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.nir import NIRRenderer",
+        "from tinygrad.renderer.isa.x86 import X86Renderer",
+        "from test.helpers import not_support_multi_device, needs_second_gpu",
+        "from test.unit.test_randomness import equal_distribution, normal_test",
+        "import numpy as np",
+        "import torch",
+        "from hypothesis import given, settings, strategies as strat"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_rangeify.py",
+      "class": "internal_repr",
+      "rationale": "It imports the rangeify rewrite pass, UPat, Ops, UOp, and optimizer options and tests that lowering transformation directly.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, nn, Device, dtypes, Variable",
+        "from tinygrad.helpers import Context, GlobalCounters, getenv, PCONTIG, DEBUG",
+        "from tinygrad.uop.ops import graph_rewrite, PatternMatcher, UPat, Ops, UOp",
+        "from tinygrad.codegen.opt import OptOps, Opt",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.nir import NIRRenderer",
+        "from tinygrad.schedule.rangeify import pm_rangeify, RangeifyContext"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_renderer_failures.py",
+      "class": "internal_repr",
+      "rationale": "It constructs UOp programs for several renderers and asserts generated source shape and renderer-specific execution failures.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad.device import Device, Buffer",
+        "from tinygrad.dtype import dtypes, ConstType",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.helpers import prod",
+        "from tinygrad.renderer.cstyle import CStyleLanguage",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from tinygrad.renderer.wgsl import WGSLRenderer",
+        "from tinygrad.runtime.ops_python import PythonRenderer",
+        "from tinygrad.uop.ops import UOp, Ops, KernelInfo, python_alu",
+        "from tinygrad.tensor import Tensor"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_schedule.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp scheduling and realization primitives and asserts fusion, COPY nodes, realization state, and internal schedule structure.",
+      "imports": [
+        "import unittest, time",
+        "import numpy as np",
+        "from tinygrad import nn, dtypes, Device, Tensor, Variable",
+        "from tinygrad.uop.ops import UOp, Ops, UPat",
+        "from tinygrad.helpers import DEBUG, DEV, GlobalCounters, Context, all_same, temp",
+        "from tinygrad.engine.realize import compile_linear, run_linear"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_setitem.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and compares public setitem values, broadcasting, errors, aliasing results, and JIT behavior with NumPy.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, TinyJit, Variable, dtypes, Device",
+        "from tinygrad.helpers import Context",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_softmax_fusion.py",
+      "class": "internal_repr",
+      "rationale": "It targets fusion by asserting schedule program counts and fused-kernel behavior in addition to numerical equivalence.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, GlobalCounters, Context, Device",
+        "from tinygrad.dtype import DTypeLike, dtypes",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.helpers import DEBUG, get_single_element"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_stunning.py",
+      "class": "api_surface",
+      "rationale": "It uses Tensor, Variable, and nn and asserts observable symbolic indexing, binding errors, and training values.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import nn, Tensor, Variable, Context, Device",
+        "from tinygrad.helpers import trange"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_subbuffer.py",
+      "class": "internal_repr",
+      "rationale": "It imports Buffer directly and tests sub-buffer allocation, offsets, views, transfer, deallocation, and aliasing mechanics.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Device, dtypes, Tensor",
+        "from tinygrad.device import Buffer",
+        "from tinygrad.helpers import Context, DEV",
+        "from test.helpers import needs_second_gpu"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_symbolic_jit.py",
+      "class": "api_surface",
+      "rationale": "It compares public symbolic TinyJit results and errors with concrete Tensor executions.",
+      "imports": [
+        "import unittest",
+        "from test.helpers import assert_jit_cache_len",
+        "from tinygrad import Variable, Tensor, TinyJit",
+        "from tinygrad.engine.jit import JitError",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_symbolic_ops.py",
+      "class": "api_surface",
+      "rationale": "It compares public Tensor operations at symbolic and concrete shapes by their numerical outputs.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Variable, GlobalCounters, Context",
+        "from tinygrad.uop.ops import sym_infer",
+        "from tinygrad.dtype import dtypes",
+        "from examples.gpt2 import Attention",
+        "import numpy as np"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_tensor.py",
+      "class": "internal_repr",
+      "rationale": "It imports UOp and asserts deviceless UOp identity, internal device state, backing-buffer identity, and buffer markers alongside public Tensor results.",
+      "imports": [
+        "import numpy as np",
+        "import torch",
+        "import unittest, copy, mmap, random, math, array",
+        "from tinygrad import Tensor, Device, dtypes, nn, Context",
+        "from tinygrad.helpers import getenv, temp, mv_address",
+        "from extra.gradcheck import numerical_jacobian, jacobian, gradcheck",
+        "from hypothesis import given, settings, strategies as strat",
+        "from tinygrad.dtype import DTYPES_DICT",
+        "from tinygrad.uop.ops import UOp"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_tensor_variable.py",
+      "class": "internal_repr",
+      "rationale": "It uses Tensor and Variable but directly asserts a Tensor UOp's backing-buffer size and symbolic UOp shape alongside public values.",
+      "imports": [
+        "import unittest",
+        "import numpy as np",
+        "from tinygrad import Tensor, Variable, dtypes",
+        "from tinygrad.helpers import CHECK_OOB"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_to_numpy.py",
+      "class": "api_surface",
+      "rationale": "It imports Tensor and asserts that numpy returns an ndarray with the expected shape and values.",
+      "imports": [
+        "from tinygrad.tensor import Tensor",
+        "import numpy as np",
+        "import pickle",
+        "import unittest"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_transcendental.py",
+      "class": "api_surface",
+      "rationale": "It compares public Tensor transcendental results and special values with NumPy across supported dtypes.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Device, dtypes",
+        "from tinygrad.tensor import _to_np_dtype",
+        "from tinygrad.helpers import Context, getenv, DEV, OSX",
+        "from test.backend.test_schedule import check_schedule",
+        "from test.backend.test_dtype_alu import ht, dtypes_float",
+        "import numpy as np",
+        "import math",
+        "from hypothesis import given, settings, strategies as strat"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_uops.py",
+      "class": "internal_repr",
+      "rationale": "It builds and executes UOp programs and asserts generated opcode presence, renderer behavior, and low-level kernel results.",
+      "imports": [
+        "from typing import Optional, Any",
+        "import unittest, math",
+        "import numpy as np",
+        "from tinygrad.tensor import Tensor, _to_np_dtype",
+        "from tinygrad.helpers import Context",
+        "from tinygrad.dtype import dtypes, DType, AddrSpace, ConstFloat",
+        "from tinygrad.device import Buffer, Device",
+        "from tinygrad.uop.ops import Ops, UOp, KernelInfo, AxisType, buffers",
+        "from tinygrad.renderer.cstyle import CStyleLanguage",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.codegen import to_program",
+        "from tinygrad.codegen.opt import Opt, OptOps",
+        "from tinygrad.renderer.ptx import PTXRenderer",
+        "from test.helpers import to_uops_list"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_wait_loop.py",
+      "class": "internal_repr",
+      "rationale": "It constructs UOp loop, wait, buffer, and kernel graphs and tests their low-level runtime execution.",
+      "imports": [
+        "import unittest, threading",
+        "from tinygrad import Tensor, UOp",
+        "from tinygrad.device import Device, Buffer, BufferSpec",
+        "from tinygrad.dtype import AddrSpace, dtypes",
+        "from tinygrad.engine.realize import run_linear",
+        "from tinygrad.uop.ops import Ops, KernelInfo"
+      ]
+    },
+    {
+      "group": "backend",
+      "filename": "test_zero_copy.py",
+      "class": "internal_repr",
+      "rationale": "It uses a bandwidth threshold to require a particular zero-copy runtime implementation rather than asserting Tensor semantics.",
+      "imports": [
+        "import unittest",
+        "from tinygrad import Tensor, Device",
+        "import time"
+      ]
+    }
+  ]
+}

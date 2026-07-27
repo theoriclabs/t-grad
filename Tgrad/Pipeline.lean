@@ -1,7 +1,7 @@
 import Tgrad.Tensor
 import Tgrad.Renderer.Metal
-import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
+import Tgrad.Renderer.MatmulTc
 import Tgrad.Runtime.MetalProgram
 import Tgrad.Codegen.GpuDims
 import Tgrad.Codegen.Opt.Heuristic
@@ -121,16 +121,17 @@ partial def viewIndexUOpForB (uop : UOp) (K N : Nat) : UOp :=
         panic! s!"viewIndexUOpForB: expected rank-2 view, got rank {v.rank}"
   | none => panic! s!"viewIndexUOpForB: uop chain has no View ({K}x{N})"
 
-/-- Dispatch dims for a shape sentinel. L13.A refactor: delegates to
+/-- Captured-reference dispatch dims for a shape sentinel. Delegates to
     `Codegen.Opt.pickDispatchPlan`, the pure heuristic function that
     handles the 11 L11 sentinels exhaustively (closed-form formula for
-    M,K,N ≥ 1024 + a 64×64 below-TC-tile branch).
+    M,K,N ≥ 1024 plus the capture-compatible 64×64 branch).
 
     The `panic!` arm is unreachable: the theorem
     `Codegen.Opt.pickDispatchPlan_matches_capture` proves that every
     `ShapeSentinel` produces `some _` under the formula. Lean's
     type-checker rejects the theorem if any sentinel doesn't match,
-    so a wrong formula can't reach runtime. -/
+    so a wrong formula cannot corrupt the differential reference. Production
+    uses `generatedDispatchDimsFor` below. -/
 def dispatchDimsFor (s : Renderer.Metal.ShapeSentinel) : Codegen.GpuDims :=
   let (M, K, N) := s.toTriple
   match Codegen.Opt.pickDispatchPlan M K N .bfloat16_ .bfloat16_ with
@@ -154,12 +155,61 @@ def kernelNameFor : Renderer.Metal.ShapeSentinel → String
   | .bf16_1024x1024x4096    => "r_32_32_32_4_2_4_4_128"
   | .bf16_1024x1024x2048    => "r_32_16_32_4_2_4_4_128"
 
+/-! The captured names and dimensions above belong to the differential
+reference. Production sentinel execution uses the parametric declarations
+below. Keeping the two vocabularies separate prevents the semantic oracle from
+silently becoming the implementation under test. -/
+
+/-- Parametric tensor-core declaration for a captured sentinel. -/
+def generatedKernelDeclFor (s : Renderer.Metal.ShapeSentinel) :
+    Except Renderer.Metal.CodegenError Renderer.Metal.KernelDecl :=
+  let (M, K, N) := s.toTriple
+  Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N
+
+/-- Function name emitted by `generatedKernelDeclFor`. -/
+def generatedKernelNameFor (s : Renderer.Metal.ShapeSentinel) : String :=
+  let (M, K, N) := s.toTriple
+  s!"matmul_tc_manual_{M}x{K}x{N}"
+
+/-- Launch geometry required by the generated sentinel kernel. -/
+def generatedDispatchDimsFor (s : Renderer.Metal.ShapeSentinel) : Codegen.GpuDims :=
+  let (M, _K, N) := s.toTriple
+  Renderer.Metal.tcLaunchDims M N
+
+theorem generatedKernelDeclFor_accepts_all_sentinels :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      (generatedKernelDeclFor s).isOk = true := by
+  intro s
+  cases s <;> decide
+
+theorem generatedKernelNameFor_differs_from_capture :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      generatedKernelNameFor s != kernelNameFor s := by
+  intro s
+  cases s <;> decide
+
+theorem generatedDispatchDimsFor_matches_capture :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      generatedDispatchDimsFor s = dispatchDimsFor s := by
+  intro s
+  cases s <;> decide
+
+theorem generatedDispatchDimsFor_nonzero :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      let dims := generatedDispatchDimsFor s
+      dims.grid.x > 0 && dims.grid.y > 0 && dims.grid.z > 0 &&
+      dims.threadgroup.x > 0 && dims.threadgroup.y > 0 &&
+      dims.threadgroup.z > 0 := by
+  intro s
+  cases s <;> decide
+
 /-- L14.B.2.c: shared rangeify+trace hook. Called by both
     `Pipeline.realize` (matmul-verify path) and `Pipeline.realizeView`
     (Python view matmul via `tgrad_matmul_view_lean`). Builds a SINK
-    from the input uops, runs `Schedule_Rangeify_rangeify` (no-op
-    pass-through at L14.B.2.c scope — L14.B.3 lifts the real rule
-    set), and emits a JSONL trace row if `TGRAD_RANGEIFY_TRACE=1`. -/
+    from the input uops, runs `Schedule.Rangeify.rangeify`, and emits a
+    JSONL trace row if `TGRAD_RANGEIFY_TRACE=1`. The same normalization
+    drives view materialization, so this is execution state rather than
+    trace-only evidence. -/
 def runRangeifyAndTrace (a b : Tensor) : IO Unit := do
   let matmulSink := buildMatmulSink a.uop b.uop
   let rangeified := Schedule.Rangeify.rangeify matmulSink
@@ -175,29 +225,32 @@ def runRangeifyAndTrace (a b : Tensor) : IO Unit := do
 
     Takes pre-allocated input Tensors `a`, `b` (caller responsible
     for filling). Allocates the output buffer, compiles the captured
-    MSL for the shape, dispatches the kernel, returns the output
+    parametric MSL for the shape, dispatches the kernel, returns the output
     Tensor.
 
     L14.B.2.c: this function now invokes `runRangeifyAndTrace` at the
     top, which calls `Schedule_Rangeify_rangeify` on a SINK built from
     `a.uop` and `b.uop` and emits the JSONL trace row. For BUFFER-only
-    inputs this is a structural no-op (L11/L13/L13_F bit-identical).
+    inputs normalization preserves the same logical accesses.
 
     Errors surface as `Except PipelineError`. -/
 def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
     IO (Except PipelineError Tensor) := do
   -- L14.B.2.c: rangeify + trace before the existing dispatch path.
-  -- For BUFFER-only inputs this is a structural no-op (rangeify is
-  -- identity); the trace records movement-node counts so view-input
-  -- callers (`Pipeline.realizeView` via `tgrad_matmul_view`) can
-  -- verify rangeify saw the chain.
+  -- The trace records movement-node counts so view-input callers
+  -- (`Pipeline.realizeView` via `tgrad_matmul_view`) can verify that
+  -- the same normalization used by materialization saw the chain.
   runRangeifyAndTrace a b
-  -- 1. Emit the kernel from the Lean renderer. This path previously
+  -- 1. Generate and emit the kernel from shape parameters. This path previously
   -- did `IO.FS.readFile shape.fixturePath`, which meant the captured
   -- tinygrad MSL — not `renderKernel` — was what actually ran. The
-  -- fixtures are now a differential reference only (L12 diffs the
-  -- rendered bytes against them); nothing reads them at runtime.
-  let msl := Renderer.Metal.renderKernel (Renderer.Metal.matmulKernelDeclFor shape)
+  -- fixtures are now a differential execution oracle only; nothing
+  -- reads them on the product runtime path.
+  let kernelDecl ← match generatedKernelDeclFor shape with
+    | .error e =>
+        return .error (.notInLeanScope s!"generated sentinel rejected: {repr e}")
+    | .ok decl => pure decl
+  let msl := Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then
     return .error (.notInLeanScope s!"renderKernel produced empty MSL for {shape.fixturePath}")
   -- 2. Compile.
@@ -217,8 +270,8 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- which takes TOTAL threads (not threadgroup count). The captured
   -- `dims.grid` is the threadgroup count (matches tinygrad's capture
   -- convention), so multiply through to get total threads.
-  let dims := dispatchDimsFor shape
-  let fnName := kernelNameFor shape
+  let dims := generatedDispatchDimsFor shape
+  let fnName := generatedKernelNameFor shape
   let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
   let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
   let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
@@ -236,6 +289,139 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- buffer in a `.buffer` UOp + records shape + dtype.
   Runtime.Metal.metalLibraryRelease libPtr
   pure (.ok (Tensor.ofBuffer { raw := outBuf, size := outBytes } [mDim, nDim] a.dtype))
+
+/-! ## View materialization
+
+Readback must observe a view's logical order, not the underlying buffer's
+storage order. We materialize a supported `Schedule.View` with one thread per
+logical output element. Each thread delinearizes its flat output index into
+the canonical scheduler coordinates; the source index is taken from
+`Schedule.Rangeify.rangeify`, so the scheduler's result governs execution
+rather than merely appearing in trace evidence. The output is always
+contiguous.
+
+This deliberately reuses the existing typed Metal declaration grammar and
+the existing two-handle `tgrad_matmul_view` trampoline (with a reserved zero
+second handle), so no raw-MSL escape hatch or new C ABI entry is required.
+-/
+
+private def indexConst (value : Nat) : UOp :=
+  .const .int32_ (.i (Int.ofNat value))
+
+/-- Coordinate of one logical axis when `linear` is a row-major flat index. -/
+private def logicalCoord (linear : UOp) (rowMajorStride dim : Nat) : UOp :=
+  let quotient :=
+    if rowMajorStride == 1 then linear
+    else .binop .floordiv linear (indexConst rowMajorStride) .int32_
+  if dim <= 1 then indexConst 0
+  else .binop .floormod quotient (indexConst dim) .int32_
+
+/-- A structural function-name component. The current C pipeline cache is
+keyed by library address plus function name, so encoding the entire view avoids
+making correctness depend on a theoretically colliding hash. -/
+private def natListTag (xs : List Nat) : String :=
+  String.intercalate "_" (xs.map toString)
+
+/-- Bit-preserving indexed copy declaration for a collapsed `Schedule.View`.
+
+The source index is supplied by rangeify. `ushort` is intentional: loading and
+storing `bfloat` could canonicalize NaNs or otherwise alter payload bits, while
+readback promises the exact underlying bf16 representation. -/
+def materializeViewKernelDecl
+    (view : Schedule.View) (sourceIdx : UOp) : Renderer.Metal.KernelDecl :=
+  let linear : UOp := .var "gid" .int32_
+  let logicalStrides := Schedule.View.stridesOf view.shape
+  let coordDecls := ((logicalStrides.zip view.shape).zipIdx).map (fun pair =>
+    let ((rowMajorStride, dim), axis) := pair
+    .declIntIdx s!"idx{axis}" (logicalCoord linear rowMajorStride dim))
+  let tag := s!"s_{natListTag view.shape}_t_{natListTag view.strides}_o_{view.offset}"
+  { name := s!"materialize_view_{tag}",
+    args := [
+      .buffer { qualifier := "device", baseType := "ushort", name := "data0" },
+      .buffer { qualifier := "device const", baseType := "ushort", name := "data1" },
+      .attr   { baseType := "uint", name := "gid",
+                attrStr := "[[thread_position_in_grid]]" },
+    ],
+    body := coordDecls ++ [
+      .loadIndexed "ushort value" "data1" sourceIdx,
+      .assign s!"*(data0+{linear.renderIndexExpr})" "value"
+    ],
+    trailingNewline := false }
+
+/-- Largest source element touched by a nonempty strided view. -/
+private def maxSourceIndex (view : Schedule.View) : Nat :=
+  (view.shape.zip view.strides).foldl
+    (fun acc pair => acc + (pair.1 - 1) * pair.2)
+    view.offset
+
+/-- Materialize a movement chain into a fresh contiguous bf16 buffer.
+
+Unsupported/invalid view chains and empty outputs fail explicitly. Empty Metal
+allocations and zero-sized dispatch grids are invalid on the current bridge,
+so accepting an empty slice here would turn a normal API case into a process
+abort rather than a typed error. -/
+def materializeView (tensor : Tensor) : IO (Except PipelineError Tensor) := do
+  if tensor.isBufferUop then
+    return .error (.notInLeanScope "materializeView: expected a movement view, got BUFFER")
+  if tensor.dtype != .bfloat16_ then
+    return .error (.notInLeanScope "materializeView: only bf16 is supported")
+  let some view := Schedule.viewOfUOp tensor.uop
+    | return .error (.notInLeanScope "materializeView: movement chain is invalid or unsupported")
+  let elements := view.numel
+  if elements == 0 then
+    return .error (.notInLeanScope "materializeView: empty views are not dispatchable")
+  let rangeified := Schedule.Rangeify.rangeify tensor.uop
+  let (sourceRaw, rootShape, rootDtype, sourceIdx) ←
+    match rangeified with
+    | .index (.buffer raw shape dtype) idx => pure (raw, shape, dtype, idx)
+    | _ => return .error (.notInLeanScope
+        "materializeView: rangeify did not produce INDEX(BUFFER, source-index)")
+  if rootDtype != tensor.dtype then
+    return .error (.notInLeanScope
+      "materializeView: rangeified BUFFER dtype disagrees with Tensor dtype")
+  if sourceRaw != tensor.buffer.raw then
+    return .error (.notInLeanScope
+      "materializeView: rangeified BUFFER disagrees with Tensor buffer")
+  let rootElements := Tgrad.numel rootShape
+  let sourceMax := maxSourceIndex view
+  if sourceMax >= rootElements then
+    return .error (.notInLeanScope s!"materializeView: source index {sourceMax} is outside root numel {rootElements}")
+  -- Index UOps render as signed `int` arithmetic today. Refuse shapes that
+  -- would overflow that representation instead of compiling wrapped indices.
+  let maxSignedIndex : Nat := 2147483647
+  if sourceMax > maxSignedIndex || elements - 1 > maxSignedIndex then
+    return .error (.notInLeanScope
+      "materializeView: view exceeds the renderer's signed 32-bit index domain")
+  let sourceBytes := rootElements * rootDtype.sizeBytes
+  let actualSourceBytes ← Runtime.Metal.metalBufferLength sourceRaw
+  if actualSourceBytes.toNat < sourceBytes then
+    return .error (.notInLeanScope s!"materializeView: source buffer has {actualSourceBytes.toNat} bytes, needs {sourceBytes}")
+  let outBytes := elements * tensor.dtype.sizeBytes
+  let outBytesUSize := USize.ofNat outBytes
+  let elementsUSize := USize.ofNat elements
+  if outBytesUSize.toNat != outBytes || elementsUSize.toNat != elements then
+    return .error (.notInLeanScope
+      "materializeView: native-size conversion would truncate")
+  let decl := materializeViewKernelDecl view sourceIdx
+  let msl := Renderer.Metal.renderKernel decl
+  if msl.isEmpty then
+    return .error (.compileFailed "materializeView: renderKernel produced empty MSL")
+  let libPtr ← Runtime.Metal.metalCompile msl
+  if libPtr == 0 then
+    return .error (.compileFailed s!"materializeView: metalCompile failed for {decl.name}")
+  let outBuf ← Runtime.Metal.metalAlloc outBytesUSize
+  if outBuf == 0 then
+    Runtime.Metal.metalLibraryRelease libPtr
+    return .error (.allocFailed s!"materializeView: metalAlloc {outBytes} returned 0")
+  let rc ← Runtime.Metal.metalDispatch libPtr decl.name
+    #[outBuf, tensor.buffer.raw]
+    elementsUSize 1 1
+    1 1 1
+  Runtime.Metal.metalLibraryRelease libPtr
+  if rc != 0 then
+    Runtime.Metal.metalFree outBuf outBytesUSize
+    return .error (.dispatchFailed rc)
+  pure (.ok (Tensor.ofBuffer { raw := outBuf, size := outBytes } view.shape tensor.dtype))
 
 /-- L14.B.2.c: view-aware matmul. When either input has a non-BUFFER
     uop (e.g. `.permute` from `a.transpose()`), the captured matmul

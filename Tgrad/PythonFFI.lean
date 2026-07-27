@@ -3,7 +3,6 @@ import Tgrad.Runtime.MetalProgram
 import Tgrad.Runtime.Cache
 import Tgrad.Pipeline
 import Tgrad.Tensor
-import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Codegen.Opt.Heuristic
@@ -65,19 +64,24 @@ def matmul64x64 (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   let mut libPtr ← cachedMatmul64Lib.get
   if libPtr == 0 then
     -- Rendered, not read. See `compileOrCacheGet`.
-    let msl := Tgrad.Renderer.Metal.renderKernel
-      (Tgrad.Renderer.Metal.matmulKernelDeclFor .bf16_64x64)
+    let kernelDecl ← match Tgrad.Pipeline.generatedKernelDeclFor .bf16_64x64 with
+      | .error _ => return -1
+      | .ok decl => pure decl
+    let msl := Tgrad.Renderer.Metal.renderKernel kernelDecl
     if msl.isEmpty then return -1
     libPtr ← Tgrad.Runtime.Metal.metalCompile msl
     if libPtr == 0 then return -2
     cachedMatmul64Lib.set libPtr
-  -- Match Pipeline.realize's dispatch: grid × threadgroup = total threads.
-  let totalX : USize := USize.ofNat (2 * 32)
-  let totalY : USize := USize.ofNat (1 * 2)
-  let totalZ : USize := USize.ofNat (1 * 1)
-  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr "r_2_32_2_2_4_4_8"
+  let dims := Tgrad.Pipeline.generatedDispatchDimsFor .bf16_64x64
+  let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
+  let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
+  let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr
+    (Tgrad.Pipeline.generatedKernelNameFor .bf16_64x64)
     #[outPtr, aPtr, bPtr]
-    totalX totalY totalZ 32 2 1
+    totalX totalY totalZ
+    (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y)
+    (USize.ofNat dims.threadgroup.z)
   pure rc.toInt32
 
 -- ----------------------------------------------------------------------
@@ -112,13 +116,10 @@ private def compileOrCacheGet (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : 
   let cached := cacheLookup key cache
   if cached != 0 then
     return cached
-  -- Kernel source comes from the Lean renderer. This previously read
-  -- `sentinel.fixturePath` off disk, so the benchmarked path executed
-  -- tinygrad's captured MSL and `renderKernel` was dead weight. The
-  -- rendered bytes are byte-equal to the captures (L12/L3), so this
-  -- swap is source-identical — it just makes the renderer load-bearing.
-  let msl := Tgrad.Renderer.Metal.renderKernel
-    (Tgrad.Renderer.Metal.matmulKernelDeclFor sentinel)
+  let kernelDecl ← match Tgrad.Pipeline.generatedKernelDeclFor sentinel with
+    | .error _ => return 0
+    | .ok decl => pure decl
+  let msl := Tgrad.Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then return 0
   let lib ← Tgrad.Runtime.Metal.metalCompile msl
   if lib == 0 then return 0
@@ -141,11 +142,11 @@ def matmulGeneral (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
     | some s => pure s
   let libPtr ← compileOrCacheGet sentinel
   if libPtr == 0 then return -2
-  let dims := Tgrad.Pipeline.dispatchDimsFor sentinel
+  let dims := Tgrad.Pipeline.generatedDispatchDimsFor sentinel
   let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
   let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
   let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
-  let fnName := Tgrad.Pipeline.kernelNameFor sentinel
+  let fnName := Tgrad.Pipeline.generatedKernelNameFor sentinel
   let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
     #[outPtr, aPtr, bPtr]
     totalX totalY totalZ
@@ -153,15 +154,14 @@ def matmulGeneral (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   pure rc.toInt32
 
 -- ----------------------------------------------------------------------
--- L12: algebraic-emit matmul entry — no IO.FS.readFile, kernel is
--- rendered from `matmulKernelDeclFor` at compile time. Distinct symbol
--- from `tgrad_matmul_lean` so the dylib visibly carries both paths and
--- the L12 gate's anti-cheat can confirm the flag actually routes here.
+-- L12: alternate generated-emitter entry. Both sentinel entries now render
+-- the parametric declaration; this symbol remains distinct while the legacy
+-- L12 routing/caching checks are retired with the transcription.
 -- ----------------------------------------------------------------------
 
 /-- Algebraic-path compiled-library cache. Separate from `libCache` so
-    the two paths never alias: even though the MSL bytes are identical,
-    keeping the caches separate makes the chosen path observable. -/
+    the legacy benchmark toggle remains observable while both entries
+    exercise the same generated declaration and launch geometry. -/
 initialize libCacheAlg : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
 private def compileOrCacheGetAlg (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : IO UInt64 := do
@@ -170,24 +170,25 @@ private def compileOrCacheGetAlg (sentinel : Tgrad.Renderer.Metal.ShapeSentinel)
   let cached := cacheLookup key cache
   if cached != 0 then
     return cached
-  -- Algebraic emit: renderKernel is pure, no IO.FS.readFile.
-  let msl := Tgrad.Renderer.Metal.renderKernel
-    (Tgrad.Renderer.Metal.matmulKernelDeclFor sentinel)
+  let kernelDecl ← match Tgrad.Pipeline.generatedKernelDeclFor sentinel with
+    | .error _ => return 0
+    | .ok decl => pure decl
+  let msl := Tgrad.Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then return 0
   let lib ← Tgrad.Runtime.Metal.metalCompile msl
   if lib == 0 then return 0
   libCacheAlg.modify (fun c => (key, lib) :: c)
   pure lib
 
-/-- General bf16 matmul via algebraic emit. (M, K, N) routes through
-    `ShapeSentinel.ofTriple` to pick the right `matmulKernelDeclFor`
-    case. Same dispatch contract as `tgrad_matmul_lean`.
+/-- General bf16 matmul via the alternate generated-emitter cache. (M, K, N)
+    routes through `ShapeSentinel.ofTriple`, then through the same parametric
+    declaration and generated launch geometry as `tgrad_matmul_lean`.
 
     L12 evidence: the dylib must export `_tgrad_matmul_alg` (separate
     symbol from `_tgrad_matmul`). The L12 gate's anti-cheat predicate
     requires the bench's `--use-algebraic-emit` flag to resolve to
     THIS symbol (and only this one), not silently fall through to the
-    capture-path entry. -/
+    primary cache. -/
 @[export tgrad_matmul_alg_lean]
 def matmulGeneralAlg (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   let sentinel ← match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M.toNat K.toNat N.toNat with
@@ -195,11 +196,11 @@ def matmulGeneralAlg (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := d
     | some s => pure s
   let libPtr ← compileOrCacheGetAlg sentinel
   if libPtr == 0 then return -2
-  let dims := Tgrad.Pipeline.dispatchDimsFor sentinel
+  let dims := Tgrad.Pipeline.generatedDispatchDimsFor sentinel
   let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
   let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
   let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
-  let fnName := Tgrad.Pipeline.kernelNameFor sentinel
+  let fnName := Tgrad.Pipeline.generatedKernelNameFor sentinel
   let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
     #[outPtr, aPtr, bPtr]
     totalX totalY totalZ
@@ -232,16 +233,16 @@ private def compileOrCacheGetSmall (M K N : Nat) : IO UInt64 := do
   libCacheSmall.modify (fun c => (key, lib) :: c)
   pure lib
 
-/-- L13.B + L13.C scalar matmul. For any (M, K, N) that
-    `pickDispatchPlan` returns with `useTc == false` — i.e., not in
-    the TC-eligible production sentinel set. Covers:
+/-- L13.B + L13.C scalar matmul for shapes rejected by the parametric TC
+    generator. Python queries Lean eligibility before selecting this entry.
+    Covers:
       * L13.B: below-TC-tile (M, K, or N < 8) — 5 manifest entries
       * L13.C: catch-all general path — any other non-sentinel bf16
                 shape (TC-aligned-non-pow2, pow2-non-benchmark,
                 asym-tall, asym-wide, large-mixed)
     Returns 0 on success;
-       -1 : (M, K, N) is TC-eligible (caller should use tgrad_matmul
-            or tgrad_matmul_alg instead)
+       -1 : (M, K, N) is TC-eligible (caller should use a generated
+            tensor-core entry instead)
        -2 : compile failed
        other : dispatch rc -/
 @[export tgrad_matmul_small_lean]
@@ -249,15 +250,12 @@ def matmulSmall (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   let Mn := M.toNat
   let Kn := K.toNat
   let Nn := N.toNat
-  -- For L13.B/C/D: route ALL non-sentinel shapes through the scalar
-  -- path. The dispatch dims for the scalar are always (M, N, 1)
-  -- regardless of what `pickDispatchPlan`'s formula says — the
-  -- production formula's `useTc=true` is meant for the captured-MSL
-  -- path (sentinel shapes only), not for shapes that happen to match
-  -- the formula but aren't in the L11 capture set. Caller (Python)
-  -- gates by `_TRIPLE_SET` membership; the scalar path here is the
-  -- correctness-only fallback for everything else.
+  -- The scalar dispatch dimensions are always (M, N, 1). This entry remains
+  -- a correctness-only fallback; the caller is responsible for selecting it
+  -- only after `matmulTcEligible` rejects the shape.
   if Mn < 1 ∨ Kn < 1 ∨ Nn < 1 then return -1
+  if (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide Mn Kn Nn).isOk then
+    return -1
   let libPtr ← compileOrCacheGetSmall Mn Kn Nn
   if libPtr == 0 then return -2
   -- Scalar dispatch: grid=(M, N, 1), tg=(1, 1, 1).
@@ -285,7 +283,7 @@ private def compileOrCacheGetTcManual (M K N : Nat) : IO UInt64 := do
   let cached := cacheLookup key cache
   if cached != 0 then
     return cached
-  match Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoad M K N with
+  match Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N with
   | .error _ => return 0
   | .ok kd =>
       let msl := Tgrad.Renderer.Metal.renderKernel kd
@@ -295,8 +293,9 @@ private def compileOrCacheGetTcManual (M K N : Nat) : IO UInt64 := do
       libCacheTcManual.modify (fun c => (key, lib) :: c)
       pure lib
 
-/-- L13.F TC matmul. For shapes meeting the L13.F eligibility
-    constraints (M, K, N ≥ 128; M % 32 = 0; K % 8 = 0; N % 128 = 0).
+/-- L13.F TC matmul. For shapes meeting the generated kernel's eligibility
+    constraints (M ≥ 32; K ≥ 8; N ≥ 32; M % 32 = 0; K % 8 = 0;
+    N is divisible by its `32 * min 4 (N / 32)` output tile).
     Generates a Lean-owned manual-load WMMA kernel.
     Returns -1 if shape is NOT TC-eligible (caller should route via
     `tgrad_matmul_small` instead). -/
@@ -305,21 +304,20 @@ def matmulTc (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   let Mn := M.toNat
   let Kn := K.toNat
   let Nn := N.toNat
-  if Mn < 128 ∨ Kn < 128 ∨ Nn < 128 ∨
-     Mn % 32 != 0 ∨ Kn % 8 != 0 ∨ Nn % 128 != 0 then
+  if !(Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide Mn Kn Nn).isOk then
     return -1
   let libPtr ← compileOrCacheGetTcManual Mn Kn Nn
   if libPtr == 0 then return -2
-  -- Dispatch: grid=(N/128, M/32, 1), tg=(32, 4, 1). Metal's
-  -- dispatch API takes total threads, so multiply grid by tg.
-  let totalX : USize := USize.ofNat ((Nn / 128) * 32)
-  let totalY : USize := USize.ofNat ((Mn / 32) * 4)
-  let totalZ : USize := 1
+  let dims := Tgrad.Renderer.Metal.tcLaunchDims Mn Nn
+  let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
+  let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
+  let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
   let fnName := s!"matmul_tc_manual_{Mn}x{Kn}x{Nn}"
   let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
     #[outPtr, aPtr, bPtr]
     totalX totalY totalZ
-    32 4 1
+    (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y)
+    (USize.ofNat dims.threadgroup.z)
   pure rc.toInt32
 
 /-- L13.F.STRICT.B manual-load TC matmul. Installed as a distinct
@@ -330,21 +328,20 @@ def matmulTcManualLoad (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 :=
   let Mn := M.toNat
   let Kn := K.toNat
   let Nn := N.toNat
-  if Mn < 128 ∨ Kn < 128 ∨ Nn < 128 ∨
-     Mn % 32 != 0 ∨ Kn % 8 != 0 ∨ Nn % 128 != 0 then
+  if !(Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide Mn Kn Nn).isOk then
     return -1
   let libPtr ← compileOrCacheGetTcManual Mn Kn Nn
   if libPtr == 0 then return -2
-  -- Dispatch: grid=(N/128, M/32, 1), tg=(32, 4, 1). Metal's
-  -- dispatch API takes total threads, so multiply grid by tg.
-  let totalX : USize := USize.ofNat ((Nn / 128) * 32)
-  let totalY : USize := USize.ofNat ((Mn / 32) * 4)
-  let totalZ : USize := 1
+  let dims := Tgrad.Renderer.Metal.tcLaunchDims Mn Nn
+  let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
+  let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
+  let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
   let fnName := s!"matmul_tc_manual_{Mn}x{Kn}x{Nn}"
   let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
     #[outPtr, aPtr, bPtr]
     totalX totalY totalZ
-    32 4 1
+    (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y)
+    (USize.ofNat dims.threadgroup.z)
   pure rc.toInt32
 
 /-- L13.F query: does Lean's manual-load TC decl consider this shape
@@ -355,7 +352,7 @@ def matmulTcEligible (M K N : USize) : IO UInt32 := do
   let Mn := M.toNat
   let Kn := K.toNat
   let Nn := N.toNat
-  match Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoad Mn Kn Nn with
+  match Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide Mn Kn Nn with
   | .error _ => pure 0
   | .ok _    => pure 1
 
@@ -518,22 +515,30 @@ def tensorUopKind (h : UInt64) : IO UInt8 := do
     | _              => 255)
 
 -- ----------------------------------------------------------------------
--- L14.B.2.c: view-aware matmul. Replaces the L14.B.1 typed-error
+-- L14.B.2.c: view-aware matmul and unary view materialization.
+-- Replaces the L14.B.1 typed-error
 -- guard (`MatmulOnNonBufferUop`) — when either input has a non-BUFFER
 -- uop, Python routes through this entry which calls
 -- `Pipeline.realizeView` (parametric scalar matmul with index UOps
 -- derived from the input uop chains). Returns the new opaque tensor
 -- handle for the output (with BUFFER root); 0 on error.
+--
+-- The existing C trampoline has two UInt64 handle arguments. A second handle
+-- of 0 is otherwise invalid and is reserved for unary view materialization;
+-- this keeps the materializer within the existing stable C ABI.
 -- ----------------------------------------------------------------------
 
 @[export tgrad_matmul_view_lean]
 def matmulView (aHandle bHandle : UInt64) : IO UInt64 := do
   let some a ← TensorRegistry.get? aHandle | pure 0
-  let some b ← TensorRegistry.get? bHandle | pure 0
-  let res ← Tgrad.Pipeline.realizeView a b
+  let res ← if bHandle == 0 then
+    Tgrad.Pipeline.materializeView a
+  else do
+    let some b ← TensorRegistry.get? bHandle | pure (.error
+      (.notInLeanScope s!"matmulView: handle {bHandle} not registered"))
+    Tgrad.Pipeline.realizeView a b
   match res with
   | .error _ => pure 0
   | .ok t    => TensorRegistry.register t
 
 end Tgrad.PythonFFI
-

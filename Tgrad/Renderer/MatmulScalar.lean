@@ -7,9 +7,8 @@ import Tgrad.Renderer.Metal
   emits a naive O(MNK) scalar matmul kernel parameterised by (M, K, N)
   — one thread per output element, no shared memory, no TC.
 
-  Distinct from `MatmulDecls.matmulKernelDeclFor` (L12 transpiler
-  output for the 11 captured sentinels): this is a pure algebraic
-  template that handles arbitrary `(M, K, N)`. Correctness only —
+  This is a pure algebraic template that handles arbitrary
+  `(M, K, N)` outside the generated tensor-core domain. Correctness only —
   no perf parity is required for the L13.B sub-gate per the
   manifest's `bucket == "below_tc_tile"` scope.
 

@@ -200,7 +200,11 @@ import numpy as np
 import tgrad
 
 # C1: 64×64 byte-match (proves BUFFER-only L5/L6 path is intact).
-fix = os.path.join(os.environ.get("REPO_ROOT", "."), "Tgrad", "fixtures", "pipeline")
+# The fixtures live at <repo>/fixtures/pipeline. The extra "Tgrad"
+# component is a leftover from the pre-split monorepo layout and made
+# this gate unpassable: every run died with FileNotFoundError before
+# reaching a single assertion.
+fix = os.path.join(os.environ.get("REPO_ROOT", "."), "fixtures", "pipeline")
 a_b = open(os.path.join(fix, "matmul_64x64_bf16_seed42_a.bin"), "rb").read()
 b_b = open(os.path.join(fix, "matmul_64x64_bf16_seed42_b.bin"), "rb").read()
 e_b = open(os.path.join(fix, "matmul_64x64_bf16_seed42_expected.bin"), "rb").read()

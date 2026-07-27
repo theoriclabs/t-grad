@@ -218,9 +218,9 @@ echo "  ✓ L14_A.sh references L11.json + L13.json + L13_F.json (regression evi
 # load-bearing predicate: L14.A's pure data-structure refactor is
 # correctness-preserving by construction (the Python FFI matmul path
 # takes raw uint64 buffer pointers and never touches the Tensor struct;
-# the matmul kernels' MSL source is byte-identical to before because
-# `Renderer/Metal.lean`, `MatmulDecls.lean`, `MatmulScalar.lean`, and
-# `MatmulTc.lean` are unchanged), so re-running L11/L13/L13_F here
+# the Python FFI matmul route is outside this data-structure change and
+# the generated renderer modules are unchanged), so re-running
+# L11/L13/L13_F here
 # would only re-confirm what we know by construction — at the cost of
 # 10+ minutes of perf-sensitive GPU work that is flaky under the
 # parallel L13.F.STRICT track sanctioned by `GOAL_HANDOFF_L14_L15.md`.

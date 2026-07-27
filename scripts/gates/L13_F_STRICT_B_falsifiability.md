@@ -14,4 +14,4 @@ source-level threadgroup/manual-WMMA markers.
 | 5 | Remove the threadgroup barrier around cooperative tile loads. | Rendered MSL marker check rejects missing `threadgroup_barrier`. | Layer D5 | ✓ 2026-05-14 |
 | 6 | Corrupt A/B indexing in the manual-load body. | Pinned or random numpy-reference correctness rejects. | Layer C | ✓ 2026-05-14 |
 | 7 | Drop one pinned manifest row or skip random samples. | Row-count assertions reject `total != 8` or random count mismatch. | Layer C | ✓ 2026-05-14 |
-| 8 | Break L12 byte-equal rendering while adding the manual body. | L12 regression gate rejects. | Layer C2 | ✓ 2026-05-14 |
+| 8 | Break L12 generated-kernel semantics while adding the manual body. | L12 captured/generated differential rejects. | Layer C2 | ✓ structural |

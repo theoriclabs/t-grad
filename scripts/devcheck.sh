@@ -145,7 +145,11 @@ smoke_tc_general() {
   run_cmd "$PY" -c '
 import tgrad
 assert tgrad._lib.tgrad_matmul_tc_eligible(128, 128, 128) == 1
-assert tgrad._lib.tgrad_matmul_tc_eligible(96, 128, 128) == 0
+assert tgrad._lib.tgrad_matmul_tc_eligible(96, 128, 128) == 1
+assert tgrad._lib.tgrad_matmul_tc_eligible(64, 64, 64) == 1
+assert tgrad._lib.tgrad_matmul_tc_eligible(31, 64, 64) == 0
+assert tgrad._lib.tgrad_matmul_tc_eligible(64, 7, 64) == 0
+assert tgrad._lib.tgrad_matmul_tc_eligible(64, 64, 48) == 0
 print("tc_eligibility_smoke: true")
 ' >/tmp/tgrad_devcheck_tc.txt
 }

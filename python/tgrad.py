@@ -66,20 +66,16 @@ _lib.tgrad_matmul_64x64.argtypes = [
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_64x64.restype  = ctypes.c_int32
 
-# L11: general matmul. (M, K, N) selects the captured kernel inside
-# the Lean side via ShapeSentinel.ofTriple. Same return-code mapping
-# as tgrad_matmul_64x64 plus -1 for "shape not in capture index."
+# L11: general sentinel matmul. ShapeSentinel.ofTriple bounds the accepted
+# set; Lean then generates the parametric TC declaration and launch geometry.
 _lib.tgrad_matmul.argtypes = [
     ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
 ]
 _lib.tgrad_matmul.restype  = ctypes.c_int32
 
-# L12: algebraic-emit matmul. Same contract as tgrad_matmul; the Lean
-# side compiles the kernel from `renderKernel (matmulKernelDeclFor s)`
-# (pure function on the renderer AST) instead of reading the captured
-# MSL file. Distinct symbol so the gate can confirm the dylib exports
-# both paths, and so `--use-algebraic-emit` routing is observable.
+# L12: alternate generated-emitter cache. Same generated declaration as
+# tgrad_matmul; the distinct symbol preserves alternate-route observability.
 _lib.tgrad_matmul_alg.argtypes = [
     ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
@@ -179,16 +175,13 @@ _DTYPE_CODES = {"bf16": _DTYPE_BF16, "f32": _DTYPE_F32,
 def _dtype_code(name: str) -> int:
     return _DTYPE_CODES.get(name, _DTYPE_BF16)
 
-# Module-level toggle that `Tensor.__matmul__` honours. Default is the
-# capture path (L11 baseline); the L12 bench-full sets this to True via
-# `--use-algebraic-emit`.
+# Legacy L12 cache toggle. Both entries execute the generated declaration;
+# the alternate symbol remains as an observable cache-isolation probe.
 _USE_ALGEBRAIC: bool = False
 _USE_MANUAL_LOAD_TC: bool = False
 
 def set_use_algebraic(flag: bool) -> None:
-    """Switch Tgrad's matmul routing between the captured-MSL path
-    (False, default) and the algebraic-emit path (True). The L12 bench
-    flips this to True before timing; runs are otherwise capture-path."""
+    """Switch between the primary and alternate generated-sentinel caches."""
     global _USE_ALGEBRAIC
     _USE_ALGEBRAIC = bool(flag)
 
@@ -239,11 +232,9 @@ def _numel(shape: tuple[int, ...]) -> int:
 # L13.C+ scope: arbitrary 2D operand shapes are accepted. The
 # concrete shape support per matmul `(M, K) @ (K, N)` is decided at
 # __matmul__ time:
-#   - (M, K, N) in _TRIPLE_SET     → TC sentinel path (tgrad_matmul)
-#   - (M, K, N) in _SMALL_TRIPLE_SET → known below-TC-tile path
-#   - otherwise                     → catch-all scalar path
-#       (tgrad_matmul_small, which the Lean side accepts for any
-#        shape with useTc=false in pickDispatchPlan)
+#   - (M, K, N) in _TRIPLE_SET → generated TC sentinel path (tgrad_matmul)
+#   - otherwise, Lean wide eligibility → generated TC-general path
+#   - otherwise → scalar correctness fallback (tgrad_matmul_small)
 # `_SUPPORTED_SHAPES` is kept as a documentation set listing the
 # operand shapes the manifest fixtures exercise; from_numpy /
 # from_bf16_bytes now accept any 2D ndarray with dims ≥ 1.
@@ -420,37 +411,56 @@ class Tensor:
 
     _VIEW_KIND_NAMES = {1: "permute", 2: "reshape", 3: "expand", 4: "slice"}
 
-    def _reject_view_readback(self, method: str) -> None:
-        """Readback copies the underlying buffer verbatim; it does not
-        apply the view. Reading a view would therefore return the
-        parent's data laid out in the parent's order, wearing the
-        view's shape — silently wrong numbers rather than an error.
+    def _materialize_for_readback(self, method: str) -> "Tensor":
+        """Return a contiguous Tensor suitable for host readback.
 
-        Materializing a view needs an indexed copy kernel driven by
-        `Schedule.View`; until that exists, refuse. Note `a.T @ b` is
-        unaffected: matmul goes through `Pipeline.realizeView`, which
-        does apply the view."""
+        BUFFER tensors already are contiguous. Movement views are realized by
+        Lean's indexed-copy kernel. The existing two-handle view trampoline
+        reserves a zero second handle for this unary operation, avoiding a new
+        C ABI entry while still keeping rendering, allocation, and dispatch in
+        Lean.
+
+        The temporary output owns its fresh buffer and is freed after the
+        caller copies the bytes to Python."""
         kind = self._uop_kind_code()
-        name = self._VIEW_KIND_NAMES.get(kind)
-        if name is not None:
+        if kind == 0:
+            return self
+        name = self._VIEW_KIND_NAMES.get(kind, f"uop-kind-{kind}")
+        out_handle = _lib.tgrad_matmul_view(self._handle, 0)
+        if out_handle == 0:
             raise NotInLeanScope(
-                f"Tensor.{method}() on a {name} view is not supported: the "
-                f"buffer holds the pre-view data, so the result would be "
-                f"silently wrong. Materialize via a matmul, or read back "
-                f"the base tensor.")
+                f"Tensor.{method}() could not materialize {name} view with "
+                f"shape {self._shape}; the movement chain may be invalid, "
+                f"unsupported, or empty")
+        out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+        if out_buf == 0:
+            raise TgradError(
+                f"Tensor.{method}(): materialized handle {out_handle} has no buffer")
+        out_rank = _lib.tgrad_tensor_rank(out_handle)
+        out_shape = tuple(
+            int(_lib.tgrad_tensor_shape_dim(out_handle, i))
+            for i in range(out_rank))
+        out_size = _numel(out_shape) * _DTYPE_BYTES[self._dtype]
+        if out_shape != self._shape:
+            _lib.tgrad_tensor_free(out_buf, out_size)
+            raise TgradError(
+                f"Tensor.{method}(): materialized shape {out_shape} disagrees "
+                f"with Python view shape {self._shape}")
+        return Tensor(out_buf, out_size, out_shape, self._dtype,
+                      handle=out_handle, owns_buf=True)
 
     def numpy(self) -> np.ndarray:
-        self._reject_view_readback("numpy")
-        out = (ctypes.c_uint8 * self._size)()
-        rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
+        tensor = self._materialize_for_readback("numpy")
+        out = (ctypes.c_uint8 * tensor._size)()
+        rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
-        return _fp32_from_bf16(bytes(out), self._shape)
+        return _fp32_from_bf16(bytes(out), tensor._shape)
 
     def to_bytes(self) -> bytes:
-        self._reject_view_readback("to_bytes")
-        out = (ctypes.c_uint8 * self._size)()
-        rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
+        tensor = self._materialize_for_readback("to_bytes")
+        out = (ctypes.c_uint8 * tensor._size)()
+        rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
         return bytes(out)
@@ -580,7 +590,9 @@ class Tensor:
                 f"matmul: contraction dim mismatch ({self._shape} @ {other._shape})")
         K = K_a
         if (M, K, N) in _TRIPLE_SET:
-            # L11/L12 sentinel path (capture or algebraic).
+            # L11/L12 sentinel path. Both entry points render the parametric
+            # TC declaration; the alternate symbol keeps cache-route
+            # observability for L12's generated sweep.
             entry = _lib.tgrad_matmul_alg if _USE_ALGEBRAIC else _lib.tgrad_matmul
             entry_name = "tgrad_matmul_alg" if _USE_ALGEBRAIC else "tgrad_matmul"
         elif _lib.tgrad_matmul_tc_eligible(M, K, N) == 1:
@@ -757,8 +769,8 @@ def main(argv: list[str]) -> int:
     bf.add_argument("--measured", type=int, default=30)
     bf.add_argument("--use-algebraic-emit", dest="use_algebraic",
                     action="store_true",
-                    help="route matmul through the L12 algebraic-emit FFI entry "
-                         "(tgrad_matmul_alg) instead of the L11 capture path")
+                    help="route generated matmul through L12's independent "
+                         "alternate cache entry (tgrad_matmul_alg)")
     args = p.parse_args(argv)
     if args.cmd == "bench":
         try:
@@ -958,7 +970,7 @@ def main(argv: list[str]) -> int:
         baseline_path = (args.baseline if args.baseline is not None else
                          str(REPO_ROOT / "fixtures" / "perf"
                              / f"tinygrad_baseline_{PERF_PROFILE}_full.json"))
-        # L12: switch matmul routing to the algebraic-emit FFI entry.
+        # L12: switch generated matmul routing to the alternate FFI cache.
         # Set BEFORE invoking run_bench_full so warm-up + timing both
         # exercise the algebraic path.
         if args.use_algebraic:

@@ -1,12 +1,12 @@
 {
   "gate": "L4",
-  "ts_utc": "2026-06-22T14:28:48Z",
-  "host_profile": "apple_m4_mini_release",
+  "ts_utc": "2026-07-27T06:42:14Z",
+  "host": "Harshs-MacBook-Air.local",
   "platform": "Darwin 24.5.0 arm64",
-  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "commit": "e90607f1b11da91535c11b0cff88d9d47a1be1ef",
   "hashes": {
     "metal_available_sha256":  "f8508c52e6ceef065e233195f86e271923596634da5d1d98f50cb03409708a9f",
-    "alloc_cycle_sha256":  "f6480866d9d4e6e35fb7ada93258d7e29dedb0feb288d697d255498d345de0be",
+    "alloc_cycle_sha256":  "3f18b86d09d515739c357e77c0d380c87e206a8ecdbb82cdc8311882f8bbb1bb",
     "compile_smoke_sha256":  "59f1c052cc39cb39b7dc5574cc3f1b5852ecfb87213835eed0708711e61eee05",
     "dispatch_copy_sha256":  "59c0cc3aeac510b05e70476cb994762651b0892f2a0eac56e3c100031dbcec1f"
   }

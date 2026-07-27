@@ -32,17 +32,22 @@ def _load(name: str) -> dict:
 # -------- Criterion 4: Renderer ----------------------------------------
 
 def check_renderer() -> dict:
-    """L12 evidence: 10/10 captured shapes byte-equal under algebraic emit.
+    """L12 evidence: 11/11 generated kernels agree with the captured
+    executable oracle while their source text differs.
     L13_F evidence: TC-eligible non-sentinels emit WMMA, not scalar.
     Renderer/Metal.lean: WmmaArg is typed (not a string-literal table)."""
     l12 = _load("L12.json")
     l13f = _load("L13_F.json")
     metal = REPO / "Tgrad" / "Renderer" / "Metal.lean"
-    matmul_decls = REPO / "Tgrad" / "Renderer" / "MatmulDecls.lean"
     matmul_tc = REPO / "Tgrad" / "Renderer" / "MatmulTc.lean"
+    pipeline = REPO / "Tgrad" / "Pipeline.lean"
+    removed_decls = REPO / "Tgrad" / "Renderer" / "MatmulDecls.lean"
+    removed_transpiler = REPO / "scripts" / "dev" / "lower_matmul.py"
 
-    byte_equal_pass = int(l12.get("shapes_byte_equal", 0))
-    byte_equal_total = int(l12.get("shapes_total", 10))
+    semantic_pass = int(l12.get("semantic_bit_identical", 0))
+    semantic_total = int(l12.get("sentinels_total", 0))
+    source_differences = int(l12.get("sources_differ", 0))
+    transcriptions = int(l12.get("transcription_files_present", -1))
 
     tc_wmma_pinned = int(l13f.get("tc_general_wmma", 0))
     tc_wmma_random = int(l13f.get("random_tc_wmma", 0))
@@ -50,33 +55,42 @@ def check_renderer() -> dict:
 
     # WMMA prelude routes through typed WmmaArg (vs a string-only table).
     has_wmma_typed = bool(metal.exists() and re.search(r"WmmaArg", metal.read_text()))
-    # Optional: confirm at least one of the captured kernels mentions WMMA.
-    matmul_decls_has_wmma = bool(matmul_decls.exists() and "WmmaArg" in matmul_decls.read_text())
     matmul_tc_has_wmma = bool(matmul_tc.exists() and "WmmaArg" in matmul_tc.read_text())
+    generated_route = bool(
+        pipeline.exists()
+        and "generatedKernelDeclFor_accepts_all_sentinels" in pipeline.read_text()
+        and "generatedKernelNameFor_differs_from_capture" in pipeline.read_text()
+    )
+    transcription_absent = not removed_decls.exists() and not removed_transpiler.exists()
 
     verdict = "pass" if (
-        byte_equal_pass >= 10 and
+        semantic_pass == 11 and semantic_total == 11 and
+        source_differences == 11 and transcriptions == 0 and
         tc_wmma_pinned >= 8 and
         tc_wmma_random >= 10 and
         tc_scalar == 0 and
-        has_wmma_typed and (matmul_decls_has_wmma or matmul_tc_has_wmma)
+        has_wmma_typed and matmul_tc_has_wmma and
+        generated_route and transcription_absent
     ) else "fail"
     return {
         "criterion": "renderer",
         "verdict": verdict,
         "artifact_paths": [
             "Tgrad/Renderer/Metal.lean",
-            "Tgrad/Renderer/MatmulDecls.lean",
             "Tgrad/Renderer/MatmulTc.lean",
+            "Tgrad/Pipeline.lean",
+            "scripts/differential_codegen.sh",
             "fixtures/gate_evidence/L12.json",
             "fixtures/gate_evidence/L13_F.json",
         ],
         "evidence": (
-            f"L12.byte_equal_pass={byte_equal_pass}/{byte_equal_total}, "
+            f"L12.semantic={semantic_pass}/{semantic_total}, "
+            f"sources_differ={source_differences}/11, transcriptions={transcriptions}/0, "
             f"L13_F.tc_general_wmma={tc_wmma_pinned}/8 + random={tc_wmma_random}/10, "
             f"L13_F.tc_general_scalar_routes={tc_scalar}/0, "
             f"WmmaArg typed in Metal.lean: {has_wmma_typed}; "
-            f"Wmma in MatmulDecls/MatmulTc: {matmul_decls_has_wmma}/{matmul_tc_has_wmma}"
+            f"Wmma in MatmulTc: {matmul_tc_has_wmma}; "
+            f"generated route: {generated_route}; transcription absent: {transcription_absent}"
         ),
     }
 

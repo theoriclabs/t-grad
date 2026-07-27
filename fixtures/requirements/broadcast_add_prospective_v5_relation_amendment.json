@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V5",
+  "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V5",
+  "baseline_revision": "2266835c4e62b32db546668b59c921bef68acd2d",
+  "upstream_evidence_id": "84a58222575eab06ecc72889e1dbbe2a2084849356673a8d299c21ad2e41a844",
+  "upstream_observation_sha256": "7f256eebdcdf2ddba531df875e16f0d84bacb8730307dfae175324bba90d515f",
+  "v4_observer_sha256": "05ec39dc8b41ebf3695e1fab2e819c62db1f06490ff82a7d8cb2556e49eefe19",
+  "v4_test_sha256": "ecbb16a6efe623ae5e53117e03dea3504f3139e766ace6d0d6a9316722b2e904",
+  "v4_disposition": "upstream_baseline_valid_tgrad_comparison_relation_refuted",
+  "finding": "Committing the baseline changes repository revision and tree while verifier executable content remains identical; full verifier-dictionary equality makes baseline-first comparison impossible.",
+  "relation_amendment": {
+    "from": ["observer_sha256", "probe_sha256", "schema_version", "git.revision", "git.tree", "git.clean", "git.files", "git.sha256"],
+    "to": ["observer_sha256", "probe_sha256", "schema_version", "git.clean", "git.files"],
+    "retain_per_run_provenance": ["git.revision", "git.tree", "git.sha256"]
+  },
+  "upstream_baseline_remains_immutable": true,
+  "v4_contract_inherited_unchanged": true,
+  "frozen_before_v5_relation_implementation": true,
+  "frozen_before_tgrad_observation": true,
+  "product_candidate_forbidden_before_tgrad_observation": true
+}

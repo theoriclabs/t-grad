@@ -628,6 +628,14 @@ environment, raw streams, normalized streams, protocols, and mutant branches.
 It remains observation-only: adequacy is open and no conformance or parity
 claim follows from an upstream baseline.
 
+The first TGrad comparison attempt was then refused before TGrad loaded. The
+baseline recorded the verifier repository revision/tree, and committing the
+baseline necessarily changed those run-specific provenance fields while the
+observer, probe, schema, and verifier files remained byte-identical. V5 freezes
+the relation repair: retain Git revision/tree/hash in each artifact, but compare
+executable verifier equivalence by observer hash, probe hash, schema, clean
+state, and verifier-file hashes. The upstream baseline remains immutable.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

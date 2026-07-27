@@ -678,6 +678,16 @@ and expected observation transitions are unchanged. This is a concrete work-
 prediction miss, and therefore evidence that dependency discovery must include
 verification code—not only the product import graph.
 
+The V2 implementation at `4a489e3` was then observed under the unchanged V6
+protocol. Evidence
+`8f6a7f9dc4bf105d23773e6fafc7dc145b8b3e7d8c5b6bf0a0cc8edfd9531de1`
+matches the prospective partition exactly: all four float32 pairs construct,
+and both int32 scenarios remain explicit unsupported-dtype failures. The
+three legal float32 scenarios now stop at `snapshot_inputs` because the public
+Tensor lacks `tolist`. The incompatible pair reaches `invoke_add` and raises
+Tgrad's shape error. This is observability gain—construction changed from a
+common blocker to a passed dimension—but still supplies no legal add result.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

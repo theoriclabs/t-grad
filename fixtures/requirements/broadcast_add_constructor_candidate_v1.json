@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-PY-TENSOR-PUBLIC-CONSTRUCTOR-V1",
+  "baseline_revision": "08ece776a380adf93abb691e0417b2bbe51bb105",
+  "trigger_observation": {
+    "evidence_id": "a4fcdc9090a20ce6c01283d3795bb55e099a3fcd45e29f608f2e128182022bba",
+    "upstream_evidence_id": "84a58222575eab06ecc72889e1dbbe2a2084849356673a8d299c21ad2e41a844",
+    "common_terminal_stage": "construct_left",
+    "common_exception_class": "TypeError",
+    "common_exception_message": "Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'"
+  },
+  "problem_frame": "python_public_tensor_construction",
+  "finding": "The strict shim correctly aliases tinygrad.Tensor to tgrad.Tensor, but Tgrad exposes its internal buffer constructor as the public constructor.",
+  "candidate": {
+    "public_protocol": "Tensor(data, dtype=...)",
+    "internal_protocol": "Tensor._from_buffer(buf, size, shape, dtype, handle=..., owns_buf=..., base=...)",
+    "data_forms": ["scalar", "flat_list", "nested_list", "numpy_array"],
+    "dtype_scope": ["f32"],
+    "shape_scope": ["rank_0", "rank_1", "rank_2", "rank_3"],
+    "reshape_call_forms": ["reshape(d0, d1, ...)", "reshape((d0, d1, ...))"],
+    "validation": [
+      "reject unsupported dtype before allocation",
+      "reject ragged or object input",
+      "reject non-positive materialized dimensions except rank zero",
+      "preserve exact allocation-size/shape invariant",
+      "preserve view parent lifetime and ownership"
+    ]
+  },
+  "predicted_observation_transition": {
+    "construction_crosses_for": [
+      "ADD-SAME-SHAPE-F32",
+      "ADD-SINGLETON-AXIS-F32",
+      "ADD-TWO-SIDED-BROADCAST-F32",
+      "ADD-INCOMPATIBLE-SHAPES"
+    ],
+    "construction_remains_explicitly_unsupported_for": [
+      "ADD-RANK-EXTENSION-I32",
+      "ADD-I32-F32-SCALAR-PROMOTION"
+    ],
+    "minimum_newly_reached_stage_for_f32": "construct_right",
+    "arithmetic_outcome_predicted": false,
+    "realization_outcome_predicted": false,
+    "parity_promotion_predicted": false
+  },
+  "write_set": {
+    "product": ["python/tgrad.py"],
+    "verification": ["scripts/spec/test_tensor_public_constructor.py"],
+    "forbidden": [
+      "scripts/parity/shim/tinygrad/__init__.py",
+      "scripts/parity/shim/tinygrad/dtype.py",
+      "Tgrad/PythonFFI.lean",
+      "Tgrad/Pipeline.lean",
+      "c/tgrad_python.c"
+    ]
+  },
+  "verification_sequence": [
+    "CPU contract tests",
+    "TgradSpec build",
+    "serial unsandboxed V6 TGrad observation against the immutable upstream baseline"
+  ],
+  "recovery": "Revert the product candidate, retain the failed observation, and revise the next packet without changing the V6 relation or upstream baseline.",
+  "frozen_before_product_authoring": true
+}

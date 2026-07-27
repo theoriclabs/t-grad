@@ -661,6 +661,15 @@ leaving unsupported int32 behavior explicit. It must not be described as a
 broadcast-add implementation or as parity progress until a fresh run observes
 those dimensions.
 
+The resulting prospective packet is
+[`WORK-PY-TENSOR-PUBLIC-CONSTRUCTOR-V1`](../fixtures/requirements/broadcast_add_constructor_candidate_v1.json).
+It freezes a one-file product write set and a deliberately weak prediction:
+four float32 scenarios should cross both construction stages, while the two
+int32 scenarios remain explicit capability gaps. Its refusal to predict an
+arithmetic result is part of the specification. If the next observation stops
+at readback, reshape, addition, or realization, that is new information rather
+than a failed promise about full broadcast parity.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

@@ -555,6 +555,18 @@ superseded. The trial-definition stage predicts no observation change. The
 observer stage has a distinct write/resource set and an uncertainty envelope;
 its eventual outcome cannot derive conformance while adequacy remains open.
 
+This is now a genuinely prospective definition rather than a reconstruction:
+revision `0d5f1c1f8cab375f824cb5f1ae7c1865a1a5c078` freezes the requirement,
+boundary, manifest, mutation policy, derivation rule, and packet before either
+the observer or a product candidate exists. A separate machine-checked
+[trial lock](../fixtures/requirements/broadcast_add_trial_lock_v1.json) binds
+that Git tree, each critical file hash, the upstream pin, and the declared
+execution environment. Its pending-artifact fields are part of the result:
+they prevent an immutable definition from being rhetorically upgraded into an
+executed trial. The next admissible transition is observer implementation and
+mutation calibration; product authoring remains forbidden until a baseline
+observation has been recorded against this lock.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

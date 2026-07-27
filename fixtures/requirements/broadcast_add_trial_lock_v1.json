@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V1",
+  "status": "definition_frozen_observer_unimplemented",
+  "baseline_revision": "51244a945250bc0541f5bdc241276beef335041e",
+  "definition_revision": "0d5f1c1f8cab375f824cb5f1ae7c1865a1a5c078",
+  "definition_tree": "e53d9330c663caee90692fadbe7369cb6c1821c3",
+  "upstream_revision": "19c4d736f2bc8e26d21f08b28ffd6298408da00f",
+  "definition_files": {
+    "Tgrad/Requirements/Relation.lean": "6be8a9fb3a333191f5043503b4b6b6d60d8fa20bb063b1c9feb4b3bc5bcf554c",
+    "Tgrad/Requirements/BroadcastAddPilot.lean": "7cb7bb644f464c4aaad495e533a7eadb1d17d087ad96ac35ca1f7ad8447ea1bb",
+    "Tgrad/Specification/BroadcastAddPilot.lean": "bf5aa2ef46d6aabd051e1b2733e0a2cb995df46d55e0f455200450edbe4ceda3",
+    "Tgrad/Growth/Derived.lean": "ac59f6ff1c2f830ef5d4a06a13cf88b6485b84c74b72e724dac5f9cd230d0ab2",
+    "Tgrad/Growth/BroadcastAddManifest.lean": "7d85a6a70faaf8165e79411139352bf82a24df077597e50c5816b56cbd78e089",
+    "Tgrad/Growth/BroadcastAddManifestGenerated.lean": "02e6b737aeec022b43610375d08f7d89333ad64cc1c2bcd17e66c130ffb4c790",
+    "Tgrad/Growth/BroadcastAddPacket.lean": "095e7d925ee881b85b982ade24774680cdfbd8aea6efa0d28d5915d5083c2787",
+    "fixtures/requirements/broadcast_add_prospective_v1.json": "a0485899ccae42c6378bb96f1fafec802c73c31aa34d956fda9b7f7deb9ec2e9",
+    "scripts/spec/generate_broadcast_add_manifest.py": "77e30c9c0dd1c62211dff30743ba720014a38b9db5864492adf33ae043114155",
+    "scripts/spec/test_broadcast_add_manifest.py": "b08abc535bdce017736ab4e27b60043a0d4d638a4b7152e041376213420fd378"
+  },
+  "execution_boundary": {
+    "backend": "METAL",
+    "hardware_identity_sha256": "7826b350b1d111a9b52cfba16bad783a331c23f6c0c425a01d3f0b4d7c22359c",
+    "python_environment_facts_sha256": "67d64a99683d3444685c4e6db1e2d20970dbaf4d2072b4dc6d47478dabb45af2",
+    "strict_no_upstream_fallback": true,
+    "serial_gpu_verification": true
+  },
+  "pending_artifacts": {
+    "observer": "scripts/spec/observe_broadcast_add.py",
+    "mutant_implementations": "missing; eight immutable mutant trees must be recorded after implementation",
+    "upstream_observation": "missing",
+    "tgrad_observation": "missing",
+    "derived_state": "missing"
+  },
+  "promotion_policy": {
+    "definition_drift_invalidates_trial": true,
+    "observer_must_bind_this_lock_sha256": true,
+    "product_candidate_forbidden_before_baseline_observation": true,
+    "adequacy_remains_open": true,
+    "legacy_requirement_remains_historical": true
+  }
+}

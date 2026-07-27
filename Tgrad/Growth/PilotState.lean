@@ -1,11 +1,13 @@
 import Tgrad.Growth.Derived
 import Tgrad.Evidence.PilotGenerated
 
-/-! # Tgrad.Growth.PilotState — the first derived requirements snapshot
+/-! # Tgrad.Growth.PilotState — the current derived requirements snapshot
 
-This snapshot intentionally contains no observations.  The target is an
-extracted candidate, adequacy is open, and no verifier/environment identity is
-invented.  The resulting gaps are computed from those facts.
+The helper-surface observation is generated from a revision-bound execution.
+It now passes with a calibrated no-fallback validator, while the two dependent
+tensor requirements become observable but remain unobserved.  The target is
+still only an extracted candidate and adequacy remains open, so no compatibility
+claim is promoted merely because one behavior passed.
 -/
 
 namespace Tgrad.Growth.PilotState
@@ -58,13 +60,15 @@ def states : List RequirementState := [helpersState, addState, viewState]
 
 def gaps : List Gap := (states.flatMap gapsFor).eraseDups
 
-theorem current_snapshot_localizes_the_observed_prerequisite_failure :
-    helpersState.implementation = .noCandidate ∧
+/- This theorem checks only the current snapshot.  It does not establish a
+source-to-binary build chain or a derivation-stable before/after transition. -/
+theorem current_snapshot_records_calibrated_scenario_without_overpromotion :
+    helpersState.implementation = .behaviorObserved ∧
     addState.implementation = .candidateMapped ∧
     viewState.implementation = .candidateMapped ∧
-    helpersState.observation = .failed ∧
-    addState.observation = .blocked ∧
-    viewState.observation = .blocked ∧
+    helpersState.observation = .passedCalibrated ∧
+    addState.observation = .unobserved ∧
+    viewState.observation = .unobserved ∧
     states.all (fun state =>
       state.adequacy == .open &&
       state.promotion == .targetUnpromoted) = true := by
@@ -88,6 +92,7 @@ private def verifierBoundary : BoundaryIdentity :=
         contentHash := "validator-content-hash-v1"
         dirty := false }
     adapterHash := "strict-shim-content-hash-v1"
+    runtimeArtifactHash := "runtime-artifact-hash-v1"
     environmentId := "pilot-environment-v1"
     environmentHash := "pilot-environment-hash-v1"
     scenarioManifestHash := "pilot-scenario-manifest-v1" }
@@ -106,6 +111,7 @@ private def calibratedAddValidator : ValidatorRef :=
     dimensions := broadcastAdd.relation.dimensions
     calibrations :=
       [{ faultModel := "broadcast index uses a non-zero stride on an expanded axis"
+         dimensions := broadcastAdd.relation.dimensions
          mutantTree := "mutant-add-broadcast-stride"
          artifactHash := "artifact-rejected-broadcast-stride"
          outcome := .validatorRejectedMutant }] }
@@ -114,9 +120,19 @@ private def uncalibratedAddValidator : ValidatorRef :=
   { calibratedAddValidator with
     calibrations :=
       [{ faultModel := "broadcast index uses a non-zero stride on an expanded axis"
+         dimensions := broadcastAdd.relation.dimensions
          mutantTree := "mutant-add-broadcast-stride"
          artifactHash := "artifact-survived-broadcast-stride"
          outcome := .mutantSurvived }] }
+
+private def partiallyCalibratedAddValidator : ValidatorRef :=
+  { calibratedAddValidator with
+    calibrations :=
+      [{ faultModel := "value-only mutation"
+         dimensions := [.value]
+         mutantTree := "mutant-add-value-only"
+         artifactHash := "artifact-rejected-value-only"
+         outcome := .validatorRejectedMutant }] }
 
 private def addObservation (outcome : ObservationOutcome) : Observation :=
   { id := "OBS-ADD-PILOT"
@@ -134,7 +150,7 @@ private def addObservation (outcome : ObservationOutcome) : Observation :=
 
 private def acceptedAddAdequacy : AdequacyClaim :=
   { addAdequacy with
-    result := .confirmed .argued "checked pilot scenario argument D ∧ S ⇒ R" }
+    result := .confirmed .argued "checked pilot scenario argument D ∧ S ⊨ R" }
 
 private def stateWith
     (observation : Observation) (validators : List ValidatorRef) : RequirementState :=
@@ -152,6 +168,27 @@ theorem blocked_observation_is_not_reported_as_behavior_failure :
 theorem surviving_mutant_prevents_calibrated_pass :
     (stateWith (addObservation .passed) [uncalibratedAddValidator]).observation =
       .passedUncalibrated := by
+  native_decide
+
+theorem missing_dimension_calibration_prevents_calibrated_pass :
+    (stateWith (addObservation .passed) [partiallyCalibratedAddValidator]).observation =
+      .passedUncalibrated := by
+  native_decide
+
+theorem observation_from_a_different_specification_does_not_qualify :
+    let otherSpec := { addBoundary with id := ⟨"SPEC-OTHER-ADD"⟩ }
+    (deriveRequirementState observedContext broadcastAdd otherSpec acceptedAddAdequacy
+      pilotCandidates [calibratedAddValidator] [addObservation .passed] []).observation =
+      .unobserved := by
+  native_decide
+
+theorem adequacy_for_a_different_specification_cannot_promote :
+    let wrongClaim :=
+      { acceptedAddAdequacy with specification := ⟨"SPEC-OTHER-ADD"⟩ }
+    let state :=
+      deriveRequirementState observedContext broadcastAdd addBoundary wrongClaim
+        pilotCandidates [calibratedAddValidator] [addObservation .passed] []
+    state.adequacy = .open ∧ state.promotion = .adequacyOpen := by
   native_decide
 
 theorem calibrated_current_pass_can_promote_only_after_target_and_adequacy :
@@ -182,6 +219,7 @@ private def adequacyToken : AdequacyState → String
 private def implementationToken : ImplementationState → String
   | .noCandidate => "no_candidate"
   | .candidateMapped => "candidate_mapped"
+  | .behaviorObserved => "behavior_observed"
 
 private def observationToken : ObservationState → String
   | .unobserved => "unobserved"
@@ -242,6 +280,7 @@ def statusJson : String :=
   "  \"observer_identity\": {\n" ++
   s!"    \"verifier_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.verifierTree.contentHash},\n" ++
   s!"    \"adapter_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.adapterHash},\n" ++
+  s!"    \"runtime_artifact_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.runtimeArtifactHash},\n" ++
   s!"    \"environment_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.environmentHash},\n" ++
   s!"    \"scenario_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.scenarioManifestHash}\n" ++
   "  },\n" ++

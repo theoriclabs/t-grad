@@ -73,6 +73,9 @@ cheap_preflight() {
   check_no_gate_regression || return 1
   check_shell_continuation || return 1
 
+  run_cmd "$PY" "$TGRAD_DIR/scripts/spec/observe_pilot.py" --check-generated \
+    || return 1
+
   if [[ -f "$TGRAD_DIR/c/Makefile" ]]; then
     make -C "$TGRAD_DIR/c" >/tmp/tgrad_devcheck_make.log 2>&1 || {
       echo "  ✗ make -C c failed"
@@ -80,7 +83,7 @@ cheap_preflight() {
       return 1
     }
   fi
-  (cd "$TGRAD_DIR" && lake build tgrad-cli tgrad-tests) \
+  (cd "$TGRAD_DIR" && lake build tgrad-cli tgrad-tests TgradSpec) \
     >/tmp/tgrad_devcheck_lake.log 2>&1 || {
       echo "  ✗ lake build tgrad-cli tgrad-tests failed"
       sed 's/^/      /' /tmp/tgrad_devcheck_lake.log

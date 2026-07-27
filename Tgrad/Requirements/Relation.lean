@@ -1,10 +1,12 @@
 import Tgrad.Requirements.World
 
-/-! # Tgrad.Requirements.Relation — typed observation equivalence
+/-! # Tgrad.Requirements.Relation — typed observation-relation descriptors
 
 Requirements select relations from this algebra rather than naming a
 comparator in an unchecked string.  The pilot keeps the algebra intentionally
 small; new constructors should enter only when a world requirement needs one.
+These constructors currently classify required dimensions; they do not yet
+denote executable relations over typed traces.
 -/
 
 namespace Tgrad.Requirements
@@ -31,8 +33,9 @@ inductive ObservationDimension where
   | performance
   deriving DecidableEq, BEq, Repr, Inhabited
 
-/-- Relations over observations in the problem world.  These constructors do
-not prescribe how Tgrad implements the behavior. -/
+/-- Descriptors for relations over observations in the problem world.  They do
+not prescribe how Tgrad implements the behavior, and executable denotations are
+an explicit scale-gate obligation. -/
 inductive ObservationRelation where
   | importResolvesWithoutFallback (provider : String)
   | publicNamesContain (names : List String)

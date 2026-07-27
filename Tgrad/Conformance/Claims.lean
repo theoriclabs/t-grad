@@ -42,6 +42,19 @@ def CandidateMapping.wellFormed (mapping : CandidateMapping) : Bool :=
   mapping.implementation.wellFormed &&
   !mapping.rationale.trimAscii.isEmpty
 
+def importHelpersCandidate : CandidateMapping :=
+  { requirement := importHelpers.id
+    specification := helpersBoundary.id
+    implementation :=
+      { id := "IMPL-STRICT-SHIM-HELPERS"
+        symbols :=
+          ["tinygrad.helpers.Context", "tinygrad.helpers.getenv",
+           "tinygrad.helpers.DEV"]
+        files :=
+          ["scripts/parity/shim/tinygrad/helpers.py",
+           "scripts/parity/shim/run_pytest.py"] }
+    rationale := "The strict substitution now owns the helpers module and its pilot names; behavioral evidence must still establish resolution, names, and no-fallback semantics." }
+
 def broadcastAddCandidate : CandidateMapping :=
   { requirement := broadcastAdd.id
     specification := addBoundary.id
@@ -69,7 +82,7 @@ def viewReadbackCandidate : CandidateMapping :=
     rationale := "The product records views and has a materialization route; observation must still establish value and lifetime behavior." }
 
 def pilotCandidates : List CandidateMapping :=
-  [broadcastAddCandidate, viewReadbackCandidate]
+  [importHelpersCandidate, broadcastAddCandidate, viewReadbackCandidate]
 
 def candidateFor (requirement : RequirementId) : Option CandidateMapping :=
   pilotCandidates.find? (fun candidate => candidate.requirement == requirement)
@@ -79,8 +92,9 @@ theorem pilot_candidate_mappings_are_well_formed :
     pilotCandidates.all CandidateMapping.wellFormed = true := by
   native_decide
 
-/- Compile-time product pins.  Renaming or removing a mapped implementation
-symbol breaks the specification build and forces reconciliation. -/
+/- Compile-time pins cover the Lean-backed mappings.  The Python substitution
+mapping is instead bound by the adapter content hash in generated evidence;
+removing or changing that surface invalidates the current observation. -/
 #check Tgrad.Tensor.expand
 #check Tgrad.Tensor.transpose
 #check Tgrad.Pipeline.materializeView

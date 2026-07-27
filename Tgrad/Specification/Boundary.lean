@@ -5,7 +5,7 @@ import Tgrad.Spec.Epistemic
 
 A boundary specification constrains only shared phenomena.  Structural
 coverage below is useful, but deliberately does not prove the Jackson/Zave
-obligation `D ∧ S ⇒ R`; adequacy remains an epistemic claim of its own.
+obligation `D ∧ S ⊨ R`; adequacy remains an epistemic claim of its own.
 -/
 
 namespace Tgrad.Specification

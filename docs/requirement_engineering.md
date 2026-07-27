@@ -1,8 +1,11 @@
 # Requirements engineering for the tinygrad-to-Lean rewrite
 
-**Status:** design basis, 2026-07-27
+**Status:** design basis plus one retrospective pilot rehearsal, 2026-07-27
 
-**Product baseline:** `c465f89` on `main`
+**Starting product baseline:** `c465f89` on `main`
+
+**Current observed product subject:** `b1df552` (a source ancestor of the
+current specification work)
 
 **Purpose:** define how Tgrad separates requirements, specification, implementation, evidence, and work before scaling the parity program.
 
@@ -10,32 +13,84 @@ The specification substrate is pointed in the right direction, but it starts one
 
 That is the central lesson from Michael Jackson: software has value only through effects in the world, so requirements must be stated in world terms—not in terms of the machine’s internal decomposition. [“The World and the Machine”](https://courses.cs.washington.edu/courses/csep503/19wi/schedule/papers/TheWorldAndTheMachine.pdf)
 
+## What the first executed cycle established
+
+The pilot is now more than a proposed ontology, but this first cycle is a
+retrospective diagnostic rehearsal rather than the prospective validation
+needed for scale. The compatibility-surface candidate already existed before
+the work packet was derived, and the closure logic was generalized after the
+post-change result. The assembled artifacts represent every stage of
+`observe → derive → change → observe → re-derive`, but their chronology was not
+that sequence. They therefore do not establish that a frozen model can predict
+and close a newly authored change.
+
+| Stage | Revision/artifact | Mechanically established result |
+|---|---|---|
+| Requirements kernel | `dbacfdd`–`c34a76e` | Three requirements are expressed over world domains, monitored/controlled phenomena, assumptions, profiles, and typed relation descriptors/observation dimensions without importing product modules. The descriptors do not yet denote executable relations. |
+| Boundary and conformance | `60e9ef4` | Boundary specifications and candidate product mappings are distinct; mapped symbols are compile-time pinned, but mappings do not count as conformance. |
+| Baseline observation | `f09b51e` | An earlier, weaker observer localized a `tinygrad.helpers` failure at the strict substitution boundary; broadcast-add and view-lifetime observations were classified as blocked rather than falsely failed. Because the current observer executes the real product and has stronger identity/calibration rules, this artifact is historical localization evidence rather than a same-protocol before/after measurement. |
+| Derived work | `0031066` | The observed state instantiated the authored `WORK-PY-COMPAT-HELPERS` schema, located the likely change at the Python substitution boundary, required only CPU plus a Lean build, and predicted two model-level unblocks. The candidate already existed, so this is not a prospective prediction. |
+| Candidate change | `6860375`, `b1df552` | The strict compatibility surface was widened. The pilot then exposed an unrelated eager NumPy dependency during package activation; making that dtype dependency lazy removed the environmental confound without weakening the no-fallback rule. |
+| Current observation | [pilot_helpers_b1df552.json](../fixtures/requirements/pilot_helpers_b1df552.json) | The real `python/tgrad.py` and exact runtime artifact are loaded; the isolated helper-import scenario observes module ownership and three required names; package-path and missing-name mutants calibrate those two dimensions independently. Source, adapter, runtime, verifier, environment, and scenario identities are recorded. |
+| Re-derived state | [PilotState.lean](../Tgrad/Growth/PilotState.lean), [Work.lean](../Tgrad/Growth/Work.lean) | The isolated helper observation is `passed_calibrated`; add and view move from model-level `blocked` to `unobserved`; the single helper packet is absent. This required a closure-logic repair, so derivation stability has not yet been demonstrated. Adequacy remains open and the target remains unpromoted. |
+
+This is a useful positive result for the method: the result was consistent
+with the known boundary and resource class, distinguished a product gap from downstream
+unknowns, caught a hidden environment coupling, and forced evidence to become
+more precise under adversarial review. Regeneration now removes the packet
+without editing a status cell, but the derivation program itself changed; the
+next cycle must freeze it before candidate authoring.
+
+It is not yet evidence that Tgrad is tinygrad-compatible, nor that the method
+is ready for 590 requirements. The full upstream suite has not been rerun on
+the current subject, only two observation dimensions have reproduced fault
+injections, two pilot behaviors remain unobserved, all three adequacy arguments
+remain open, and the upstream target remains an extracted candidate. In the
+guide’s maturity vocabulary this is **instrumented**, not yet
+**operationalized** or **compounding**.
+
 ## The missing specification kernel
 
 The foundational relationships should be:
 
 ```text
-D ∧ S ⇒ R        requirements adequacy
-M ⇒ S            implementation conformance
+D ∧ S ⊨ R        specification adequacy
+M ⊨ S            implementation satisfaction
 ```
 
 Where:
 
-- `D` is domain knowledge: facts and assumptions about Python, tinygrad, NumPy, Metal, bf16, hardware, and user programs.
-- `R` is the requirement: the effect required in the problem world.
-- `S` is the machine specification, stated only over phenomena shared between Tgrad and its environment.
-- `M` is the actual Tgrad implementation.
+- `D` is indicative domain knowledge: facts and assumptions about Python,
+  NumPy, Metal, bf16, hardware, and admitted user programs.
+- `R` is optative: the effect required in the problem world.
+- `S` is optative but restricted to phenomena shared by the complete Tgrad
+  replacement and its environment.
+- `M` is the complete replacement machine: compatibility shim, adapters, Lean
+  implementation, runtime, and backend. Platform and adapter assumptions may
+  be needed when establishing `M ⊨ S`.
+
+Observed tinygrad behavior is evidence used to interpret the pinned public
+contract. It is neither automatically an indicative domain fact nor, by
+itself, the normative requirement.
 
 Zave and Jackson distinguish indicative domain descriptions—what is true—from optative requirements—what we want to become true. They then require the specification and domain knowledge together to entail the requirement. [“Four Dark Corners of Requirements Engineering”](https://doi.org/10.1145/237432.237434)
 
-Tgrad currently has excellent fragments of this model, but not the relationship itself.
+The pre-pilot codebase had excellent fragments of this model but not the
+relationship itself. The new `Tgrad/Requirements`, `Tgrad/Specification`,
+`Tgrad/Conformance`, `Tgrad/Evidence`, and `Tgrad/Growth` pilot modules now
+record the identities, dimensions, evidence obligations, and epistemic states
+needed to formulate a narrow instance. They do not yet give `D`, `S`, or `R`
+executable denotations or establish either entailment. The rest of the parity
+model has not yet been migrated.
 
 - [Ontology.lean](../Tgrad/Ontology.lean#L30) begins with `dtype`, `shape`, `uop`, `kernelDecl`, `metalSource`, and `buffer`. Those are machine/design concepts, not problem-world concepts.
 - [Parity.lean](../Tgrad/Spec/Parity.lean#L198) calls an upstream symbol/test inventory a `Requirement`, but the record contains no behavioral predicate.
 - [EvidenceRef](../Tgrad/Spec/Parity.lean#L107) is quite strong: it records subject, verifier, adapter, environment, relation, artifacts, and validator.
 - What is missing is the typed connection from requirement to specification, and from specification to implementation evidence.
 
-The current substrate therefore knows a great deal about evidence provenance and work organization, but cannot yet express the central claim:
+The older substrate therefore knows a great deal about evidence provenance and
+work organization, while the pilot can state the obligation and track what is
+missing but cannot yet discharge the central claim:
 
 > Given these facts about Python and tinygrad, this boundary behavior from Tgrad is sufficient to produce this required user-visible result.
 
@@ -86,7 +141,7 @@ For Tgrad, the initial frames should be:
 
 | Frame | World domains | Shared phenomena |
 |---|---|---|
-| Python substitution | Python importer, client program, tinygrad package | Modules, names, attributes, signatures, exceptions |
+| Python substitution | Python importer, client program, pinned public contract | Modules, names, attributes, signatures, exceptions |
 | Tensor transformation | Tensor values, shapes, dtypes, mathematical operations | Calls, input values, output values, dtype/shape results |
 | Views and workpieces | Base storage, views, aliases, mutations | Index maps, storage identity, lifetime, readback |
 | Commanded execution | User program, lazy graph, runtime | Realization requests, completion, errors, diagnostics |
@@ -94,9 +149,20 @@ For Tgrad, the initial frames should be:
 | Backend connection | Metal/CPU/device environment | Allocation, dispatch, synchronization, device errors |
 | Quality/performance | Workload and hardware profile | Latency distributions, memory use, throughput |
 
-This immediately explains the “six operations but still 0/34” observation in [PLAN_OP_BREADTH.md](../PLAN_OP_BREADTH.md#L183).
+This immediately explains the historical “six operations but still 0/34”
+observation in [PLAN_OP_BREADTH.md](../PLAN_OP_BREADTH.md#L183).
 
-Twenty-nine files fail during collection because `tinygrad.helpers` and related module phenomena are absent. That establishes failure in the Python-substitution frame. It does **not** establish failure of the newly implemented tensor operations, because those tests never reach them. Their correct status is `unobserved behind prerequisite`, not `failed`, `absent`, or `conformant`.
+At the `fdc741d` measurement, twenty-nine files failed during collection because
+`tinygrad.helpers` and related module phenomena were absent. That established
+failure in the Python-substitution frame. It did **not** establish failure of
+the newly implemented tensor operations, because those tests never reached
+them. Their correct status was `unobserved behind prerequisite`, not `failed`,
+`absent`, or `conformant`.
+
+The current isolated observation establishes that the isolated three-name
+helper-import prerequisite passes. It does not project the old 0/34 suite score onto `b1df552`:
+the full upstream suite must be rerun, and whatever collection or assertion
+failures it reveals become new observations rather than retroactive claims.
 
 That distinction is impossible with one flat `CoverageState`.
 
@@ -152,24 +218,35 @@ A symbol such as `Tensor.sum` may generate several actual requirements:
 
 Conversely, several upstream tests may witness the same requirement. Requirement count must not simply equal test count or symbol count.
 
-## Use the four-variable model at the Python/Lean boundary
+## Use the four-variable model without moving the requirement boundary
 
 Parnas and Madey’s four-variable model is especially useful here. It separates world variables from machine-interface variables. [“Functional Documents for Computer Systems”](https://doi.org/10.1016/0167-6423(95)96871-J)
 
-For Tgrad:
+The primary requirement boundary is:
+
+```text
+client/problem world ↔ complete Tgrad replacement
+```
+
+The complete replacement includes the Python shim, C/Lean adapters, Lean core,
+runtime, and backend. At that boundary:
 
 - `m`: monitored world phenomena—Python calls, tensors, seeds, device state.
 - `c`: controlled world phenomena—returns, exceptions, tensor values, mutations, device effects.
-- `i`: Lean-machine inputs—handles, op codes, shapes, bytes, graph nodes.
-- `o`: Lean-machine outputs—handles, buffers, result codes, diagnostics, traces.
+
+The Python/C/Lean boundary is a nested refinement boundary inside that machine.
+When the Lean core is treated as the nested machine:
+
+- `i`: encoded Lean-core inputs—handles, op codes, shapes, bytes, graph nodes.
+- `o`: Lean-core outputs—handles, buffers, result codes, diagnostics, traces.
 
 Then define four relations:
 
 ```text
-REQ(m, c)       tinygrad-compatible required behavior
-IN(m, i)        Python/C adapter encoding
-SOFT(i, o)      behavior of the Lean implementation
-OUT(o, c)       decoding back into Python-visible behavior
+REQ(m, c)       required behavior of the complete replacement
+IN(m, i)        shim/adapter encoding into the Lean core
+SOFT(i, o)      behavior of the Lean core and runtime
+OUT(o, c)       adapter decoding back into world-visible behavior
 ```
 
 Correctness requires:
@@ -253,17 +330,19 @@ There should not be one mutable “current truth” table. Use distinct planes:
 6. **Working candidates**
    Branch or dirty-tree changes that have not been promoted and must never be reported as completed capability.
 
-As of the baseline named at the top of this document, the planes read:
+Across the starting baseline and current pilot subject, the planes read:
 
 | Plane | Current observation | Correct status |
 |---|---|---|
 | Upstream extraction | Manifest exists for `19c4d736…` | Candidate target observed |
 | Lean target | `targetUpstream` remains `.unknown` | Not promoted |
-| Canonical product | `main` at `c465f89` | Product baseline |
+| Canonical product | `main` at `c465f89` | Starting product baseline |
+| Pilot candidate | strict substitution change at `b1df552` | Observed product subject; repository merge and semantic promotion are separate facts |
 | General operation spine | graph-indexed realization, broadcast pointwise operations, reductions, and fused reduce-of-elementwise matmul are merged | Implemented; each claim still depends on its own evidence |
 | Specialized matmul route | retained alongside the general expression route | Optimization candidate, not the semantic definition of matmul |
 | L12 performance predicate | its flags now execute correctly and the frozen-baseline predicate is red and non-repeatable | Open measurement-methodology failure, not a codegen verdict |
-| API parity | 0/34, with 29 collection failures | Substitution surface absent; most operation semantics unobserved |
+| API parity | last full result was 0/34 at `fdc741d`; no full rerun on `b1df552` | Historical diagnosis only; current suite status unobserved |
+| Pilot helper behavior | calibrated isolated-scenario pass at `b1df552` | The current derived model emits neither an implementation gap nor a failed-behavior gap for this isolated scenario; executable conformance semantics, adequacy, and target promotion remain open |
 
 The fact that the manifest exists while [targetUpstream](../Tgrad/Spec/Parity.lean#L36) remains unknown is not necessarily wrong—capture and promotion should be separate—but the model needs an explicit `candidate → reviewed → promoted` transition.
 
@@ -328,6 +407,14 @@ closure predicate
 recovery action
 ```
 
+The current [Growth/Work.lean](../Tgrad/Growth/Work.lean) is not yet that
+generic compiler. It conditionally emits one helper-specific packet whose
+components, resources, transitions, priority fields, and recovery text are
+authored. Only its applicability and blocked-requirement count are derived.
+The helper→add/view dependency is likewise an interpreted model decision, not a
+discovered fact, until downstream observers confirm it. The pilot should call
+this a conditional instantiation of an authored work schema.
+
 The mechanism for growing the system then becomes:
 
 ```text
@@ -341,9 +428,16 @@ deriveGaps(target, promotedClaims)
 
 That is much more mechanizable than maintaining a large authored roadmap and proving that its IDs are unique.
 
-## A better Lean decomposition
+## Lean decomposition
 
-I would introduce this beside the current specs rather than rewrite everything at once:
+The pilot introduced the first vertical slice beside the existing specs rather
+than rewriting them: `Requirements/{World,Relation,Requirements,Pilot}`,
+`Specification/{Boundary,Pilot}`, `Conformance/Claims`,
+`Evidence/{Observations,PilotGenerated}`, and
+`Growth/{Derived,PilotState,Work,PilotReport}`. These modules deliberately
+follow the dependency direction shown earlier.
+
+If the pilot passes the scale gate, extend that slice toward:
 
 ```text
 Tgrad/Requirements/
@@ -389,6 +483,62 @@ The first pilot should cover only three end-to-end requirements:
 
 Those three deliberately span lexical substitution, pure transformation, and workpiece/lifetime behavior. If the model handles them cleanly, it can scale. If it cannot, adding 590 rows will only produce schema theatre.
 
+## How to know whether the method is working
+
+Compilation is necessary but almost uninformative here. The method is working
+only if it improves the truthfulness, diagnostic power, and economics of real
+changes. Track these measures per closed work cycle:
+
+| Measure | Definition | Pilot result | Scale gate |
+|---|---|---|---|
+| Grounded-promotion rate | Promoted claims carrying exact requirement, profile, assumptions, relation semantics, boundary specification, target, subject, runtime artifact, verifier, adapter, environment, scenario, and calibrated validator identities / all promoted claims | Not yet defined: 0 claims are promoted. The zero denominator must not be reported as 100%. | 100% once promotion begins |
+| Fault detection | Injected faults rejected / injected faults attempted | 2/2 for the helper scenario: package-path contamination and missing public name; 2/6 on the pilot-wide gate | At least six faults across the three pilot frames before migration |
+| Fault localization | Rejected faults assigned to the correct requirement/boundary without changing unrelated states | Package-path contamination localized to module resolution; removing `DEV` localized to public surface. Neither result establishes add or view semantics. | 100% for the declared pilot mutation matrix |
+| Work prediction precision | Frozen, prospectively emitted packets whose component class, oracle, resources, and state transitions match a subsequently authored change | Not measured: the candidate predated the packet | No unexplained transition; revise the dependency model when a prediction misses |
+| Observability gain | Requirements moving from blocked to a more informative executable state | Two model states moved from `blocked` to `unobserved`; 0/2 downstream observers have yet been executed | Every prerequisite packet must expose at least one downstream observer or justify why not |
+| Manual-verdict count | Coverage, completion, priority, or promotion cells edited by an agent instead of derived | Zero status cells, but derivation code changed after the result; stability gate not met | Zero status edits and zero derivation changes within a frozen cycle |
+| Change locality | Unrelated requirement axes changed / unrelated axes present | No unrelated requirement was promoted or failed | Zero unexplained churn |
+| Reproducibility | Identical-input runs producing byte-identical evidence and status | Deterministic observer checks and repeated status hashes agree on the current host | Three clean reruns; distributions plus method identity for performance |
+| Cycle cost | Human decisions, agent time, wall time, scarce hardware time, and files touched to close one obligation | CPU-only, but no comparative diagnosis-time baseline was recorded | Must be cheaper to diagnose than the raw-suite/manual-roadmap alternative |
+
+Two metrics need special care.
+
+First, a falling pass count can still represent information gain if failures
+move from harness/collection errors to correctly localized semantic assertions.
+The preferred progress order is:
+
+```text
+unknown → observable → correctly failing → conforming → promoted
+```
+
+Second, requirement count is not a progress denominator. Requirements split and
+merge as interpretation improves. Report transitions and closed obligations,
+not a flattering percentage over a mutable hand-written list.
+
+Before scale, evidence must also bind hashes of the interpreted requirement,
+profile, assumptions, relation semantics, and boundary specification—not only
+their IDs. Every mandatory dimension needs an actual result and a relevant
+fault calibration. The current pilot binds the exact `SpecId` during Lean
+qualification and records per-dimension results, but semantic-definition hashes
+remain an open design obligation.
+
+The current observation also hashes the exact loaded dylib but does not yet
+prove that those binary bytes were produced from the declared product source
+revision. This is transparent artifact identity, not source-to-binary
+provenance. Such provenance is therefore another explicit promotion blocker.
+
+The method should be rejected or redesigned if repeated cycles exhibit any of
+these symptoms:
+
+- Work packets routinely point at the wrong boundary or resource class.
+- A single change causes broad unexplained status churn.
+- Mutants survive while ordinary examples pass.
+- Environmental or verifier faults are reported as product failures.
+- Agents must hand-edit completion or priority to make the account look right.
+- Maintaining the model costs more than the diagnostic ambiguity it removes.
+- More agent compute produces more prose and rows but not more calibrated
+  observations, closed unknowns, or reusable validators.
+
 ## The strongest definition of “done”
 
 A requirement is done for a Tgrad tree only when:
@@ -401,7 +551,8 @@ target revision/profile is promoted
 ∧ implementation conforms to the boundary specification
 ∧ current evidence observes all mandatory dimensions
 ∧ validators are mutation-calibrated
-∧ evidence names the exact subject, verifier, adapter and environment
+∧ evidence names the exact requirement/specification semantics, subject,
+  runtime artifact, verifier, adapter and environment
 ∧ no prerequisite or obstacle leaves the result merely unobserved
 ```
 
@@ -411,4 +562,4 @@ The deepest redesign is therefore not “add more facts to Lean.” It is:
 
 > Make Lean hold the argument connecting world requirements to machine specifications, implementations, observations, and derived work.
 
-That turns Tgrad from a codebase with a formalized roadmap into a codebase that can mechanically explain what it is for, what it currently guarantees, what remains unknown, and which transformation most directly advances it.
+That would turn Tgrad from a codebase with a formalized roadmap into a codebase that can mechanically explain what it is for, what it currently guarantees, what remains unknown, and which transformation most directly advances it.

@@ -5,7 +5,7 @@ import Tgrad.Specification.Boundary
 
 The three boundary specifications are implementation-neutral.  Their
 structural coverage is checked; their real adequacy obligations remain open
-until scenario semantics establish `D ∧ S ⇒ R`.
+until scenario semantics establish `D ∧ S ⊨ R`.
 -/
 
 namespace Tgrad.Specification.Pilot

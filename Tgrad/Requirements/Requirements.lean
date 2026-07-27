@@ -4,7 +4,8 @@ import Tgrad.Requirements.Relation
 
 An upstream symbol or test is provenance for a requirement, not the
 requirement itself.  A requirement constrains shared world phenomena through
-a typed observation relation.
+a typed observation-relation descriptor; executable denotations are introduced
+only after the behavior has earned that stronger formalization.
 -/
 
 namespace Tgrad.Requirements

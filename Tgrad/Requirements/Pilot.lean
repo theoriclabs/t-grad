@@ -178,12 +178,11 @@ def importHelpers : Requirement :=
     frame := ⟨"FRAME-PYTHON-SUBSTITUTION"⟩
     profiles := [publicMetalPilot.id]
     monitored := [moduleRequest.id]
-    controlled := [moduleResolution.id, publicNames.id, raisedException.id]
+    controlled := [moduleResolution.id, publicNames.id]
     assumptions := [pinnedRevision.id, strictSubstitution.id]
     relation := .all
       [.importResolvesWithoutFallback "Tgrad strict substitution",
-       .publicNamesContain ["Context", "getenv", "DEV"],
-       .sameException]
+       .publicNamesContain ["Context", "getenv", "DEV"]]
     provenance := [upstreamManifest, oracleClassification, substitutionPolicy]
     statement := "A request for tinygrad.helpers resolves entirely to the Tgrad substitution, exposes the pilot's prerequisite names, and never silently falls back to upstream tinygrad." }
 
@@ -250,7 +249,7 @@ def helpersObstacle : Obstacle :=
     kind := .missingImplementation
     obstructs := [importHelpers.id, broadcastAdd.id, viewReadbackLifetime.id]
     responsibility := .compatibilityBoundary
-    condition := "Applicable upstream tests cannot collect because the strict substitution does not provide tinygrad.helpers."
+    condition := "If the strict substitution does not provide tinygrad.helpers, applicable upstream tests cannot collect."
     resolveBy := "Provide only the reviewed prerequisite surface, retain the no-fallback invariant, and re-run collection before interpreting operation results." }
 
 def catalog : RequirementCatalog :=

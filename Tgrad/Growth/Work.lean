@@ -2,9 +2,14 @@ import Tgrad.Growth.PilotState
 
 /-! # Tgrad.Growth.Work — work compiled from the pilot's current gaps
 
-The work packet below exists only when the observed helper failure, absent
-implementation candidate, and active downstream blockage all exist together.
-No authored `goalDistance` participates in selection.
+At commit `0031066` an earlier version emitted `WORK-PY-COMPAT-HELPERS` from
+the observed helper failure and its two downstream blockages.  The post-change
+result exposed a non-generic reference to failure-only evidence, so closure
+handling was generalized afterward.  The current version now yields no helper
+packet for the calibrated passing state, without an authored status-cell edit.
+This retrospective cycle is not evidence of derivation stability; the next
+prospective cycle must freeze this module first.  No authored `goalDistance`
+participates in selection or closure.
 -/
 
 namespace Tgrad.Growth.Work
@@ -74,8 +79,14 @@ def helperClosingGaps : List Gap :=
   (gapsFor helpersState).filter (fun gap =>
     gap.kind == .implementation || gap.kind == .failedBehavior)
 
+def helperBlockedRequirements : List RequirementId :=
+  ((Tgrad.Evidence.PilotGenerated.blockages.filter (fun blockage =>
+      blockage.sourceObservationId ==
+        Tgrad.Evidence.PilotGenerated.helperObservation.id &&
+      blockage.currentIn context)).flatMap (·.blocks)).eraseDups
+
 def deriveHelperSurfaceWork : Option WorkPacket :=
-  let blocked := Tgrad.Evidence.PilotGenerated.helpersBlockage.blocks
+  let blocked := helperBlockedRequirements
   if helpersState.implementation == .noCandidate &&
      helpersState.observation == .failed &&
      !helperClosingGaps.isEmpty &&
@@ -104,13 +115,12 @@ def deriveHelperSurfaceWork : Option WorkPacket :=
 
 def frontier : List WorkPacket := deriveHelperSurfaceWork.toList
 
-theorem observed_state_derives_the_helper_surface_packet :
-    deriveHelperSurfaceWork.isSome = true := by
+theorem current_helper_state_does_not_emit_the_failure_packet :
+    deriveHelperSurfaceWork = none := by
   native_decide
 
-theorem derived_packet_is_well_formed_and_unblocks_two_requirements :
-    frontier.all WorkPacket.wellFormed = true ∧
-    frontier.map (fun packet => packet.priority.requirementsUnblocked) = [2] := by
+theorem current_frontier_is_empty_for_the_single_packet_schema :
+    frontier = [] := by
   native_decide
 
 private def quote (value : String) : String :=

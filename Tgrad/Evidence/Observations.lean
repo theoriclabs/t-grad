@@ -43,6 +43,7 @@ def TreeRef.wellFormed (tree : TreeRef) : Bool :=
 structure BoundaryIdentity where
   verifierTree : TreeRef
   adapterHash : String
+  runtimeArtifactHash : String
   environmentId : String
   environmentHash : String
   scenarioManifestHash : String
@@ -51,6 +52,7 @@ structure BoundaryIdentity where
 def BoundaryIdentity.wellFormed (identity : BoundaryIdentity) : Bool :=
   identity.verifierTree.wellFormed &&
   !identity.adapterHash.trimAscii.isEmpty &&
+  !identity.runtimeArtifactHash.trimAscii.isEmpty &&
   !identity.environmentId.trimAscii.isEmpty &&
   !identity.environmentHash.trimAscii.isEmpty &&
   !identity.scenarioManifestHash.trimAscii.isEmpty
@@ -63,6 +65,7 @@ inductive CalibrationOutcome where
 
 structure Calibration where
   faultModel : String
+  dimensions : List ObservationDimension
   mutantTree : String
   artifactHash : String
   outcome : CalibrationOutcome
@@ -70,6 +73,7 @@ structure Calibration where
 
 def Calibration.establishesSensitivity (calibration : Calibration) : Bool :=
   !calibration.faultModel.trimAscii.isEmpty &&
+  !calibration.dimensions.isEmpty &&
   !calibration.mutantTree.trimAscii.isEmpty &&
   !calibration.artifactHash.trimAscii.isEmpty &&
   calibration.outcome == .validatorRejectedMutant
@@ -86,7 +90,13 @@ def ValidatorRef.calibrated (validator : ValidatorRef) : Bool :=
   !validator.version.trimAscii.isEmpty &&
   !validator.dimensions.isEmpty &&
   !validator.calibrations.isEmpty &&
-  validator.calibrations.all Calibration.establishesSensitivity
+  validator.calibrations.all (fun calibration =>
+    calibration.establishesSensitivity &&
+    calibration.dimensions.all validator.dimensions.contains) &&
+  validator.dimensions.all (fun dimension =>
+    validator.calibrations.any (fun calibration =>
+      calibration.establishesSensitivity &&
+      calibration.dimensions.contains dimension))
 
 inductive ObservationOutcome where
   | passed
@@ -189,9 +199,12 @@ def Observation.validatorCalibrated
 
 def Observation.behaviorallyQualified
     (observation : Observation) (context : PromotionContext)
-    (requirement : Requirement) (validators : List ValidatorRef) : Bool :=
+    (requirement : Requirement) (specification : BoundarySpec)
+    (validators : List ValidatorRef) : Bool :=
   observation.wellFormed &&
   observation.requirement == requirement.id &&
+  observation.specification == specification.id &&
+  specification.structurallyCovers requirement &&
   observation.currentIn context &&
   observation.covers requirement &&
   observation.validatorCalibrated validators &&
@@ -199,8 +212,9 @@ def Observation.behaviorallyQualified
 
 def Observation.promotable
     (observation : Observation) (context : PromotionContext)
-    (requirement : Requirement) (validators : List ValidatorRef) : Bool :=
+    (requirement : Requirement) (specification : BoundarySpec)
+    (validators : List ValidatorRef) : Bool :=
   context.target.disposition == .promoted &&
-  observation.behaviorallyQualified context requirement validators
+  observation.behaviorallyQualified context requirement specification validators
 
 end Tgrad.Evidence

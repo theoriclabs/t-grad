@@ -12,61 +12,57 @@ open Tgrad.Specification.Pilot
 open Tgrad.Evidence
 
 def targetRevision : String := "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
-def artifactHash : String := "1014d687ede1cb938fcb2f98398f1916e0f78a456e510a357395ba6b8e31267b"
+def artifactHash : String := "93379eb1beb9e632d3195f88a5bf3c35d77606b6d4a2b61a6a3f5a6de7c2b478"
 
 def subjectTree : TreeRef :=
-  { revision := "c465f89999adf0c5fa91d771d3485428d26a2c61"
-    contentHash := "c259d0beaa09807c05071608646caa783b021c28"
+  { revision := "b1df55266a0382ff471f8cf87b04497239495dba"
+    contentHash := "ac2a90f69926b171a9651db75177ac9407a68d81"
     dirty := false }
 
 def boundary : BoundaryIdentity :=
   { verifierTree :=
-      { revision := "observe-pilot-v1"
-        contentHash := "f54cd6c768906c194b4852ad116acf50d4988feda538b3d791edf9d035bd9587"
+      { revision := "sha256:1241ae47daab7b9b73becaa3f92a09f9474f3ccd8fc02914b7da95c6901ae5f7"
+        contentHash := "1241ae47daab7b9b73becaa3f92a09f9474f3ccd8fc02914b7da95c6901ae5f7"
         dirty := false }
-    adapterHash := "ed6ecc1ff958ea7553e3d4198e16c3cf432eeeb0e8c4d864bce6a3a0200362df"
+    adapterHash := "f0efa66bacc6b7307bd36035fd4444d5fc98882838e115d897ccbd44e2fe98df"
+    runtimeArtifactHash := "bfe3e9ececd833dbd47c584da6d52abb22aae27cb88935a56ed21cfe75dcbbd4"
     environmentId := "python-import-pilot-v1"
-    environmentHash := "a9bfa2e8fbcfc22b5020350d8c7f4096ee6a88215c88fea59d1d7b8ffc8608b9"
-    scenarioManifestHash := "5570de9a305eade4a4bebb02c280fba5c51dd5abe02d60d4ae9b14ceadc37186" }
+    environmentHash := "7c6a1ea95f42139c00d8c290a404b7e667dde1bfabdc26c8957476204adb7a82"
+    scenarioManifestHash := "64bc8650b732adaee3d72779cc093d89a59754102c37e23b889211617f08a2b6" }
 
 def helperValidator : ValidatorRef :=
   { id := "VALIDATOR-HELPERS-IMPORT-V1"
     version := "1"
-    dimensions := importHelpers.relation.dimensions
+    dimensions := [.importResolution, .publicSurface]
     calibrations :=
       [{ faultModel := "strict shim appends a same-named upstream package path"
-         mutantTree := "dded1bf38e8f43ce9f3f2a6d3aeb54616221318ceec301666461849d99451967"
-         artifactHash := "1b48490319daeef65cb44cb5b3239e0c79aa0422947182e7787e05ae54480865"
+         dimensions := [.importResolution]
+         mutantTree := "5725727d54c9890c97ede64313f51a9a41359f0ea3bc0460979fe65cfed345fc"
+         artifactHash := "6b157452dee46c8d6ad54a6656438485b16595c9a6133822dcb96d22fc1ff383"
+         outcome := .validatorRejectedMutant },
+       { faultModel := "required helper name DEV is removed from the shim"
+         dimensions := [.publicSurface]
+         mutantTree := "15ae7c920b88c19fe5d28eca820ac97dfa2854b95f632b0a41b84bb824c0e623"
+         artifactHash := "8aae1c468042a7fca286dfb895614efaea651c1f8b27efcbea0e7b3d5ffb9226"
          outcome := .validatorRejectedMutant }] }
 
 def helperObservation : Observation :=
-  { id := "OBS-HELPERS-IMPORT-C465F89"
+  { id := "OBS-HELPERS-IMPORT-B1DF552"
     requirement := importHelpers.id
     specification := helpersBoundary.id
     targetRevision := targetRevision
     subjectTree := subjectTree
     boundary := boundary
     validatorId := helperValidator.id
-    dimensions := importHelpers.relation.dimensions
-    outcome := .failed
+    dimensions := [.importResolution, .publicSurface]
+    outcome := .passed
     blocker := ""
     artifactHash := artifactHash
-    runId := "d3f5f9481b66919a51ce6dfafda0a481c5a5b0afc91cddbe5340584a2f1f21da" }
+    runId := "bc3f2f715e69b801db1aab77e4e2be29df41bf399e8a8786b6edf5dfb5c7cc8c" }
 
 def validators : List ValidatorRef := [helperValidator]
 def observations : List Observation := [helperObservation]
 
-
-def helpersBlockage : Blockage :=
-  { id := "BLOCKAGE-HELPERS-PREREQUISITE"
-    blocks := [broadcastAdd.id, viewReadbackLifetime.id]
-    targetRevision := targetRevision
-    subjectTree := subjectTree
-    boundary := boundary
-    sourceObservationId := helperObservation.id
-    reason := "The strict substitution cannot resolve tinygrad.helpers, so dependent upstream scenarios cannot reach tensor behavior."
-    artifactHash := artifactHash }
-
-def blockages : List Blockage := [helpersBlockage]
+def blockages : List Blockage := []
 
 end Tgrad.Evidence.PilotGenerated

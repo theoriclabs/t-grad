@@ -36,6 +36,7 @@ inductive AdequacyState where
 inductive ImplementationState where
   | noCandidate
   | candidateMapped
+  | behaviorObserved
   deriving DecidableEq, BEq, Repr, Inhabited
 
 inductive ObservationState where
@@ -65,28 +66,40 @@ structure RequirementState where
   promotion : PromotionState
   deriving DecidableEq, BEq, Repr, Inhabited
 
-def deriveAdequacy (claim : AdequacyClaim) : AdequacyState :=
-  match claim.result with
-  | .confirmed .refuted _ => .refuted
-  | .confirmed _ _ => .accepted
-  | .tentative _ _ _ => .tentative
-  | .unknown _ _ => .open
-  | .deferred _ _ => .open
+def deriveAdequacy
+    (requirement : Requirement) (specification : BoundarySpec)
+    (claim : AdequacyClaim) : AdequacyState :=
+  if claim.requirement != requirement.id ||
+     claim.specification != specification.id ||
+     claim.assumptions != requirement.assumptions ||
+     !claim.actionable then
+    .open
+  else
+    match claim.result with
+    | .confirmed .refuted _ => .refuted
+    | .confirmed _ _ => .accepted
+    | .tentative _ _ _ => .tentative
+    | .unknown _ _ => .open
+    | .deferred _ _ => .open
 
 def deriveImplementation
     (requirement : RequirementId)
-    (candidates : List CandidateMapping) : ImplementationState :=
-  if candidates.any (fun candidate => candidate.requirement == requirement)
+    (candidates : List CandidateMapping)
+    (observation : ObservationState) : ImplementationState :=
+  if observation == .passedCalibrated then .behaviorObserved
+  else if candidates.any (fun candidate => candidate.requirement == requirement)
   then .candidateMapped
   else .noCandidate
 
 def deriveObservation
     (context : PromotionContext) (requirement : Requirement)
+    (specification : BoundarySpec)
     (validators : List ValidatorRef) (observations : List Observation)
     (blockages : List Blockage) :
     ObservationState :=
   let relevant := observations.filter (fun observation =>
-    observation.requirement == requirement.id)
+    observation.requirement == requirement.id &&
+    observation.specification == specification.id)
   let current := relevant.filter (fun observation => observation.currentIn context)
   let currentlyBlocked := blockages.any (fun blockage =>
     blockage.blocks.contains requirement.id && blockage.currentIn context)
@@ -99,7 +112,8 @@ def deriveObservation
     else if current.any (fun observation => observation.outcome == .verifierError) then .verifierError
     else if current.any (fun observation => observation.outcome == .blocked) then .blocked
     else if current.any (fun observation =>
-      observation.behaviorallyQualified context requirement validators) then .passedCalibrated
+      observation.behaviorallyQualified context requirement specification validators) then
+      .passedCalibrated
     else .passedUncalibrated
 
 def derivePromotion
@@ -119,13 +133,13 @@ def deriveRequirementState
     if specification.structurallyCovers requirement
     then SpecificationState.structurallySpecified
     else SpecificationState.missing
-  let adequacy := deriveAdequacy adequacyClaim
-  let observation := deriveObservation context requirement validators observations blockages
+  let adequacy := deriveAdequacy requirement specification adequacyClaim
+  let observation := deriveObservation context requirement specification validators observations blockages
   { requirement := requirement.id
     inventory := .interpreted
     specification := specificationState
     adequacy
-    implementation := deriveImplementation requirement.id candidates
+    implementation := deriveImplementation requirement.id candidates observation
     observation
     promotion := derivePromotion context adequacy observation }
 
@@ -166,7 +180,7 @@ def gapsFor (state : RequirementState) : List Gap :=
     if state.adequacy != .accepted then
       [{ id := s!"GAP-ADEQUACY-{reqPrefix}", requirement := some state.requirement,
          kind := .adequacy,
-         description := "The D ∧ S ⇒ R adequacy obligation is not accepted." }]
+         description := "The D ∧ S ⊨ R adequacy obligation is not accepted." }]
     else []
   let implementationGap :=
     if state.implementation == .noCandidate then

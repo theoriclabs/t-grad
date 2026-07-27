@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 SHIM_ROOT = Path(__file__).resolve().parent / "shim"
 SHIM_RUNNER = SHIM_ROOT / "run_pytest.py"
@@ -165,7 +167,14 @@ else:
     )
 
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([str(SHIM_ROOT), str(fake_tgrad_source)])
+    # `PYTHONSAFEPATH=1` can replace Homebrew's stable-prefix site-packages
+    # path with the Cellar path.  Pin the already-running pytest installation
+    # explicitly so this isolation test measures the shim rather than Python's
+    # prefix layout.
+    pytest_site = Path(pytest.__file__).resolve().parents[1]
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(SHIM_ROOT), str(fake_tgrad_source), str(pytest_site)]
+    )
     env["PYTHONSAFEPATH"] = "1"
     p = subprocess.run(
         [sys.executable, str(SHIM_RUNNER), str(probe), "-q", "--no-header",

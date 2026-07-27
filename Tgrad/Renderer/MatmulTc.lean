@@ -122,8 +122,67 @@ theorem tileStoreOffsets_nodup_1024 : (tileStoreOffsets 1024).Nodup := by decide
 theorem tileAccSlots_nodup : tileAccSlots.Nodup := by decide
 theorem tileAccSlots_covers : tileAccSlots.length = 32 := by decide
 
-/-- The statement list for the manual-load TC kernel body. -/
-def tcManualLoadBody (M K N : Nat) : List Stmt :=
+/-! ## Warp-count parameterisation
+
+  The kernel covers 32 output rows and `32 * W` output columns per
+  threadgroup with `W` warps. `W` was hardcoded to 4, which is why the
+  generator rejected `N < 128` — but `M` appears in the body only as a
+  dispatch term and `K` only as `K/8` and the A-strides, so neither
+  `M ≥ 128` nor `K ≥ 128` was ever a structural requirement. `N` was
+  the only real blocker.
+
+  tinygrad makes the same choice: its captured `64x64x64` kernel is
+  named `r_2_32_2_2_4_4_8` — seven components where the other ten
+  sentinels have eight, because the N grid dimension collapsed — with
+  `local.y = 2` rather than 4. When `N` fits in a single threadgroup
+  tile, `gid.x` carries the M block and there is no `gidx1`. -/
+
+/-- Warps per threadgroup: four where `N` allows, fewer when narrow. -/
+def tcWarps (N : Nat) : Nat := min 4 (N / 32)
+
+/-- Output columns covered by one threadgroup. -/
+def tcNTile (N : Nat) : Nat := 32 * tcWarps N
+
+/-- Threadgroups along N. When this is 1 the grid dimension collapses
+    and `gid.x` carries the M block instead. -/
+def tcNBlocks (N : Nat) : Nat := N / tcNTile N
+
+example : tcWarps 64 = 2 := by decide
+example : tcNTile 64 = 64 := by decide
+example : tcNBlocks 64 = 1 := by decide
+example : tcWarps 1024 = 4 := by decide
+example : tcNTile 1024 = 128 := by decide
+example : tcNBlocks 3072 = 24 := by decide
+
+/-- Launch geometry the generated kernel requires. When the N grid
+    dimension collapses, `gid.x` carries the M block. -/
+def tcLaunchDims (M N : Nat) : Tgrad.Codegen.GpuDims :=
+  let W := tcWarps N
+  let g : Tgrad.Codegen.Dim3 :=
+    if tcNBlocks N == 1 then { x := M / 32, y := 1, z := 1 }
+    else { x := tcNBlocks N, y := M / 32, z := 1 }
+  { grid := g,
+    threadgroup := { x := 32, y := W, z := 1 },
+    threadsTotal := g.x * g.y * g.z * 32 * W }
+
+/-- **The acceptance criterion for widening the generator, as a checked
+    obligation.** The geometry the generalised kernel needs for
+    `64x64x64` is exactly the geometry captured from tinygrad for that
+    sentinel — same grid, same threadgroup, same thread count. If the
+    warp-count generalisation were wrong, this would not hold, and no
+    amount of numerically-correct output would disguise it. -/
+theorem tcLaunchDims_matches_captured_64 :
+    tcLaunchDims 64 64 = Codegen.Opt.dispatchDimsForSentinel .bf16_64x64 := by decide
+
+/-- The wide domain also reproduces the captured geometry for a
+    representative non-collapsed sentinel. -/
+theorem tcLaunchDims_matches_captured_1024 :
+    tcLaunchDims 1024 1024 = Codegen.Opt.dispatchDimsForSentinel .bf16_1024x1024 := by decide
+
+
+/-- Body construction shared by every warp count. -/
+def tcManualLoadBodyCore (_M K N W : Nat) (gridDecls : List Stmt)
+    (mBlockVar : String) (nBaseIdx : UOp) : List Stmt :=
   let aOffsets : List Nat := [1, 8*K, 8*K+1, 16*K, 16*K+1, 24*K, 24*K+1, 0]
   let bOffsets : List Nat := [1, 8, 9, 16, 17, 24, 25, 0]
   let aLoads : List Stmt := (aOffsets.zip (List.range 8)).map (fun (off, i) =>
@@ -145,11 +204,11 @@ def tcManualLoadBody (M K N : Nat) : List Stmt :=
   let stores : List Stmt :=
     ((tileStoreOffsets N).zip tileAccSlots).map (fun (off, slot) =>
       .storeIndexed "data0" (offFrom "out_base" off) s!"*(acc0+{slot})")
-  [ .declAccArray "acc0" 32,
-    .declInt "gidx0" "gid.x" (some s!"{N / 128}"),
-    .declInt "gidx1" "gid.y" (some s!"{M / 32}"),
-    .declInt "lidx0" "lid.x" (some "32"),
-    .declInt "lidx1" "lid.y" (some "4"),
+  [ .declAccArray "acc0" 32 ]
+  ++ gridDecls
+  ++
+  [ .declInt "lidx0" "lid.x" (some "32"),
+    .declInt "lidx1" "lid.y" (some s!"{W}"),
     .deadBarrierMarker,
     -- lane_pair = ((lidx0>>3)&1)*4 + (lidx0&1)*2
     .declIntIdx "lane_pair"
@@ -160,11 +219,9 @@ def tcManualLoadBody (M K N : Nat) : List Stmt :=
       (iadd (iadd (imul (ishr (iv "lidx0") (ic 4)) (ic 4))
                   (imul (iand (ishr (iv "lidx0") (ic 2)) (ic 1)) (ic 2)))
             (iand (ishr (iv "lidx0") (ic 1)) (ic 1))),
-    .declIntIdx "n_base"
-      (iadd (iadd (imul (iv "gidx0") (ic 128)) (imul (iv "lidx1") (ic 32)))
-            (iv "lane_pair")),
+    .declIntIdx "n_base" nBaseIdx,
     .declIntIdx "m_base"
-      (iadd (imul (iv "gidx1") (ic 32)) (iv "lane_row")),
+      (iadd (imul (iv mBlockVar) (ic 32)) (iv "lane_row")),
     .accZeroInit "acc0" 32,
     .forLoop "Ridx0" (K / 8) (
       [ .declIntIdx "a_base"
@@ -204,15 +261,81 @@ def tcManualLoadBody (M K N : Nat) : List Stmt :=
       (iadd (imul (iv "m_base") (ic N)) (iv "n_base"))
   ] ++ stores
 
+/-- The statement list for the manual-load TC kernel body. -/
+def tcManualLoadBody (M K N : Nat) : List Stmt :=
+  let W := tcWarps N
+  let nTile := tcNTile N
+  let collapsed := tcNBlocks N == 1
+  -- Collapsed: `gidx0` is the M block and there is no N-block term.
+  -- Otherwise `gidx0` is the N block and `gidx1` is the M block.
+  let gridDecls : List Stmt :=
+    if collapsed then [ .declInt "gidx0" "gid.x" (some s!"{M / 32}") ]
+    else [ .declInt "gidx0" "gid.x" (some s!"{tcNBlocks N}"),
+           .declInt "gidx1" "gid.y" (some s!"{M / 32}") ]
+  let mBlockVar := if collapsed then "gidx0" else "gidx1"
+  let nBaseIdx : UOp :=
+    if collapsed then
+      iadd (imul (iv "lidx1") (ic 32)) (iv "lane_pair")
+    else
+      iadd (iadd (imul (iv "gidx0") (ic nTile)) (imul (iv "lidx1") (ic 32)))
+           (iv "lane_pair")
+  tcManualLoadBodyCore M K N W gridDecls mBlockVar nBaseIdx
+
+
+/-- Generation over the widened domain: any `M % 32 = 0`, `K % 8 = 0`,
+    and `N` that divides evenly into `32 * W` tiles. This is what the
+    kernel body can actually express, and it covers `64x64x64`.
+
+    Deliberately **separate** from `tcMatmulKernelDeclManualLoad`
+    below, whose result `PythonFFI.matmulTcEligible` routes on. Two
+    things still assume a 128-wide N tile and would break if the
+    routing predicate widened here:
+
+    * `PythonFFI.matmulTc` computes `totalX = (N / 128) * 32`, which
+      is **0** for `N = 64` — a zero grid dimension, which is invalid
+      Metal usage rather than a wrong answer.
+    * `devcheck.sh:148` asserts `tc_eligible(96, 128, 128) = 0`, which
+      this domain admits.
+
+    Both live in files owned by the sentinel-routing work, so widening
+    the routing predicate belongs there, in one change that fixes the
+    dispatch geometry at the same time. Until then this entry is for
+    generation and differential checking only. -/
+def tcMatmulKernelDeclManualLoadWide (M K N : Nat) : Except CodegenError KernelDecl :=
+  if M < 32 ∨ K < 8 ∨ N < 32 then
+    .error (.notTcEligible M K N "dim below tile floor")
+  else if M % 32 != 0 ∨ K % 8 != 0 ∨ N % 32 != 0 then
+    .error (.notTcEligible M K N "alignment")
+  else if N % tcNTile N != 0 then
+    .error (.notTcEligible M K N "N not a whole number of threadgroup tiles")
+  else
+    .ok {
+      name     := s!"matmul_tc_manual_{M}x{K}x{N}",
+      wmmaArgs := [WmmaArg.bf16Float],
+      args     := [
+        .buffer { qualifier := "device", baseType := "bfloat", name := "data0" },
+        .buffer { qualifier := "device", baseType := "bfloat", name := "data1" },
+        .buffer { qualifier := "device", baseType := "bfloat", name := "data2" },
+        .attr   { baseType := "uint3", name := "gid",
+                  attrStr := "[[threadgroup_position_in_grid]]" },
+        .attr   { baseType := "uint3", name := "lid",
+                  attrStr := "[[thread_position_in_threadgroup]]" },
+      ],
+      body     :=
+        [ .threadgroupDecl "bfloat" "tg_a" 256,
+          .threadgroupDecl "bfloat" "tg_b" 1024
+        ] ++ tcManualLoadBody M K N,
+      trailingNewline := false
+    }
+
 /-- L13.F.STRICT.B: manual-load TC matmul KernelDecl generator. Pure
     function on `(M, K, N)`.
 
-    This emits the tinygrad-shaped 32M × 128N / 4-warp threadgroup
-    kernel. The body uses explicit bfloat fragment loads into the
-    WMMA prelude's `thread_elements` path rather than Metal's
-    cooperative `simdgroup_load`. The leading threadgroup declaration
-    and barrier exercise the L13.F.STRICT.A grammar and make the route
-    structurally distinguishable in gate checks. -/
+    This is the **routing** predicate — `PythonFFI.matmulTcEligible`
+    returns 1 exactly when this succeeds — so its domain stays at the
+    128-wide N tile that the dispatch geometry in `PythonFFI` assumes.
+    `tcMatmulKernelDeclManualLoadWide` above generates over everything
+    the kernel body can express. -/
 def tcMatmulKernelDeclManualLoad (M K N : Nat) : Except CodegenError KernelDecl :=
   if M < 128 ∨ K < 128 ∨ N < 128 then
     .error (.notTcEligible M K N "dim < 128")
@@ -237,6 +360,12 @@ def tcMatmulKernelDeclManualLoad (M K N : Nat) : Except CodegenError KernelDecl 
         ] ++ tcManualLoadBody M K N,
       trailingNewline := false
     }
+
+/-- `64x64x64` is generable now, and was not before. -/
+theorem wide_generates_64 :
+    (tcMatmulKernelDeclManualLoadWide 64 64 64).isOk = true := by native_decide
+theorem strict_rejects_64 :
+    (tcMatmulKernelDeclManualLoad 64 64 64).isOk = false := by native_decide
 
 end Metal
 

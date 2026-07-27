@@ -191,7 +191,7 @@ def workUnits : List WorkUnit :=
       .renderer [.hostMemory] [.outputElements, .reductionElements]
       ["Tgrad/Renderer/MatmulTc.lean"] .bounded
       "render generated TC kernels and differentially compare tile addressing"
-      "wide generation covers 64x64, but production eligibility and dispatch still assume the strict 128-wide route",
+      "wide generation, eligibility, and tcLaunchDims are authoritative; the legacy strict constructor remains only for gate migration",
     implemented "product.render-metal" "Metal source rendering"
       .product .render [.kernelDecl] [.metalSource]
       .renderer [.hostMemory] [.fixedHostOverhead]

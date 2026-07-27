@@ -242,13 +242,14 @@ def workItems : List WorkItem :=
     { id := ew "codegen.route-sentinels",
       title := "route sentinels and widen TC dispatch safely",
       phase := .build, authority := .userGoal,
-      closesFindings := ["F-transcribed-sentinel-codegen"],
+      closesFindings := [],
       dependsOn := [ew "codegen.differential-harness", ew "codegen.warp-parameter",
         ew "codegen.typed-stores"],
       runtimeScope := [rw "product.select-matmul-route", rw "product.lower-tc-matmul"],
       touches := [.leanFfi, .renderer],
-      writes := ["Tgrad/PythonFFI.lean", "Tgrad/Pipeline.lean", "Main.lean",
-        "scripts/devcheck.sh"],
+      writes := ["Tgrad/PythonFFI.lean", "Tgrad/Pipeline.lean",
+        "Tgrad/Renderer/MatmulTc.lean", "Tgrad/Codegen/Opt/Heuristic.lean",
+        "python/tgrad.py", "scripts/devcheck.sh"],
       authoringResources := [.sourceTree],
       verificationResources := [.leanBuildTree, .metalGpu],
       cost := 3, goalDistance := 0,
@@ -258,7 +259,7 @@ def workItems : List WorkItem :=
         "11/11 generated and numerically equivalent; (128,128,128)/(96,128,128)/(64,64,64) eligibility changes are explicit and every admitted shape has a nonzero grid"
         [.build, .apiContract, .safety, .numerical, .differential],
       recovery := "keep strict eligibility until geometry and the reviewed eligibility triple pass together; revert only divergent sentinel routes",
-      progress := .planned },
+      progress := .complete "fd945b1" },
     { id := ew "gates.semantic-codegen", title := "add semantic layers, then retire L12 byte equality",
       phase := .promote, authority := .userGoal,
       closesFindings := ["F-byte-equality-gate"],
@@ -280,7 +281,7 @@ def workItems : List WorkItem :=
     { id := ew "codegen.delete-transcription",
       title := "delete MatmulDecls and lower_matmul transpiler",
       phase := .promote, authority := .userGoal,
-      closesFindings := [],
+      closesFindings := ["F-transcribed-sentinel-codegen"],
       dependsOn := [ew "codegen.route-sentinels", ew "gates.semantic-codegen"],
       runtimeScope := [rw "product.lower-tc-matmul", rw "product.render-metal"],
       touches := [.renderer, .gateHarness],
@@ -505,8 +506,8 @@ def growthCases : List Growth.Case :=
         "11/11 generated routes are numerically equivalent before transcription deletion"
         "retain the captured kernel as reference and revert only divergent routing",
       epistemic := .confirmed
-        "wide generation covers 64x64x64 while production eligibility deliberately remains strict"
-        "75f856b: tcLaunchDims_matches_captured_64, wide_generates_64, strict_rejects_64, and symbolic captured/generated address comparison" },
+        "fd945b1 makes wide generated declarations and tcLaunchDims authoritative for all sentinels and aligned general shapes; deletion remains"
+        "64/96/128 boundary routes pass numpy, eligibility rejects zero-grid domains, and 11/11 captured/generated outputs remain bit-identical" },
     { id := "G-semantic-codegen-verifier",
       findingIds := ["F-byte-equality-gate"],
       observations := [observe "verify.codegen-differential" "captured versus generated"
@@ -1097,7 +1098,97 @@ def liveEvolutionEvents : List Event :=
         residualRisks :=
           [ "each view readback currently compiles and dispatches a fresh copy",
             "the Lean tensor registry and Metal pipeline cache remain append-only",
-            "the overloaded tgrad_matmul_view(handle,0) ABI should become a named materialize entry" ] } ]
+            "the overloaded tgrad_matmul_view(handle,0) ABI should become a named materialize entry" ] },
+    .attemptStarted
+      { id := { value := "attempt-route-sentinels-20260726" },
+        intent := ew "codegen.route-sentinels",
+        actor := "codex-primary",
+        base :=
+          { commit := "254fe08c2c6a554d681311ee535826a931c6b8c2",
+            tree := "c04850ceb06f6fb7e44f3bdb2b19f918fbb6f55a",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .modify, target := "Tgrad/PythonFFI.lean" },
+            { kind := .modify, target := "Tgrad/Pipeline.lean" },
+            { kind := .modify, target := "Tgrad/Renderer/MatmulTc.lean" },
+            { kind := .modify, target := "Tgrad/Codegen/Opt/Heuristic.lean" },
+            { kind := .modify, target := "python/tgrad.py" },
+            { kind := .modify, target := "scripts/devcheck.sh" } ],
+        lease :=
+          { token := "codex-primary-route-sentinels",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .candidateProduced
+      { id := { value := "candidate-route-sentinels-8475550" },
+        attempt := { value := "attempt-route-sentinels-20260726" },
+        tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+        observedEffects :=
+          [ { kind := .modify, target := "Tgrad/PythonFFI.lean" },
+            { kind := .modify, target := "Tgrad/Pipeline.lean" },
+            { kind := .modify, target := "Tgrad/Renderer/MatmulTc.lean" },
+            { kind := .modify, target := "Tgrad/Codegen/Opt/Heuristic.lean" },
+            { kind := .modify, target := "python/tgrad.py" },
+            { kind := .modify, target := "scripts/devcheck.sh" } ],
+        summary := "make wide generated declarations, names, eligibility, and launch geometry authoritative for sentinel and aligned TC dispatch" },
+    .checkRecorded
+      { id := { value := "check-route-sentinels-build-fd945b1" },
+        candidate := { value := "candidate-route-sentinels-8475550" },
+        tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "lake build Tgrad:shared TgradSpec tgrad-spec tgrad-tests tgrad-cli; make -C c dylib",
+        artifactDigest := "sha256:16c156e60e6cc84ac2f60b689c5eadeea15c3fce69aea0b052da43fac36672d0" },
+    .checkRecorded
+      { id := { value := "check-route-sentinels-api-fd945b1" },
+        candidate := { value := "candidate-route-sentinels-8475550" },
+        tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+        validator := rw "verify.numpy-differential", obligation := .apiContract,
+        outcome := .passed,
+        command := "Python FFI eligibility: 128/96/64 accepted; M=31, K=7, and N=48 rejected",
+        artifactDigest := "sha256:9ff1d0505956a9e85ce8a01aaab6b6ecbbb6c72745dd65b52ba85c37a739917d" },
+    .checkRecorded
+      { id := { value := "check-route-sentinels-safety-fd945b1" },
+        candidate := { value := "candidate-route-sentinels-8475550" },
+        tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+        validator := rw "verify.unit-tests", obligation := .safety,
+        outcome := .passed,
+        command := "decide generatedDispatchDimsFor_nonzero and generatedDispatchDimsFor_matches_capture for every sentinel",
+        artifactDigest := "sha256:16c156e60e6cc84ac2f60b689c5eadeea15c3fce69aea0b052da43fac36672d0" },
+    .checkRecorded
+      { id := { value := "check-route-sentinels-numerical-fd945b1" },
+        candidate := { value := "candidate-route-sentinels-8475550" },
+        tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+        validator := rw "verify.numpy-differential", obligation := .numerical,
+        outcome := .passed,
+        command := "actual Python/C/Lean/Metal production route at 64x64x64, 96x128x128, and 128x128x128 versus numpy bf16 reference",
+        artifactDigest := "sha256:9ff1d0505956a9e85ce8a01aaab6b6ecbbb6c72745dd65b52ba85c37a739917d" },
+    .checkRecorded
+      { id := { value := "check-route-sentinels-differential-fd945b1" },
+        candidate := { value := "candidate-route-sentinels-8475550" },
+        tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+        validator := rw "verify.codegen-differential", obligation := .differential,
+        outcome := .passed,
+        command := "bash scripts/differential_codegen.sh: 11/11 source-different and bit-identical over 240 MB",
+        artifactDigest := "sha256:04d631bd95fd00c95d56608ce1e2ce011301275f18ae3d3d0a73b1fecf3f789e" },
+    .promoted
+      { growthCase := "G-generated-sentinels",
+        candidate := { value := "candidate-route-sentinels-8475550" },
+        checkRuns :=
+          [ { value := "check-route-sentinels-build-fd945b1" },
+            { value := "check-route-sentinels-api-fd945b1" },
+            { value := "check-route-sentinels-safety-fd945b1" },
+            { value := "check-route-sentinels-numerical-fd945b1" },
+            { value := "check-route-sentinels-differential-fd945b1" } ],
+        requiredObligations := [.build, .apiContract, .safety, .numerical, .differential],
+        acceptedBy := ["harsh", "codex-primary"],
+        target :=
+          { commit := "fd945b10725da82edab8afa5246dba56452e4403",
+            tree := "84755502c57bb5cc459b51b488080c81c20384bd",
+            dirty := false },
+        residualRisks :=
+          [ "MatmulDecls and lower_matmul remain as transcription scaffolding",
+            "L12 Layer C still checks transcription byte equality until deletion",
+            "performance has not been rebaselined across a symmetric boundary",
+            "dead threadgroup declarations and barrier marker remain structural-gate debt" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
   replay itemIds liveEvolutionEvents
@@ -1105,8 +1196,8 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 0 && state.candidates.length == 7 &&
-      state.checks.length == 30 && state.promotions.length == 5 &&
+      state.activeAttempts.length == 0 && state.candidates.length == 8 &&
+      state.checks.length == 35 && state.promotions.length == 6 &&
       state.abandoned.length == 2
   | .error _ => false
 
@@ -1240,13 +1331,14 @@ theorem growth_loop_references_are_well_formed : growthCasesWellFormed = true :=
 theorem every_open_finding_enters_a_growth_case : openFindingsHaveGrowthCases = true := by
   native_decide
 
-theorem routing_is_dependency_ready_and_released_for_authoring :
-    ((dependencyReadyItems.map (·.id)).contains (ew "codegen.route-sentinels") &&
-      (readyItems.map (·.id)).contains (ew "codegen.route-sentinels")) = true := by
+theorem routing_is_promoted_and_released :
+    (livePromotedIntentIds.contains (ew "codegen.route-sentinels") &&
+      completedIds.contains (ew "codegen.route-sentinels") &&
+      !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_safe_frontier_is_generated_sentinel_routing :
-    frontierIds = [ew "codegen.route-sentinels"] := by
+theorem current_safe_frontier_is_transcription_deletion :
+    frontierIds = [ew "codegen.delete-transcription"] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :
@@ -1261,6 +1353,20 @@ theorem view_materialization_candidate_has_required_checks :
     | .ok state =>
         let runs := state.checks.filter (fun run =>
           run.candidate.value == "candidate-view-materialize-790d413" &&
+          run.outcome.passed?)
+        runs.any (fun run => run.obligation == .build) &&
+        runs.any (fun run => run.obligation == .apiContract) &&
+        runs.any (fun run => run.obligation == .safety) &&
+        runs.any (fun run => run.obligation == .numerical) &&
+        runs.any (fun run => run.obligation == .differential)) = true := by
+  native_decide
+
+theorem generated_routing_candidate_has_required_checks :
+    (match liveEvolutionState with
+    | .error _ => false
+    | .ok state =>
+        let runs := state.checks.filter (fun run =>
+          run.candidate.value == "candidate-route-sentinels-8475550" &&
           run.outcome.passed?)
         runs.any (fun run => run.obligation == .build) &&
         runs.any (fun run => run.obligation == .apiContract) &&
@@ -1300,8 +1406,8 @@ theorem warp_parameterization_is_promoted_and_released :
       completedIds.contains (ew "codegen.warp-parameter")) = true := by
   native_decide
 
-theorem transcription_deletion_is_not_ready :
-    (readyItems.map (·.id)).contains (ew "codegen.delete-transcription") = false := by
+theorem transcription_deletion_is_ready :
+    (readyItems.map (·.id)).contains (ew "codegen.delete-transcription") = true := by
   native_decide
 
 private def commaSeparated (values : List Growth.EvolutionWorkId) : String :=

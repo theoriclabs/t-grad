@@ -19,9 +19,10 @@ Current state:
 - **The semantic codegen harness landed in `a6d5958`.** All 11 generated
   sentinels differ textually from their captures but are bit-identical in
   execution across 240 MB of output.
-- **Real codegen remains open.** Route the 11 sentinels through the parametric
-  WMMA generator, replace source-byte equality with semantic differential
-  evidence, then delete the transcribed declarations.
+- **Generated production routing landed in `fd945b1`.** All 11 sentinels now
+  use the parametric WMMA generator with generated nonzero launch geometry.
+  Semantic C3 is load-bearing; only transcription deletion and retirement of
+  the old byte-equality layer remain in the real-codegen migration.
 
 Companion documents: `PLAN_TINYGRAD_COMPAT.md` (the longer arc),
 `Tgrad/Ontology.lean` (stable product vocabulary), and `Tgrad/Spec/*`
@@ -119,11 +120,12 @@ Completed nodes:
 - `codegen.differential-harness` (`a6d5958`)
 - `gates.semantic-codegen` (`aa67497`)
 - `evidence.audit-tool` (`bdc01b0`)
+- `codegen.route-sentinels` (`fd945b1`)
 
-`codegen.warp-parameter` is landed and its renderer lease is released. It
-deliberately widened generation through `tcMatmulKernelDeclManualLoadWide`
-without widening production eligibility: `PythonFFI.matmulTc` still assumes a
-128-wide tile and would produce a zero grid dimension for `N=64`.
+`codegen.warp-parameter` first widened generation without widening routing.
+`fd945b1` then moved eligibility and dispatch together: production now routes
+on `tcMatmulKernelDeclManualLoadWide`, and `tcLaunchDims` handles the collapsed
+two-warp 64-wide tile without a zero grid dimension.
 
 Two disjoint attempts were claimed:
 
@@ -141,9 +143,10 @@ worker then claimed and completed one slot; its lease closed. The differential
 harness subsequently landed as `a6d5958`, making `codegen.route-sentinels`
 dependency-ready. That route still writes `Pipeline.lean` and
 `PythonFFI.lean`, so it remained excluded while materialization was active.
-After exact-tree promotion at `e6241bd`, the computed safe frontier becomes
-exactly `codegen.route-sentinels`. This is the intended behavior of a live
-work model.
+After exact-tree promotion at `e6241bd`, the computed safe frontier became
+`codegen.route-sentinels`. After exact-tree promotion at `fd945b1`, it became
+`codegen.delete-transcription`. This is the intended behavior of a live work
+model.
 
 The next dependency chain is:
 
@@ -159,9 +162,9 @@ codegen.route-sentinels + gates.semantic-codegen
                                    -> evidence.enforce-provenance
 ```
 
-`codegen.delete-transcription` is proved not ready. This is intentional: the
-transcribed kernels remain the reference implementation until generated
-kernels have passed differential execution and the semantic gate is live.
+`codegen.delete-transcription` is now proved ready: generated production
+routing passed the differential, and semantic Layer C3 was already added while
+the transcription-specific Layer C remained green.
 
 ## 4. Parallel schedule
 
@@ -171,16 +174,17 @@ landed      [codegen.differential-harness] a6d5958
 landed      [codegen.warp-parameter] 75f856b; renderer lease released
 landed      [gates.semantic-codegen] aa67497; additive C3
 landed      [evidence.audit-tool] bdc01b0; diagnostic, not fatal
+landed      [codegen.route-sentinels] fd945b1; generated production route
 
 integrate   one shared-build/test run at a time
 
-then        route-sentinels -> deletion (retire old byte-equality Layer C)
+next        deletion (retire old byte-equality Layer C; retain C3)
 
 last        performance rebaseline -> evidence regeneration -> fatal audit
             (exclusive GPU, clean tree, serial)
 ```
 
-The safe authoring frontier is currently exactly `codegen.route-sentinels`.
+The safe authoring frontier is currently exactly `codegen.delete-transcription`.
 That does not authorize more worktrees blindly:
 `LiveConditions.sourceTree` is tentative and must be re-probed against free
 disk and current writers. Nor does it authorize parallel verification: route

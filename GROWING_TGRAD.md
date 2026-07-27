@@ -141,19 +141,19 @@ This plane is event-sourced. Derived dashboard states such as “in progress” 
 The runtime is not yet one uniform compiler path. It is a small collection of
 routes that share some stages:
 
-1. the sentinel route renders transcribed `MatmulDecls`;
-2. the general tensor-core route uses the parametric manual-load generator;
+1. the sentinel route uses the parametric manual-load generator;
+2. the aligned general tensor-core route uses that same generator;
 3. the scalar fallback emits one-thread-per-output-element code;
 4. view matmul uses view-derived index expressions and a scalar kernel;
 5. view readback rangeifies a movement chain, renders a bit-preserving indexed
    copy, and returns a contiguous buffer for `.numpy()`/`.to_bytes()`;
 6. CLI sentinel execution has its own bounded entry path.
 
-Rangeification is now real and the Lean renderer is now on the runtime path,
-but this does not make the sentinel declarations generative. The 11 sentinel
-declarations still encode captured arithmetic. The generated tensor-core path
-and the transcribed sentinel path must therefore remain separate capability
-entries until the former becomes authoritative.
+Rangeification is real, the Lean renderer is load-bearing, and `fd945b1` makes
+generated tensor-core declarations/names/geometry authoritative for every
+sentinel. The 11 transcribed declarations still exist for old CLI/gate layers,
+so deletion remains separate work; their existence no longer determines the
+production result.
 
 The runtime inventory records, for each unit:
 
@@ -417,10 +417,11 @@ produced tree `790d413…`; the full suite passed and that exact tree was commit
 as `e6241bd`. The two stale candidates remain attached only to abandoned
 attempts, making invalidated work visible instead of erasing it.
 
-The view lease is now released. `codegen.route-sentinels` is dependency-ready
-and is the sole computed safe authoring frontier. Evidence is no longer its
-blocker, and the previously conflicting `Pipeline.lean`/`PythonFFI.lean` write
-set now has no active owner.
+The view lease was released, then `codegen.route-sentinels` landed as
+`fd945b1`. Its exact tree `8475550…` passed build, eligibility/safety,
+64/96/128 production-route numerical checks, and the 11-sentinel semantic
+differential. The route lease is released; `codegen.delete-transcription` is
+now the sole computed safe authoring frontier.
 
 The frontier is recomputed from dependencies, current progress, active
 writers, live attempt events, and declared effect sets. It is not a standing

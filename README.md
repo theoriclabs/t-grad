@@ -29,6 +29,8 @@ Read the background post: [We Rewrote tinygrad in Lean](https://theoric.com/blog
   rangeified, bit-preserving Metal copy kernel.
 - An execution differential for all 11 captured/generated sentinel kernels;
   sources intentionally differ and 240 MB of outputs match bit-for-bit.
+- Production sentinel dispatch now uses those parametric generated kernels;
+  captured/transcribed declarations remain reference-only until deletion.
 - A separate checked specification for runtime capabilities, findings,
   growth cases, resource constraints, and repository evolution.
 - Historical gate artifacts retained for audit; their performance and
@@ -227,9 +229,9 @@ In scope:
 - bf16 input/output with fp32 accumulation.
 - Apple Silicon Metal backend.
 - Contiguous 2-D matmul.
-- Sentinel matmul declarations transcribed from captured kernels and rendered
-  by Lean; these remain reference-backed production scaffolding pending the
-  generated-route migration.
+- Parametric TC matmul declarations are authoritative for all 11 sentinels and
+  aligned general shapes. Captured MSL and its temporary Lean transcription
+  are semantic references, not production dispatch inputs.
 - TC-general manual-load WMMA kernels.
 - Scalar fallback paths for supported smaller or non-TC shapes.
 - View-composed matmul cases covered by transpose, reshape, permute, expand,

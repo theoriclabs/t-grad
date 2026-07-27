@@ -80,9 +80,9 @@ def findings : List Finding :=
         "exact tree 790d413 was isolated-build/GPU checked on bdc01b0 and committed unchanged" },
     { id := "F-transcribed-sentinel-codegen", severity := .high,
       component := .renderer,
-      description := "sentinel KernelDecls transcribe captured tinygrad arithmetic strings",
+      description := "reference-only MatmulDecls still transcribes captured tinygrad arithmetic strings",
       state := .confirmed .open
-        "MatmulDecls.lean is generated from fixtures by lower_matmul.py" },
+        "fd945b1 removed it from production dispatch, but the file/transpiler and L12 byte-equality layer remain" },
     { id := "F-byte-equality-gate", severity := .high,
       component := .gateHarness,
       description := "L12 relied on transcription round-trip without semantic generation evidence",

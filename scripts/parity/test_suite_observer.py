@@ -186,6 +186,27 @@ def valid_tgrad(root: Path, upstream_path: Path, baseline: dict) -> dict:
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_snapshot_diagnostics_are_independent_of_observer_root(self) -> None:
+        first_root = "/tmp/tgrad_parity_observer_first/snapshot"
+        second_root = "/private/tmp/tgrad_parity_observer_second/snapshot"
+        suffixes = (
+            ("upstream", "test/unit/test_tensor.py"),
+            ("shim", "tinygrad/__init__.py"),
+            ("python", "tgrad.py"),
+            ("runtime", "libtgrad.dylib"),
+        )
+        first = "\n".join(
+            f"{first_root}/{tree}/{path}: diagnostic" for tree, path in suffixes
+        )
+        second = "\n".join(
+            f"{second_root}/{tree}/{path}: diagnostic" for tree, path in suffixes
+        )
+
+        self.assertEqual(
+            observer.normalize_output(first, Path("/unrelated/upstream")),
+            observer.normalize_output(second, Path("/another/upstream")),
+        )
+
     def test_subtests_are_distinct_protocol_events(self) -> None:
         counts, report = observer.analyze_report(report_events(), 0)
         self.assertEqual([], report["protocol_errors"])

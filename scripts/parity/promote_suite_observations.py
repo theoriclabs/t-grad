@@ -12,12 +12,16 @@ import json
 import os
 import shutil
 import tempfile
+import sys
 from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 
 from scripts.parity import run_upstream_suite as observer
 
 
-REPO = Path(__file__).resolve().parents[2]
 DEFAULT_DESTINATION = REPO / "fixtures" / "parity" / "observations"
 
 

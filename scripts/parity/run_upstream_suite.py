@@ -58,7 +58,7 @@ OUTCOMES = (
     "unobserved_upstream", "collection_mismatch", "collection_error", "timeout", "empty",
     "verifier_error",
 )
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def canonical(value: object) -> bytes:
@@ -586,6 +586,14 @@ def load_contract(path: Path, checkout: Path, checkout_commit: str, group: str,
 
 def normalize_output(output: str, checkout: Path) -> tuple[str, str]:
     normalized = re.sub(r"\x1b\[[0-9;]*m", "", output)
+    snapshot_replacements = (
+        (r"(?:/private)?/tmp/tgrad_parity_observer_[^/\s]+/snapshot/upstream", "<upstream-checkout>"),
+        (r"(?:/private)?/tmp/tgrad_parity_observer_[^/\s]+/snapshot/shim", "<tgrad-shim>"),
+        (r"(?:/private)?/tmp/tgrad_parity_observer_[^/\s]+/snapshot/python", "<tgrad-product>"),
+        (r"(?:/private)?/tmp/tgrad_parity_observer_[^/\s]+/snapshot/runtime", "<tgrad-runtime>"),
+    )
+    for pattern, replacement in snapshot_replacements:
+        normalized = re.sub(pattern, replacement, normalized)
     replacements = (
         (str(checkout.resolve()), "<upstream-checkout>"),
         (str(REPO.resolve()), "<tgrad-repo>"),

@@ -1,172 +1,19 @@
 {
   "against": "tgrad",
   "aggregate": {
-    "files": 18,
-    "files_collect_error": 16,
-    "files_fail": 2,
+    "files": 1,
+    "files_collect_error": 1,
+    "files_fail": 0,
     "files_pass": 0,
     "files_timeout": 0,
-    "tests_errors": 16,
-    "tests_failed": 8,
+    "tests_errors": 1,
+    "tests_failed": 0,
     "tests_passed": 0,
     "tests_skipped": 0
   },
   "group": "unit",
-  "ran_at_utc": "2026-07-27T09:55:57Z",
+  "ran_at_utc": "2026-07-27T16:06:01Z",
   "results": [
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_attention.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_callify.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_conv.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_dtype_spec.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_hashing.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_indexing.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_jit_cases.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_jit_footguns.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_linalg.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_llm_mla.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_llm_moe.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 3,
-      "errors": 0,
-      "failed": 3,
-      "file": "test/unit/test_masked_tensor.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "fail"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_randomness.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 5,
-      "errors": 0,
-      "failed": 5,
-      "file": "test/unit/test_rearrange_einops.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "fail"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_shm_tensor.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_symbolic_tensor.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/unit/test_tensor_data.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
     {
       "collected": 1,
       "errors": 1,

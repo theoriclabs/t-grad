@@ -174,3 +174,40 @@ to avoid.
 It is also the one with the strongest safety net. Do not attempt it
 before the differential harness is wired into a gate that runs on every
 change, which it now is.
+
+## Measured: op breadth alone does not move the parity metric
+
+Steps 1-4 took Tensor from 1 compute op to 6 and from 1 dtype to 2.
+The parity score did not move at all:
+
+    before (1 op)   0 / 34 api_surface files, 29 collect errors
+    after  (6 ops)  0 / 34 api_surface files, 29 collect errors
+
+That is not a disappointing result, it is a diagnostic one, and it was
+predicted: 29 of the 34 files fail at *collection*, before any test body
+runs. The exact failure is
+
+    ModuleNotFoundError: Tgrad's strict shim does not provide
+    'tinygrad.helpers'; refusing to fall back to upstream tinygrad
+
+So the metric is gated on **module surface**, not on operations.
+Upstream's tests import `tinygrad.helpers`, `tinygrad.dtypes`,
+`tinygrad.device` and similar before they touch a Tensor, and no number
+of kernels changes that.
+
+Two consequences.
+
+**The op work was still necessary.** A test that imports successfully
+and then calls `.sum()` needs the op to exist. Surface without ops
+would fail at assertion instead of collection — the same zero, one
+stage later.
+
+**But the next unit of work is a different kind.** Providing the
+importable surface is adapter work in the shim and the Python layer,
+not kernels in Lean. It should be scheduled explicitly rather than
+assumed to fall out of continued op work, and it is the cheapest
+remaining way to convert collect errors into real assertions — which is
+the first point at which the parity number can start moving at all.
+
+This is exactly what the oracle was built to tell us, and it is the
+kind of thing the previous gate regime could not have said.

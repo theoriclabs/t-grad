@@ -1681,7 +1681,10 @@ def persist(output: Path, document: dict, payloads: dict[str, bytes]) -> None:
 def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
     lock, amendment, manifest = validate_v2_definition(args.lock)
     enforce_baseline_first(args.against, args.upstream_baseline)
-    py = args.python.resolve()
+    # Preserve the launcher spelling. Environment facts bind the venv launcher
+    # and its resolved target separately; resolving here collapses those two
+    # identities and makes a matching frozen environment appear different.
+    py = args.python.expanduser().absolute()
     if not py.is_file():
         raise RuntimeError(f"observer Python does not exist: {py}")
     checkout = args.upstream_checkout.resolve()

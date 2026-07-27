@@ -262,6 +262,11 @@ class DefinitionTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "tampered"):
                 observer.validate_v2_definition(path)
 
+    def test_python_launcher_identity_is_not_collapsed_to_target(self) -> None:
+        launcher = observer.DEFAULT_PYTHON.expanduser().absolute()
+        self.assertEqual(observer.DEFAULT_PYTHON, launcher)
+        self.assertTrue(launcher.is_file())
+
 
 class ProtocolTests(unittest.TestCase):
     @classmethod

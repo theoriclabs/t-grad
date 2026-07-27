@@ -8,6 +8,9 @@ import Tgrad.Spec.Growth
 import Tgrad.Spec.Evolution
 import Tgrad.Spec.Work
 import Tgrad.Spec.Parity
+import Tgrad.Requirements.World
+import Tgrad.Requirements.Relation
+import Tgrad.Requirements.Requirements
 
 /-! # TgradSpec — checked specification, separate from the product runtime
 

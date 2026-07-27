@@ -1774,7 +1774,12 @@ def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
         document["evidence_id"] = computed_evidence_id(document)
         if args.against == "upstream":
             rejected = [
-                {"mutation_id": item["mutation_id"], "outcome": item["outcome"]}
+                {
+                    "mutation_id": item["mutation_id"],
+                    "outcome": item["outcome"],
+                    "expected": item["expected"],
+                    "evaluations": item["evaluations"],
+                }
                 for item in calibrations
                 if item["outcome"] != "validator_rejected_mutant"
             ]

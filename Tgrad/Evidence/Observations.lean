@@ -128,15 +128,18 @@ def Observation.wellFormed (observation : Observation) : Bool :=
 structure PromotionContext where
   target : TargetRef
   subjectTree : TreeRef
-  boundary : BoundaryIdentity
+  boundary : Option BoundaryIdentity
   deriving DecidableEq, BEq, Repr, Inhabited
 
 def Observation.currentIn
     (observation : Observation) (context : PromotionContext) : Bool :=
-  observation.targetRevision == context.target.revision &&
-  observation.subjectTree == context.subjectTree &&
-  !observation.subjectTree.dirty &&
-  observation.boundary == context.boundary
+  match context.boundary with
+  | none => false
+  | some boundary =>
+      observation.targetRevision == context.target.revision &&
+      observation.subjectTree == context.subjectTree &&
+      !observation.subjectTree.dirty &&
+      observation.boundary == boundary
 
 def Observation.covers
     (observation : Observation) (requirement : Requirement) : Bool :=

@@ -137,7 +137,7 @@ inductive GapKind where
 
 structure Gap where
   id : String
-  requirement : RequirementId
+  requirement : Option RequirementId
   kind : GapKind
   description : String
   deriving DecidableEq, BEq, Repr, Inhabited
@@ -146,44 +146,44 @@ def gapsFor (state : RequirementState) : List Gap :=
   let reqPrefix := state.requirement.value
   let targetGap :=
     if state.promotion == .targetUnpromoted then
-      [{ id := s!"GAP-TARGET-{reqPrefix}", requirement := state.requirement,
+      [{ id := "GAP-TARGET-UPSTREAM", requirement := none,
          kind := .targetPromotion,
          description := "The extracted upstream target has not been promoted." }]
     else []
   let specGap :=
     if state.specification == .missing then
-      [{ id := s!"GAP-SPEC-{reqPrefix}", requirement := state.requirement,
+      [{ id := s!"GAP-SPEC-{reqPrefix}", requirement := some state.requirement,
          kind := .specification,
          description := "No boundary specification structurally covers the requirement." }]
     else []
   let adequacyGap :=
     if state.adequacy != .accepted then
-      [{ id := s!"GAP-ADEQUACY-{reqPrefix}", requirement := state.requirement,
+      [{ id := s!"GAP-ADEQUACY-{reqPrefix}", requirement := some state.requirement,
          kind := .adequacy,
          description := "The D ∧ S ⇒ R adequacy obligation is not accepted." }]
     else []
   let implementationGap :=
     if state.implementation == .noCandidate then
-      [{ id := s!"GAP-IMPLEMENTATION-{reqPrefix}", requirement := state.requirement,
+      [{ id := s!"GAP-IMPLEMENTATION-{reqPrefix}", requirement := some state.requirement,
          kind := .implementation,
          description := "No product implementation candidate is mapped to the specification." }]
     else []
   let observationGap :=
     match state.observation with
     | .unobserved | .stale =>
-        [{ id := s!"GAP-OBSERVATION-{reqPrefix}", requirement := state.requirement,
+        [{ id := s!"GAP-OBSERVATION-{reqPrefix}", requirement := some state.requirement,
            kind := .observation,
            description := "No current observation covers the requirement." }]
     | .blocked =>
-        [{ id := s!"GAP-ENVIRONMENT-{reqPrefix}", requirement := state.requirement,
+        [{ id := s!"GAP-ENVIRONMENT-{reqPrefix}", requirement := some state.requirement,
            kind := .environment,
            description := "A prerequisite or environment condition blocks observation." }]
     | .failed =>
-        [{ id := s!"GAP-BEHAVIOR-{reqPrefix}", requirement := state.requirement,
+        [{ id := s!"GAP-BEHAVIOR-{reqPrefix}", requirement := some state.requirement,
            kind := .failedBehavior,
            description := "A current observation reports non-conforming behavior." }]
     | .verifierError | .passedUncalibrated =>
-        [{ id := s!"GAP-VALIDATOR-{reqPrefix}", requirement := state.requirement,
+        [{ id := s!"GAP-VALIDATOR-{reqPrefix}", requirement := some state.requirement,
            kind := .validator,
            description := "The observer failed or has not established calibrated sensitivity." }]
     | .passedCalibrated => []

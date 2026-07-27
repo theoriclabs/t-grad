@@ -402,7 +402,7 @@ def workItems : List WorkItem :=
         "both orders occur; fixed fake identities reproduce; real invocations cannot alias; wrong outputs create no timed evidence; dirty subjects reject; session weighting is equal; no frozen baseline, threshold, verdict, or kernel-speed eligibility exists"
         [.build, .semantic, .performance, .provenance, .resourceIsolation],
       recovery := "keep verify.performance missing and delete the harness candidate if its fake calibration or metadata contract is incomplete",
-      progress := .inProgress "agent-descartes" },
+      progress := .complete "42838f2" },
     { id := ew "perf.rebaseline", title := "measure symmetric generated-kernel performance",
       phase := .verify, authority := .evidence,
       closesFindings := ["F-performance-methodology"],
@@ -658,6 +658,10 @@ def growthCases : List Growth.Case :=
     { id := "G-symmetric-performance",
       findingIds := ["F-performance-methodology"],
       observations := [
+        observe "verify.paired-performance-observer" "operational repeated-call instrument"
+          "clean live subjects produce uniquely identified raw AB/BA observations, absolute and relative distributions, and an explicit non-kernel scope without a verdict"
+          "run CPU falsifiers, then one exact-tree serial Metal smoke against the pinned tinygrad revision"
+          "raw/summary hashes, subject revisions and trees, output hashes, ordering, boundary catalog, absolute throughput, ratio distribution, and kernel-speed eligibility",
         observe "verify.performance-repeatability" "identical generated-route repeats"
           "the old ratio predicate has bounded variance small enough to support a stable decision"
           "repeat the same 30/30 run serially on one code revision and GPU"
@@ -667,10 +671,14 @@ def growthCases : List Growth.Case :=
           "measure paired dispatch-only and end-to-end distributions serially, then repeat complete sessions"
           "paired raw samples, cache/JIT and boundary metadata, uncertainty, throughput, and thermal context"],
       evolutionWork := [ew "spec.record-regeneration-observation",
-        ew "perf.rebaseline"],
-      deltas := [delta "verify.performance" .replaceBypass
-        [.performance, .observability, .provenance] .bypassed .loadBearing
-        "replace asymmetric frozen-baseline ratios with a paired experiment whose decision rule is derived from measured variance"],
+        ew "harness.paired-performance", ew "perf.rebaseline"],
+      deltas := [
+        delta "verify.paired-performance-observer" .addCapability
+          [.performance, .observability, .provenance] .missing .bounded
+          "add a calibrated paired observer without claiming boundary symmetry, repeatability, or a verdict",
+        delta "verify.performance" .replaceBypass
+          [.performance, .observability, .provenance] .bypassed .loadBearing
+          "replace asymmetric frozen-baseline ratios with a paired experiment whose decision rule is derived from measured variance"],
       stage := .selected,
       promotion := promote ["verify.performance-repeatability", "verify.performance",
           "verify.evidence-integrity"]
@@ -678,8 +686,8 @@ def growthCases : List Growth.Case :=
         "both sides are live and paired; repeated distributions support a predeclared variance-derived rule; reported throughput is physically plausible"
         "publish unknown/regression when variance is too large; never reuse stale ratios or choose a threshold after seeing the result",
       epistemic := .confirmed
-        "current performance claim is not promotable: identical e90607f 30/30 runs varied from 2 to 25 to 10 misses, with ratio_max 1.655/3.667/2.552"
-        "direct serial repeatability report plus L12's 1/1 versus 30/30 verdict reversal" },
+        "42838f2 supplies the bounded observer, but the performance claim remains unpromotable: identical e90607f 30/30 runs varied from 2 to 25 to 10 misses"
+        "exact-tree live smoke plus direct repeatability diagnosis; full paired multi-run variance and symmetric kernel boundaries remain missing" },
     { id := "G-evidence-provenance",
       findingIds := ["F-evidence-provenance"],
       observations := [
@@ -1884,6 +1892,100 @@ def liveEvolutionEvents : List Event :=
           [ "shared .lake build outputs still serialize",
             "Metal correctness and all timing remain serial on one GPU",
             "committed evidence integration remains a single-writer operation",
+            "the candidate commit predates this promotion record" ] },
+    .attemptAbandoned
+      { value := "attempt-harness-paired-performance-20260727" }
+      "the agent-authored observer was retained, but integrator review added unique run identity, clean local-subject enforcement, equal-session bootstrap weighting, absolute throughput, structured non-kernel scope, and specification changes outside the original lease",
+    .attemptStarted
+      { id := { value := "attempt-harness-paired-performance-integration-20260727" },
+        intent := ew "harness.paired-performance", actor := "codex-primary",
+        base :=
+          { commit := "1feb8c98de7c83f7b4df79bb52c746242aad8d23",
+            tree := "8c5f4bc38fd2eeec954bb1456564cd744a3f6761",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .add, target := "scripts/perf/paired_runtime.py" },
+            { kind := .add, target := "scripts/perf/README.md" },
+            { kind := .add, target := "scripts/dev/test_paired_runtime.py" },
+            { kind := .modify, target := "Tgrad/Spec/RuntimeWork.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" },
+            { kind := .modify, target := "PARITY.md" } ],
+        lease :=
+          { token := "codex-primary-paired-performance-integration",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .candidateProduced
+      { id := { value := "candidate-paired-observer-42838f2" },
+        attempt := { value := "attempt-harness-paired-performance-integration-20260727" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        observedEffects :=
+          [ { kind := .add, target := "scripts/perf/paired_runtime.py" },
+            { kind := .add, target := "scripts/perf/README.md" },
+            { kind := .add, target := "scripts/dev/test_paired_runtime.py" },
+            { kind := .modify, target := "Tgrad/Spec/RuntimeWork.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" },
+            { kind := .modify, target := "PARITY.md" } ],
+        summary := "live same-process paired observer with pre-timing byte correctness, clean exact subjects, unique run identity, balanced ordering, raw evidence, equal-session uncertainty, absolute throughput, and no verdict or kernel-speed eligibility" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-build-42838f2" },
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "clean exact 42838f2 tree: lake build tgrad-spec; run report and require 28 well-formed runtime capabilities with verify.performance still bypassed",
+        artifactDigest := "sha256:45a0201683b5fdc6f679e87ef3757d63ef1d37064f136fbb5793765b4aab3448" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-semantic-42838f2" },
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        validator := rw "verify.paired-performance-observer", obligation := .semantic,
+        outcome := .passed,
+        command := "run nine CPU-only fake tests: exact raw count, balanced ordering, deterministic fixed identities, correctness-before-output, retained timed errors, unique run identity, and equal session weighting",
+        artifactDigest := "sha256:bc2660ba7202c25f851176154f7c6276e76c214565bdb93c99ae2669d04b4fc5" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-live-42838f2" },
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        validator := rw "verify.paired-performance-observer", obligation := .performance,
+        outcome := .passed,
+        command := "serial unsandboxed 64x64x64 smoke: one logical session, one warmup pair, two measured pairs; complete with BA/AB order and no errors; no performance conclusion",
+        artifactDigest := "sha256:29982c0e1ecaee6de7ad7190d2e56ef5a07dae1abedb97a84f91e2b885400569" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-provenance-42838f2" },
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        validator := rw "verify.paired-performance-observer", obligation := .provenance,
+        outcome := .passed,
+        command := "live summary records clean Tgrad 42838f2/525af6c, pinned tinygrad 19c4d736/855cca3, unique run instance/time, exact equal 8192-byte output hashes, toolchain, boundaries, and diagnostic overrides",
+        artifactDigest := "sha256:ab02139ea3e04ead3e59003c2b8421f33c3c64675c6de97cf8da3ac9eefde512" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-isolation-42838f2" },
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        validator := rw "verify.paired-performance-observer", obligation := .resourceIsolation,
+        outcome := .passed,
+        command := "inspect implementation and raw smoke: one pre-import execve at most, no per-sample subprocess, one long-lived process, synchronized calls, balanced AB/BA, serial GPU lane, and kernel_speed_claim_eligible=false",
+        artifactDigest := "sha256:113469f0376ff38dec6900323bba4b2d4e3fb286c4039eeffb4d7e00fbeed19a" },
+    .promoted
+      { growthCase := "G-symmetric-performance",
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        checkRuns :=
+          [ { value := "check-paired-observer-build-42838f2" },
+            { value := "check-paired-observer-semantic-42838f2" },
+            { value := "check-paired-observer-live-42838f2" },
+            { value := "check-paired-observer-provenance-42838f2" },
+            { value := "check-paired-observer-isolation-42838f2" } ],
+        requiredObligations :=
+          [.build, .semantic, .performance, .provenance, .resourceIsolation],
+        acceptedBy := ["harsh", "codex-primary"],
+        target :=
+          { commit := "42838f220e54a39d10a5925a6c3e1bb23e056706",
+            tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+            dirty := false },
+        residualRisks :=
+          [ "the available operational boundary includes different host-side work and is not a kernel comparison",
+            "one two-pair smoke establishes adapter execution, not repeatability or performance",
+            "logical sessions share process-global caches and independent complete runs remain required",
+            "verify.performance remains bypassed and F-performance-methodology remains open",
             "the candidate commit predates this promotion record" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
@@ -1892,9 +1994,9 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 1 && state.candidates.length == 14 &&
-      state.checks.length == 55 && state.promotions.length == 10 &&
-      state.abandoned.length == 6
+      state.activeAttempts.length == 0 && state.candidates.length == 15 &&
+      state.checks.length == 60 && state.promotions.length == 11 &&
+      state.abandoned.length == 7
   | .error _ => false
 
 def liveActiveIntentIds : List Growth.EvolutionWorkId :=
@@ -2033,8 +2135,8 @@ theorem routing_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_authoring_frontier_is_fully_claimed :
-    frontierIds = [] := by
+theorem current_authoring_frontier_is_performance_rebaseline :
+    frontierIds = [ew "perf.rebaseline"] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :
@@ -2170,6 +2272,16 @@ theorem run_isolation_is_promoted_and_released :
       completedIds.contains (ew "harness.namespace-temporaries") &&
       !(liveActiveIntentIds.contains (ew "harness.namespace-temporaries")) &&
       !(exclusiveForVerification .tmpNamespace)) = true := by
+  native_decide
+
+theorem paired_observer_is_promoted_without_promoting_performance :
+    (livePromotedIntentIds.contains (ew "harness.paired-performance") &&
+      completedIds.contains (ew "harness.paired-performance") &&
+      !(liveActiveIntentIds.contains (ew "harness.paired-performance")) &&
+      (Runtime.workUnitFor? (rw "verify.paired-performance-observer")).map
+        (fun unit => unit.isState .bounded) = some true &&
+      (Runtime.workUnitFor? (rw "verify.performance")).map
+        (fun unit => unit.isState .bypassed) = some true) := by
   native_decide
 
 theorem generated_sentinels_case_matches_runtime_and_finding_state :

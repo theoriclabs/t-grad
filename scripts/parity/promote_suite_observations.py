@@ -119,7 +119,7 @@ def copy_artifacts(source_document: Path, document: dict,
             if target.exists() and target.read_bytes() != raw:
                 raise RuntimeError(f"refusing to overwrite different artifact: {target}")
             if not target.exists():
-                shutil.copyfile(source, target)
+                target.write_bytes(raw)
 
 
 def promote(source: Path, raw: bytes, destination: Path, check: bool) -> Path:

@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from scripts.parity import run_upstream_suite as observer
+from scripts.parity import promote_suite_observations as promotion
 
 
 def report_events() -> list[dict]:
@@ -284,6 +285,27 @@ class BaselineTests(unittest.TestCase):
                 observer.validate_upstream_baseline(
                     self.write(baseline, root), tgrad_identity_for(baseline),
                     observer.REPO,
+                )
+
+    def test_promotion_copies_and_checks_the_bound_artifact_closure(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = root / "source"
+            source.mkdir()
+            baseline = valid_baseline(source)
+            baseline_path = self.write(baseline, source)
+            destination = root / "destination"
+
+            promotion.copy_artifacts(
+                baseline_path, baseline, destination, check=False
+            )
+            promotion.copy_artifacts(
+                baseline_path, baseline, destination, check=True
+            )
+            for ref in promotion.artifact_refs(baseline):
+                self.assertEqual(
+                    observer.read_bound_artifact(baseline_path, ref),
+                    (destination / ref["path"]).read_bytes(),
                 )
 
     def test_authored_green_cell_is_rejected_by_event_replay(self) -> None:

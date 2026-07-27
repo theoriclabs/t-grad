@@ -327,26 +327,35 @@ private def natListTag (xs : List Nat) : String :=
 The source index is supplied by rangeify. `ushort` is intentional: loading and
 storing `bfloat` could canonicalize NaNs or otherwise alter payload bits, while
 readback promises the exact underlying bf16 representation. -/
-def materializeViewKernelDecl
-    (view : Schedule.View) (sourceIdx : UOp) : Renderer.Metal.KernelDecl :=
+def materializeViewKernelDeclForDtype
+    (view : Schedule.View) (sourceIdx : UOp) (dtype : Dtype) :
+    Renderer.Metal.KernelDecl :=
   let linear : UOp := .var "gid" .int32_
   let logicalStrides := Schedule.View.stridesOf view.shape
   let coordDecls := ((logicalStrides.zip view.shape).zipIdx).map (fun pair =>
     let ((rowMajorStride, dim), axis) := pair
     .declIntIdx s!"idx{axis}" (logicalCoord linear rowMajorStride dim))
-  let tag := s!"s_{natListTag view.shape}_t_{natListTag view.strides}_o_{view.offset}"
+  let storageType := if dtype == .float32_ then "uint" else "ushort"
+  let widthTag := if dtype == .float32_ then "u32" else "u16"
+  let tag := s!"{widthTag}_s_{natListTag view.shape}_t_{natListTag view.strides}_o_{view.offset}"
   { name := s!"materialize_view_{tag}",
     args := [
-      .buffer { qualifier := "device", baseType := "ushort", name := "data0" },
-      .buffer { qualifier := "device const", baseType := "ushort", name := "data1" },
+      .buffer { qualifier := "device", baseType := storageType, name := "data0" },
+      .buffer { qualifier := "device const", baseType := storageType, name := "data1" },
       .attr   { baseType := "uint", name := "gid",
                 attrStr := "[[thread_position_in_grid]]" },
     ],
     body := coordDecls ++ [
-      .loadIndexed "ushort value" "data1" sourceIdx,
+      .loadIndexed s!"{storageType} value" "data1" sourceIdx,
       .assign s!"*(data0+{linear.renderIndexExpr})" "value"
     ],
     trailingNewline := false }
+
+/-- Backward-compatible bf16 declaration used by the ontology and existing
+view tests. The runtime selects the dtype-aware declaration below. -/
+def materializeViewKernelDecl
+    (view : Schedule.View) (sourceIdx : UOp) : Renderer.Metal.KernelDecl :=
+  materializeViewKernelDeclForDtype view sourceIdx .bfloat16_
 
 /-- Largest source element touched by a nonempty strided view. -/
 private def maxSourceIndex (view : Schedule.View) : Nat :=
@@ -363,8 +372,8 @@ abort rather than a typed error. -/
 def materializeView (tensor : Tensor) : IO (Except PipelineError Tensor) := do
   if tensor.isBufferUop then
     return .error (.notInLeanScope "materializeView: expected a movement view, got BUFFER")
-  if tensor.dtype != .bfloat16_ then
-    return .error (.notInLeanScope "materializeView: only bf16 is supported")
+  if tensor.dtype != .bfloat16_ && tensor.dtype != .float32_ then
+    return .error (.notInLeanScope "materializeView: only bf16 and f32 are supported")
   let some view := Schedule.viewOfUOp tensor.uop
     | return .error (.notInLeanScope "materializeView: movement chain is invalid or unsupported")
   let elements := view.numel
@@ -402,7 +411,7 @@ def materializeView (tensor : Tensor) : IO (Except PipelineError Tensor) := do
   if outBytesUSize.toNat != outBytes || elementsUSize.toNat != elements then
     return .error (.notInLeanScope
       "materializeView: native-size conversion would truncate")
-  let decl := materializeViewKernelDecl view sourceIdx
+  let decl := materializeViewKernelDeclForDtype view sourceIdx tensor.dtype
   let msl := Renderer.Metal.renderKernel decl
   if msl.isEmpty then
     return .error (.compileFailed "materializeView: renderKernel produced empty MSL")

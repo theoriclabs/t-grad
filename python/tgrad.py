@@ -544,6 +544,10 @@ class Tensor:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
         return bytes(out)
 
+    def tolist(self):
+        """Return exact logical readback using Python's nested-list shape."""
+        return self.numpy().tolist()
+
     # L14.B.1: view methods — compose movement nodes on the Lean-side
     # uop; return a new Tensor sharing the underlying buffer. Pure
     # graph transforms; no buffer allocation; no kernel dispatch.

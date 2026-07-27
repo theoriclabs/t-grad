@@ -13,8 +13,27 @@ lean_lib Tgrad where
 -- L4 (FFI runtime) links the Metal Obj-C bridge from c/.
 -- The .o files are produced by `c/Makefile` and must exist before
 -- `lake build tgrad-cli`.
-def macosSdkPath : String :=
+-- SDK resolution must match `c/Makefile`'s `SDK_PATH`, which asks
+-- `xcrun`. Hardcoding a path breaks on Command-Line-Tools-only hosts
+-- and on any host whose SDK is versioned (`MacOSX15.5.sdk`), which is
+-- the default — the unversioned `MacOSX.sdk` symlink is not always
+-- present. Order: $TGRAD_MACOS_SDK, then `xcrun`, then the legacy path.
+def macosSdkFallback : String :=
   "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+
+unsafe def macosSdkPathImpl : String :=
+  match unsafeIO (do
+    if let some p ← IO.getEnv "TGRAD_MACOS_SDK" then
+      if !p.trim.isEmpty then return p.trim
+    let out ← IO.Process.output
+      { cmd := "xcrun", args := #["--sdk", "macosx", "--show-sdk-path"] }
+    return if out.exitCode == 0 && !out.stdout.trim.isEmpty
+           then out.stdout.trim else macosSdkFallback) with
+  | .ok p    => p
+  | .error _ => macosSdkFallback
+
+@[implemented_by macosSdkPathImpl]
+def macosSdkPath : String := macosSdkFallback
 
 def metalLinkArgs : Array String := #[
   "c/build/metal_alloc.o",

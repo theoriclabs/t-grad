@@ -1,9 +1,11 @@
 import Tgrad.Tensor
 import Tgrad.Renderer.Metal
+import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Runtime.MetalProgram
 import Tgrad.Codegen.GpuDims
 import Tgrad.Codegen.Opt.Heuristic
+import Tgrad.Schedule.View
 import Tgrad.Schedule.Rangeify
 
 /-! # Tgrad.Pipeline — end-to-end realize composition
@@ -18,7 +20,7 @@ import Tgrad.Schedule.Rangeify
 
       Tensor a, Tensor b  →  Tensor c
               ↓ Renderer.Metal.ShapeSentinel lookup
-              ↓ load captured MSL
+              ↓ Renderer.Metal.renderKernel (no filesystem access)
               ↓ Runtime.MetalProgram.metalCompile
               ↓ Runtime.MetalAllocator.metalAlloc (output buffer)
               ↓ Runtime.MetalProgram.metalDispatch
@@ -87,90 +89,37 @@ def RangeifyTrace.maybeEmit (row : RangeifyTraceRow) : IO Unit := do
 def buildMatmulSink (aUop bUop : UOp) : UOp :=
   .sink (.binop .add aUop bUop .void_)
 
-/-- L14.B.3: derive the LOAD-A index UOp from a Tensor's uop chain.
-    Handles the matmul kernel's per-thread access pattern (gidx0 =
-    output row, Ridx0 = K loop iterator). Returns the index UOp for
-    `data1[idx]` in scalar matmul of effective shape (M, K, N).
+/-- Derive the LOAD-A index UOp from a Tensor's uop chain, for the
+    matmul access pattern (`gidx0` = output row, `Ridx0` = K loop).
 
-    Supported uop chains:
-    - `.buffer _ shape _` (row-major): walks shape; for 2-D input
-      `[M_orig, K_orig]` returns `gidx0 * K_orig + Ridx0`.
-    - `.permute (.buffer _ _ _) [1, 0]` (2-D transpose):
-      `Ridx0 * M_orig + gidx0` where `M_orig` is the buffer's first
-      dim (which equals the matmul's M_effective when transposed).
-    - `.slice (.buffer _ shape _) [{start, stop, step}, _]`
-      (M-axis slice): `gidx0 * step * K_orig + start * K_orig + Ridx0`.
-    - `.reshape (.buffer _ shape _) _` (numel-preserving reshape):
-      row-major `gidx0 * K + Ridx0` using the matmul's effective K
-      (the data is contiguous; reshape is a relabel).
-
-    Other movement ops (EXPAND over A; nested chains; non-2-D) panic
-    — L14.B.3's manifest doesn't exercise them on the A side. -/
+    Delegates to `Schedule.viewOfUOp`, so it handles *any* movement
+    chain the `View` algebra can express — arbitrary permutations,
+    nested chains, and multi-axis slices — rather than the four
+    hand-enumerated shapes this used to match. The old table also had
+    two silent wrong-answer bugs (it dropped every slice axis after
+    the first, and assumed broadcasts sat on axis 1); a strides-based
+    index cannot express either mistake. -/
 partial def viewIndexUOpForA (uop : UOp) (M K : Nat) : UOp :=
-  let rowMajorIdx (k : Nat) : UOp :=
-    .binop .add
-      (.binop .mul (.var "gidx0" .int32_)
-                   (.const .int32_ (.i (Int.ofNat k))) .int32_)
-      (.var "Ridx0" .int32_) .int32_
-  match uop with
-  | .buffer _ _ _ => rowMajorIdx K
-  | .reshape (.buffer _ _ _) _ => rowMajorIdx K
-  | .permute (.buffer _ _ _) [1, 0] =>
-      -- 2-D transpose: Ridx0 * M + gidx0 (M_orig of buffer == M_view of matmul)
-      .binop .add
-        (.binop .mul (.var "Ridx0" .int32_)
-                     (.const .int32_ (.i (Int.ofNat M))) .int32_)
-        (.var "gidx0" .int32_) .int32_
-  | .slice (.buffer _ origShape _) (slc :: _) =>
-      -- M-axis slice with `slc = {start, stop, step}`. Original K
-      -- dim is `origShape[1]`. The view reads
-      --   a_view[gidx0][Ridx0] = original[gidx0*step + start][Ridx0]
-      -- so idx = (gidx0*step + start) * K_orig + Ridx0
-      let kOrig := (origShape[1]?).getD K
-      let stepConst : UOp := .const .int32_ (.i (Int.ofNat slc.step))
-      let startConst : UOp := .const .int32_ (.i (Int.ofNat slc.start))
-      let kOrigConst : UOp := .const .int32_ (.i (Int.ofNat kOrig))
-      .binop .add
-        (.binop .mul
-          (.binop .add
-            (.binop .mul (.var "gidx0" .int32_) stepConst .int32_)
-            startConst .int32_)
-          kOrigConst .int32_)
-        (.var "Ridx0" .int32_) .int32_
-  | _ => panic! "L14.B.3: viewIndexUOpForA: unsupported uop chain"
+  match Schedule.viewOfUOp uop with
+  | some v =>
+      if v.rank == 2 then
+        Schedule.View.indexOf v [.var "gidx0" .int32_, .var "Ridx0" .int32_]
+      else
+        panic! s!"viewIndexUOpForA: expected rank-2 view, got rank {v.rank}"
+  | none => panic! s!"viewIndexUOpForA: uop chain has no View ({M}x{K})"
 
-/-- L14.B.3: derive the LOAD-B index UOp. Supported uop chains:
-    - `.buffer _ _ _` (row-major): `Ridx0 * N + gidx1`.
-    - `.permute (.buffer _ _ _) [1, 0]` (b transposed):
-      `gidx1 * K + Ridx0`.
-    - `.expand (.buffer _ origShape _) _` (broadcast singleton on N):
-      `Ridx0 * 1 + 0 = Ridx0` (when original is shape [K, 1]).
-      For other expand shapes panic; the manifest only exercises
-      the `b.expand(K, N)` from `(K, 1)` case. -/
+/-- Derive the LOAD-B index UOp (`Ridx0` = K loop, `gidx1` = output
+    column). Same `View`-derived treatment as `viewIndexUOpForA`;
+    in particular a broadcast on *either* axis is handled, because the
+    expanded axis simply carries stride 0. -/
 partial def viewIndexUOpForB (uop : UOp) (K N : Nat) : UOp :=
-  let rowMajorIdx (n : Nat) : UOp :=
-    .binop .add
-      (.binop .mul (.var "Ridx0" .int32_)
-                   (.const .int32_ (.i (Int.ofNat n))) .int32_)
-      (.var "gidx1" .int32_) .int32_
-  match uop with
-  | .buffer _ _ _ => rowMajorIdx N
-  | .reshape (.buffer _ _ _) _ => rowMajorIdx N
-  | .permute (.buffer _ _ _) [1, 0] =>
-      -- 2-D transpose: gidx1 * K + Ridx0
-      .binop .add
-        (.binop .mul (.var "gidx1" .int32_)
-                     (.const .int32_ (.i (Int.ofNat K))) .int32_)
-        (.var "Ridx0" .int32_) .int32_
-  | .expand (.buffer _ origShape _) _ =>
-      -- The original buffer has shape [K, 1] (singleton on N-axis).
-      -- Each "expanded" element is just data2[Ridx0 * 1 + 0] = data2[Ridx0].
-      let origN := (origShape[1]?).getD 1
-      .binop .add
-        (.binop .mul (.var "Ridx0" .int32_)
-                     (.const .int32_ (.i (Int.ofNat origN))) .int32_)
-        (.const .int32_ (.i 0)) .int32_
-  | _ => panic! "L14.B.3: viewIndexUOpForB: unsupported uop chain"
+  match Schedule.viewOfUOp uop with
+  | some v =>
+      if v.rank == 2 then
+        Schedule.View.indexOf v [.var "Ridx0" .int32_, .var "gidx1" .int32_]
+      else
+        panic! s!"viewIndexUOpForB: expected rank-2 view, got rank {v.rank}"
+  | none => panic! s!"viewIndexUOpForB: uop chain has no View ({K}x{N})"
 
 /-- Dispatch dims for a shape sentinel. L13.A refactor: delegates to
     `Codegen.Opt.pickDispatchPlan`, the pure heuristic function that
@@ -243,22 +192,27 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- callers (`Pipeline.realizeView` via `tgrad_matmul_view`) can
   -- verify rangeify saw the chain.
   runRangeifyAndTrace a b
-  -- 1. Load captured MSL for the shape.
-  let mslPath := shape.fixturePath
-  let msl ←
-    try
-      IO.FS.readFile (System.FilePath.mk mslPath)
-    catch _ =>
-      return .error (.notInLeanScope s!"no captured MSL at {mslPath}")
+  -- 1. Emit the kernel from the Lean renderer. This path previously
+  -- did `IO.FS.readFile shape.fixturePath`, which meant the captured
+  -- tinygrad MSL — not `renderKernel` — was what actually ran. The
+  -- fixtures are now a differential reference only (L12 diffs the
+  -- rendered bytes against them); nothing reads them at runtime.
+  let msl := Renderer.Metal.renderKernel (Renderer.Metal.matmulKernelDeclFor shape)
+  if msl.isEmpty then
+    return .error (.notInLeanScope s!"renderKernel produced empty MSL for {shape.fixturePath}")
   -- 2. Compile.
   let libPtr ← Runtime.Metal.metalCompile msl
   if libPtr == 0 then
-    return .error (.compileFailed s!"metalCompile returned 0 for {mslPath}")
-  -- 3. Alloc output buffer (same size as inputs at L5.a — square matmul).
-  let outBuf ← Runtime.Metal.metalAlloc (USize.ofNat a.sizeBytes)
+    return .error (.compileFailed s!"metalCompile returned 0 for rendered {shape.fixturePath}")
+  -- 3. Alloc output buffer. Sized from the *output* extent (M×N), not
+  -- from `a.sizeBytes`: the two agree only for the square sentinels,
+  -- and the non-square ones would under-allocate by up to 8x.
+  let (mDim, _kDim, nDim) := shape.toTriple
+  let outBytes := mDim * nDim * a.dtype.sizeBytes
+  let outBuf ← Runtime.Metal.metalAlloc (USize.ofNat outBytes)
   if outBuf == 0 then
     Runtime.Metal.metalLibraryRelease libPtr
-    return .error (.allocFailed s!"metalAlloc {a.sizeBytes} bytes returned 0")
+    return .error (.allocFailed s!"metalAlloc {outBytes} bytes returned 0")
   -- 4. Dispatch. The Metal bridge uses `dispatchThreads:threadsPerThreadgroup:`,
   -- which takes TOTAL threads (not threadgroup count). The captured
   -- `dims.grid` is the threadgroup count (matches tinygrad's capture
@@ -273,7 +227,7 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
     totalX totalY totalZ
     (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y) (USize.ofNat dims.threadgroup.z)
   if rc != 0 then
-    Runtime.Metal.metalFree outBuf (USize.ofNat a.sizeBytes)
+    Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
     Runtime.Metal.metalLibraryRelease libPtr
     return .error (.dispatchFailed rc)
   -- 5. Construct output Tensor wrapping the result buffer.
@@ -281,7 +235,7 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- contiguous-buffer path here, `Tensor.ofBuffer` wraps the raw
   -- buffer in a `.buffer` UOp + records shape + dtype.
   Runtime.Metal.metalLibraryRelease libPtr
-  pure (.ok (Tensor.ofBuffer { raw := outBuf, size := a.sizeBytes } a.shape a.dtype))
+  pure (.ok (Tensor.ofBuffer { raw := outBuf, size := outBytes } [mDim, nDim] a.dtype))
 
 /-- L14.B.2.c: view-aware matmul. When either input has a non-BUFFER
     uop (e.g. `.permute` from `a.transpose()`), the captured matmul

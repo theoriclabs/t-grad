@@ -658,10 +658,15 @@ private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
     IO (Option Tgrad.Tensor) := do
   let aShape := a.shape
   let bShape := b.shape
-  if aShape != bShape then return none
-  if aShape.length != 2 then return none
-  match aShape[0]?, aShape[1]?,
-        Tgrad.Schedule.viewOfUOp a.uop, Tgrad.Schedule.viewOfUOp b.uop with
+  if aShape.length != 2 || bShape.length != 2 then return none
+  -- Broadcast to a common extent. `View.expand` gives the smaller
+  -- operand stride 0 on the stretched axis, so the kernel is unchanged
+  -- and a broadcast operand costs no extra code — the same reason views
+  -- are free here.
+  let outShape := Tgrad.broadcast aShape bShape
+  match outShape[0]?, outShape[1]?,
+        (Tgrad.Schedule.viewOfUOp a.uop).bind (fun v => v.expand outShape),
+        (Tgrad.Schedule.viewOfUOp b.uop).bind (fun v => v.expand outShape) with
   | some rows, some cols, some va, some vb => do
     let vars : List UOp := [.var "gidx0" .int32_, .var "gidx1" .int32_]
     let aIdx := Tgrad.Schedule.View.indexOf va vars

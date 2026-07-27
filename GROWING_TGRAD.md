@@ -151,9 +151,9 @@ routes that share some stages:
 
 Rangeification is real, the Lean renderer is load-bearing, and `fd945b1` makes
 generated tensor-core declarations/names/geometry authoritative for every
-sentinel. The 11 transcribed declarations still exist for old CLI/gate layers,
-so deletion remains separate work; their existence no longer determines the
-production result.
+sentinel. The per-shape declarations and parser have now been deleted. Captured
+MSL survives only as an independent executable oracle: L12 requires all 11
+generated sources to differ and all 11 output buffers to agree bit-for-bit.
 
 The runtime inventory records, for each unit:
 
@@ -197,9 +197,9 @@ codebase:
 The codegen and provenance work added three rules for verification work:
 
 1. **Strengthen before removing.** L12 gained semantic C3 while its old
-   byte-equality Layer C was still green. Deletion may later retire the
-   transcription-specific layer, but no migration pressure creates a moment
-   where the predicate must be weakened just to proceed.
+   byte-equality Layer C was still green. The later deletion retired only the
+   transcription-specific layer; no migration pressure created a moment where
+   the predicate had to be weakened just to proceed.
 2. **Complementary checks are separate obligations.** `Nodup` proves store
    offsets do not collide. It does not prove they are correct: `c -> c+2` and
    `24*K+1 -> 24*K+2` both left the build green while execution diverged for
@@ -212,6 +212,12 @@ The codegen and provenance work added three rules for verification work:
    Enforcement becomes honest only after regeneration produces a passing
    subject; making a known-red auditor fatal earlier would add friction, not
    integrity.
+4. **Semantic and performance gates must not hold each other hostage.** The
+   first generated-path pilot remained 50/50 correct while missing the old
+   frozen-baseline ratio on 27 rows. That ratio is not admissible performance
+   evidence, but it demonstrates the architectural boundary: L12 certifies
+   generated semantics; the separately scheduled `perf.rebaseline` certifies
+   performance under symmetric measurement.
 
 ## 5. Capability, execution, observation, and evidence are different
 
@@ -420,8 +426,10 @@ attempts, making invalidated work visible instead of erasing it.
 The view lease was released, then `codegen.route-sentinels` landed as
 `fd945b1`. Its exact tree `8475550…` passed build, eligibility/safety,
 64/96/128 production-route numerical checks, and the 11-sentinel semantic
-differential. The route lease is released; `codegen.delete-transcription` is
-now the sole computed safe authoring frontier.
+differential. The route lease is released. The subsequent deletion removed the
+per-shape declaration table and parser, migrated semantic gates, and leaves
+`perf.rebaseline` as the next computed safe authoring frontier once its exact
+tree promotion is recorded.
 
 The frontier is recomputed from dependencies, current progress, active
 writers, live attempt events, and declared effect sets. It is not a standing
@@ -614,9 +622,8 @@ when ordinary development commands emit its events. The next increments are:
    threading, diagnostics, gate integrity, and API safety need normalized
    findings and growth cases.
 10. **Close the codegen loop honestly.** Keep the landed differential oracle,
-    widened generator, typed-store theorem, and additive semantic gate
-    load-bearing; route sentinels, delete transcription, then measure the
-    resulting performance serially.
+    widened generator, typed-store theorem, and semantic gate load-bearing;
+    with routing and deletion complete, measure generated performance serially.
 
 ## 16. The criterion for a growing codebase
 

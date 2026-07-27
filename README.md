@@ -30,7 +30,9 @@ Read the background post: [We Rewrote tinygrad in Lean](https://theoric.com/blog
 - An execution differential for all 11 captured/generated sentinel kernels;
   sources intentionally differ and 240 MB of outputs match bit-for-bit.
 - Production sentinel dispatch now uses those parametric generated kernels;
-  captured/transcribed declarations remain reference-only until deletion.
+  the per-shape Lean transcription and its parser have been deleted.
+- Captured MSL remains only as an independent executable oracle used by the
+  semantic differential; it is neither imported nor read by product runtime.
 - A separate checked specification for runtime capabilities, findings,
   growth cases, resource constraints, and repository evolution.
 - Historical gate artifacts retained for audit; their performance and
@@ -184,9 +186,9 @@ L7/L11/L12/L13_F ratios are not a valid kernel/runtime comparison:
 - the smallest reported sweep ratios are impossible for byte-identical
   kernels dispatched with identical geometry.
 
-The next admissible experiment will route sentinels through the parametric
-generator, measure both runtimes in one session with symmetric boundaries,
-retain raw distributions and provenance, and report an honest regression if
+Sentinels now route through the parametric generator. The next admissible
+experiment measures both runtimes in one session with symmetric boundaries,
+retains raw distributions and provenance, and reports an honest regression if
 that is the result. Timings remain serial because this machine has one GPU.
 
 ## Regenerating Baselines
@@ -230,8 +232,8 @@ In scope:
 - Apple Silicon Metal backend.
 - Contiguous 2-D matmul.
 - Parametric TC matmul declarations are authoritative for all 11 sentinels and
-  aligned general shapes. Captured MSL and its temporary Lean transcription
-  are semantic references, not production dispatch inputs.
+  aligned general shapes. Captured MSL is an independent differential oracle,
+  not a product build or dispatch input.
 - TC-general manual-load WMMA kernels.
 - Scalar fallback paths for supported smaller or non-TC shapes.
 - View-composed matmul cases covered by transpose, reshape, permute, expand,

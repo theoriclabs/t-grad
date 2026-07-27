@@ -75,8 +75,7 @@ _lib.tgrad_matmul.argtypes = [
 _lib.tgrad_matmul.restype  = ctypes.c_int32
 
 # L12: alternate generated-emitter cache. Same generated declaration as
-# tgrad_matmul; the distinct symbol preserves legacy gate observability until
-# the transcription-specific layer is deleted.
+# tgrad_matmul; the distinct symbol preserves alternate-route observability.
 _lib.tgrad_matmul_alg.argtypes = [
     ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
@@ -176,8 +175,8 @@ _DTYPE_CODES = {"bf16": _DTYPE_BF16, "f32": _DTYPE_F32,
 def _dtype_code(name: str) -> int:
     return _DTYPE_CODES.get(name, _DTYPE_BF16)
 
-# Legacy L12 cache toggle. Both entries now execute the generated declaration;
-# the alternate symbol remains until the transcription-specific gate is retired.
+# Legacy L12 cache toggle. Both entries execute the generated declaration;
+# the alternate symbol remains as an observable cache-isolation probe.
 _USE_ALGEBRAIC: bool = False
 _USE_MANUAL_LOAD_TC: bool = False
 
@@ -592,8 +591,8 @@ class Tensor:
         K = K_a
         if (M, K, N) in _TRIPLE_SET:
             # L11/L12 sentinel path. Both entry points render the parametric
-            # TC declaration; the alternate symbol keeps legacy gate/cache
-            # observability until transcription deletion.
+            # TC declaration; the alternate symbol keeps cache-route
+            # observability for L12's generated sweep.
             entry = _lib.tgrad_matmul_alg if _USE_ALGEBRAIC else _lib.tgrad_matmul
             entry_name = "tgrad_matmul_alg" if _USE_ALGEBRAIC else "tgrad_matmul"
         elif _lib.tgrad_matmul_tc_eligible(M, K, N) == 1:
@@ -770,8 +769,8 @@ def main(argv: list[str]) -> int:
     bf.add_argument("--measured", type=int, default=30)
     bf.add_argument("--use-algebraic-emit", dest="use_algebraic",
                     action="store_true",
-                    help="route matmul through the L12 algebraic-emit FFI entry "
-                         "(tgrad_matmul_alg) instead of the L11 capture path")
+                    help="route generated matmul through L12's independent "
+                         "alternate cache entry (tgrad_matmul_alg)")
     args = p.parse_args(argv)
     if args.cmd == "bench":
         try:
@@ -971,7 +970,7 @@ def main(argv: list[str]) -> int:
         baseline_path = (args.baseline if args.baseline is not None else
                          str(REPO_ROOT / "fixtures" / "perf"
                              / f"tinygrad_baseline_{PERF_PROFILE}_full.json"))
-        # L12: switch matmul routing to the algebraic-emit FFI entry.
+        # L12: switch generated matmul routing to the alternate FFI cache.
         # Set BEFORE invoking run_bench_full so warm-up + timing both
         # exercise the algebraic path.
         if args.use_algebraic:

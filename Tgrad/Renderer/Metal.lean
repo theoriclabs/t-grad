@@ -156,15 +156,13 @@ inductive KernelArg
         be a typed Stmt, not a string literal;
       * a nested for-loop whose body is itself a `List Stmt`.
 
-    All expression strings carried by the constructors are emitted
-    verbatim — the per-shape transpiler (scripts/dev/lower_matmul.py)
-    captures them from the source MSL. -/
+    Legacy expression-string constructors remain for small fixed grammar
+    fragments, but generated matmul addresses use typed `UOp` index trees. -/
 inductive Stmt where
   | assign       (lhs rhs : String)
   | declInt      (name expr : String) (comment : Option String := none)
   /-- `int {name} = {idx};` with the right-hand side carried as a typed
-      index tree rather than a string. The typed sibling of `declInt`,
-      which stays for `MatmulDecls`' generated output. -/
+      index tree rather than a string. -/
   | declIntIdx   (name : String) (idx : UOp) (comment : Option String := none)
   | declBfloat   (name expr : String)
   | declBfloat2  (name expr : String)

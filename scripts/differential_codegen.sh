@@ -4,8 +4,8 @@
 #
 # This is the successor to L12's source-byte-equality predicate. That
 # predicate asserts `renderKernel` output == the captured `.msl` bytes,
-# but `Tgrad/Renderer/MatmulDecls.lean` is a transcription OF those
-# captures, so it is a round trip: it proves a transpiler and a
+# but the former per-shape declaration table was a transcription OF
+# those captures, so it was a round trip: it proved a transpiler and a
 # renderer are mutual inverses. It says nothing about whether a
 # *generated* kernel computes the right thing, and it necessarily dies
 # the moment kernels stop being transcribed.

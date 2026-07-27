@@ -3,7 +3,6 @@ import Tgrad.Runtime.MetalProgram
 import Tgrad.Runtime.Cache
 import Tgrad.Pipeline
 import Tgrad.Tensor
-import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Codegen.Opt.Heuristic
@@ -161,8 +160,8 @@ def matmulGeneral (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
 -- ----------------------------------------------------------------------
 
 /-- Algebraic-path compiled-library cache. Separate from `libCache` so
-    the two paths never alias: even though the MSL bytes are identical,
-    keeping the caches separate makes the chosen path observable. -/
+    the legacy benchmark toggle remains observable while both entries
+    exercise the same generated declaration and launch geometry. -/
 initialize libCacheAlg : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
 private def compileOrCacheGetAlg (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : IO UInt64 := do
@@ -242,8 +241,8 @@ private def compileOrCacheGetSmall (M K N : Nat) : IO UInt64 := do
                 shape (TC-aligned-non-pow2, pow2-non-benchmark,
                 asym-tall, asym-wide, large-mixed)
     Returns 0 on success;
-       -1 : (M, K, N) is TC-eligible (caller should use tgrad_matmul
-            or tgrad_matmul_alg instead)
+       -1 : (M, K, N) is TC-eligible (caller should use a generated
+            tensor-core entry instead)
        -2 : compile failed
        other : dispatch rc -/
 @[export tgrad_matmul_small_lean]

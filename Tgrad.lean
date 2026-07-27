@@ -34,7 +34,6 @@ import Tgrad.Renderer.CStyle
 import Tgrad.Renderer.CodeForOp
 import Tgrad.Renderer.WmmaArgs
 import Tgrad.Renderer.Metal
-import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 

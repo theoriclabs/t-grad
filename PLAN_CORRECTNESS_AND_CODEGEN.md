@@ -21,8 +21,10 @@ Current state:
   execution across 240 MB of output.
 - **Generated production routing landed in `fd945b1`.** All 11 sentinels now
   use the parametric WMMA generator with generated nonzero launch geometry.
-  Semantic C3 is load-bearing; only transcription deletion and retirement of
-  the old byte-equality layer remain in the real-codegen migration.
+- **The transcription deletion migration is complete in the current tree.**
+  `MatmulDecls.lean` and `lower_matmul.py` are gone; L12 now requires source
+  inequality plus 11/11 bit-identical execution, while the independent Nodup
+  theorem remains a separate obligation.
 
 Companion documents: `PLAN_TINYGRAD_COMPAT.md` (the longer arc),
 `Tgrad/Ontology.lean` (stable product vocabulary), and `Tgrad/Spec/*`
@@ -156,15 +158,15 @@ codegen.typed-stores -----------+-> codegen.route-sentinels
 codegen.differential-harness ---/
 codegen.differential-harness -> gates.semantic-codegen [landed aa67497]
 codegen.route-sentinels + gates.semantic-codegen
-                                   -> codegen.delete-transcription
-                                   -> perf.rebaseline
+                                   -> codegen.delete-transcription [complete]
+                                   -> perf.rebaseline [next]
                                    -> evidence.regenerate
                                    -> evidence.enforce-provenance
 ```
 
-`codegen.delete-transcription` is now proved ready: generated production
-routing passed the differential, and semantic Layer C3 was already added while
-the transcription-specific Layer C remained green.
+`codegen.delete-transcription` was proved ready by generated production
+routing and the additive semantic differential, then completed by deleting the
+two artifacts and retiring only the transcription-specific layer.
 
 ## 4. Parallel schedule
 
@@ -178,13 +180,12 @@ landed      [codegen.route-sentinels] fd945b1; generated production route
 
 integrate   one shared-build/test run at a time
 
-next        deletion (retire old byte-equality Layer C; retain C3)
-
-last        performance rebaseline -> evidence regeneration -> fatal audit
+next        performance rebaseline -> evidence regeneration -> fatal audit
             (exclusive GPU, clean tree, serial)
 ```
 
-The safe authoring frontier is currently exactly `codegen.delete-transcription`.
+After the deletion promotion is recorded, the safe authoring frontier is
+`perf.rebaseline`.
 That does not authorize more worktrees blindly:
 `LiveConditions.sourceTree` is tentative and must be re-probed against free
 disk and current writers. Nor does it authorize parallel verification: route
@@ -254,11 +255,12 @@ The review compared generated and captured kernels by substituting every
 `alu` definition and evaluating each load/store as a concrete address,
 resolving WMMA calls to operand-address tuples so variable renaming did not
 matter: 384 index points per shape, 10 shapes, zero observed divergences.
-That design input is now superseded by committed evidence. `a6d5958` executes
+That design input is now superseded by executable evidence. `a6d5958` executes
 both routes and compares 240 MB over all 11 sentinels bit-for-bit;
 `aa67497` makes it a mandatory additive L12 C3 layer while the old green
-byte-equality layer remains. The latter is retired only with transcription
-deletion, so verification was strengthened before migration pressure arrived.
+byte-equality layer still existed. The current deletion migration retired the
+old layer and made the differential primary, so verification was strengthened
+before migration pressure arrived.
 
 Divergences found are all non-semantic: store emission order (all 32
 addresses distinct, no aliasing), kernel and buffer names, and two
@@ -283,6 +285,15 @@ performance state is **unknown**, including for `8192³`. The first admissible
 number is the serial, same-session, dispatch-boundary-matched run represented
 by `perf.rebaseline`; a regression is an acceptable result and must be
 reported rather than hidden behind the old fixture.
+
+The deletion migration produced one useful but deliberately unpromoted
+diagnostic: the generated alternate-cache path was correct on 50/50 rows, but
+only 23/50 rows met the old frozen-baseline `ratio <= 1.5` predicate
+(`ratio_median = 1.6302`, `ratio_max = 4.4785`, one measured sample). This is
+not the promised honest benchmark—the boundary and baseline are still wrong—
+but it proves the old performance predicate cannot remain entangled with the
+semantic gate. L12 now promotes correctness only; `perf.rebaseline` owns the
+performance question.
 
 ### `.numpy()` materialization: validated candidate, with bounded debt
 
@@ -318,10 +329,10 @@ temporary, and the append-only registry/cache policy needs its own work item.
   `tileStoreOffsets_nodup` is a checked non-aliasing obligation. Deleting the
   transcription therefore no longer weakens the typed-addressing predicate.
 
-### L12's successor predicate
+### L12's current predicate
 
-Byte-equality dies with the transcription. Its successor is already additive
-Layer C3: **differential result equivalence**. In one process it compiles both
+Byte-equality died with the transcription. Its successor is
+**differential result equivalence**. In one process it compiles both
 the captured MSL and the generated kernel, dispatches both over one pair of
 random bf16 inputs, and asserts the output buffers are bit-identical.
 That is strictly stronger than comparing source bytes, and stronger

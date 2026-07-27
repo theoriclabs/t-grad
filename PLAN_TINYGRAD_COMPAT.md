@@ -4,9 +4,17 @@ Status: proposal. Written 2026-07-24, after a full review of the
 current release. Read `Tgrad/Ontology.lean` first — it states the
 sorts, the maps between them, and the gaps this plan closes.
 
+Implementation update (2026-07-26): the review baseline below is historical.
+The renderer is now load-bearing, rangeification drives indexed view
+materialization, all 11 sentinels route through the parametric TC generator,
+and the per-shape transcription/parser have been deleted. Captured MSL is used
+only by an 11/11 source-different, bit-identical execution differential. The
+remaining Phase 2 work is to connect the general rewrite/schedule IR to all
+lowering routes rather than broadening a matmul-specialized generator.
+
 ## 0. What we are starting from
 
-Not what the README says. The measured starting position:
+The measured starting position at review time was:
 
 - **One real, working piece**: a tinygrad-shaped rewrite engine
   (`UOp` with typed payloads, `UPat`, `matchPat`,
@@ -17,12 +25,12 @@ Not what the README says. The measured starting position:
   `scalarMatmulKernelDecl` emit WMMA and scalar matmul parametrically
   in `(M,K,N)`. This is the honest codegen result and the foundation
   to build on.
-- **Everything else on the benchmarked path is capture-and-replay.**
+- **Everything else on the benchmarked path was capture-and-replay.**
   All 11 sentinel shapes are served by `IO.FS.readFile` of
   tinygrad's own captured `.msl`. `MatmulDecls.lean` is a 1549-line
   regex transcription of those same files, with tinygrad's ALU
   expressions carried as opaque `String`s.
-- **The scheduler is `fun u => u`.**
+- **The scheduler was `fun u => u`.**
 - **The evidence system does not certify this tree** (details in §1).
 
 The honest one-line summary: Tgrad is a working *runtime* for
@@ -113,11 +121,12 @@ Wire the rewrite engine that already exists into the runtime path.
 - Renderer consumes a **typed expression tree**, not `String`
   payloads. Delete `MatmulDecls.lean` and the `.msl` replay path.
 
-**Exit**: the 11 sentinel shapes are generated, not replayed, and
+**First exit milestone (complete)**: the 11 sentinel shapes are generated, not replayed, and
 `fixtures/codegen/*.msl` are used only as differential *reference*,
-never read at runtime. Expect a real performance regression here —
-that is the point, and it is the first honest number the project
-will have produced.
+never read at runtime. The remaining exit milestone is a general scheduled
+lowering path. Expect a real performance regression when measured across the
+symmetric boundary — that is the point, and it will be the first admissible
+performance number the project has produced.
 
 ### Phase 3 — ops and dtypes (~6 weeks)
 

@@ -1,6 +1,5 @@
 import Tgrad.Tensor
 import Tgrad.Renderer.Metal
-import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Runtime.MetalProgram
@@ -207,9 +206,10 @@ theorem generatedDispatchDimsFor_nonzero :
 /-- L14.B.2.c: shared rangeify+trace hook. Called by both
     `Pipeline.realize` (matmul-verify path) and `Pipeline.realizeView`
     (Python view matmul via `tgrad_matmul_view_lean`). Builds a SINK
-    from the input uops, runs `Schedule_Rangeify_rangeify` (no-op
-    pass-through at L14.B.2.c scope — L14.B.3 lifts the real rule
-    set), and emits a JSONL trace row if `TGRAD_RANGEIFY_TRACE=1`. -/
+    from the input uops, runs `Schedule.Rangeify.rangeify`, and emits a
+    JSONL trace row if `TGRAD_RANGEIFY_TRACE=1`. The same normalization
+    drives view materialization, so this is execution state rather than
+    trace-only evidence. -/
 def runRangeifyAndTrace (a b : Tensor) : IO Unit := do
   let matmulSink := buildMatmulSink a.uop b.uop
   let rangeified := Schedule.Rangeify.rangeify matmulSink
@@ -225,28 +225,27 @@ def runRangeifyAndTrace (a b : Tensor) : IO Unit := do
 
     Takes pre-allocated input Tensors `a`, `b` (caller responsible
     for filling). Allocates the output buffer, compiles the captured
-    MSL for the shape, dispatches the kernel, returns the output
+    parametric MSL for the shape, dispatches the kernel, returns the output
     Tensor.
 
     L14.B.2.c: this function now invokes `runRangeifyAndTrace` at the
     top, which calls `Schedule_Rangeify_rangeify` on a SINK built from
     `a.uop` and `b.uop` and emits the JSONL trace row. For BUFFER-only
-    inputs this is a structural no-op (L11/L13/L13_F bit-identical).
+    inputs normalization preserves the same logical accesses.
 
     Errors surface as `Except PipelineError`. -/
 def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
     IO (Except PipelineError Tensor) := do
   -- L14.B.2.c: rangeify + trace before the existing dispatch path.
-  -- For BUFFER-only inputs this is a structural no-op (rangeify is
-  -- identity); the trace records movement-node counts so view-input
-  -- callers (`Pipeline.realizeView` via `tgrad_matmul_view`) can
-  -- verify rangeify saw the chain.
+  -- The trace records movement-node counts so view-input callers
+  -- (`Pipeline.realizeView` via `tgrad_matmul_view`) can verify that
+  -- the same normalization used by materialization saw the chain.
   runRangeifyAndTrace a b
   -- 1. Generate and emit the kernel from shape parameters. This path previously
   -- did `IO.FS.readFile shape.fixturePath`, which meant the captured
   -- tinygrad MSL — not `renderKernel` — was what actually ran. The
-  -- fixtures are now a differential reference only (L12 diffs the
-  -- rendered bytes against them); nothing reads them at runtime.
+  -- fixtures are now a differential execution oracle only; nothing
+  -- reads them on the product runtime path.
   let kernelDecl ← match generatedKernelDeclFor shape with
     | .error e =>
         return .error (.notInLeanScope s!"generated sentinel rejected: {repr e}")

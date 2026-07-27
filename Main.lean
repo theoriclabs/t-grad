@@ -383,8 +383,8 @@ def applyOptTc (shape : String) : IO UInt32 := do
       pure 0
 
 /-- Map a matmul kernel name (`matmul_<S>`) to a ShapeSentinel.
-    L12 expands the L8.a `render-metal-algebraic` surface to dispatch
-    the 10 captured matmul shapes through `matmulKernelDeclFor`. -/
+    L12's `render-metal-algebraic` surface renders the same parametric
+    declaration used by production for each captured reference shape. -/
 def matmulSentinelFromName (kernel : String) : Option Renderer.Metal.ShapeSentinel :=
   match kernel with
   | "matmul_64x64"             => some .bf16_64x64
@@ -412,12 +412,11 @@ def manualTcTripleFromName (kernel : String) : Option (Nat × Nat × Nat) :=
   | "matmul_tc_manual_3072x2048x1024" => some (3072, 2048, 1024)
   | _                                 => none
 
-/-- `tgrad render-metal-algebraic <kernel>` — algebraic emit.
-    Walks a `KernelDecl` (built in Lean) and prints the rendered MSL.
-    L8.a covered `copy_kernel`; L12 adds the 10 captured matmul
-    shapes via `matmulKernelDeclFor`. The output is byte-equal to the
-    captured `fixtures/codegen/<kernel>.msl` — L12.sh's Layer C
-    is the verifier. -/
+/-- `tgrad render-metal-algebraic <kernel>` — parametric emit.
+    Walks a `KernelDecl` built in Lean and prints the rendered MSL.
+    For sentinel matmuls this is exactly the production declaration;
+    L12 verifies its behavior against the source-different captured
+    tinygrad kernel rather than requiring textual identity. -/
 def renderMetalAlgebraic (kernel : String) : IO UInt32 := do
   match kernel with
   | "copy_kernel" =>
@@ -442,8 +441,13 @@ def renderMetalAlgebraic (kernel : String) : IO UInt32 := do
       | none =>
           match matmulSentinelFromName k with
           | some sentinel =>
-              IO.print (Renderer.Metal.renderKernel (Renderer.Metal.matmulKernelDeclFor sentinel))
-              pure 0
+              match Pipeline.generatedKernelDeclFor sentinel with
+              | .ok kd =>
+                  IO.print (Renderer.Metal.renderKernel kd)
+                  pure 0
+              | .error e =>
+                  IO.eprintln s!"[render-metal-algebraic] generated sentinel error: {repr e}"
+                  pure 1
           | none =>
               IO.eprintln s!"[render-metal-algebraic] unknown kernel: {kernel}"
               IO.eprintln "  L8.a scope: copy_kernel; L12 scope: matmul_<S> (10 shapes); L13.F.STRICT.B scope: matmul_tc_manual_<M>x<K>x<N>"
@@ -684,12 +688,10 @@ def matmul (args : List String) : IO UInt32 := do
 -- ----------------------------------------------------------------------
 -- matmul-differential — behavioural equivalence between two kernels.
 --
--- L12's predicate is byte-equality between `renderKernel`'s output and
--- the captured `.msl`. But `MatmulDecls.lean` is a transcription OF
--- those captures, so that check is a round trip: it proves a
--- transpiler and a renderer are mutual inverses, not that anything is
--- generated correctly. The moment kernels are genuinely computed the
--- bytes legitimately differ and the predicate has to be retired.
+-- L12 formerly used byte-equality between a transcription and the
+-- captured `.msl`, a round trip that proved only that a transpiler and
+-- renderer were mutual inverses. The semantic differential below is
+-- now authoritative: generated source must differ while behavior agrees.
 --
 -- This is its successor. It runs both kernels on identical seeded
 -- inputs and compares the OUTPUT BUFFERS bit-for-bit, which is

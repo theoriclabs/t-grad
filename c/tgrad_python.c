@@ -183,10 +183,10 @@ int32_t tgrad_matmul(size_t M, size_t K, size_t N,
     return v;
 }
 
-/* L12 — algebraic-emit entry. Lean-side `tgrad_matmul_alg_lean`
- * compiles the kernel from `matmulKernelDeclFor` (pure function on
- * the renderer AST), not via `IO.FS.readFile`. Same return contract
- * as `tgrad_matmul`. */
+/* L12 — alternate generated-emitter entry. Lean-side
+ * `tgrad_matmul_alg_lean` compiles the same parametric declaration as
+ * production through a separate observable cache. Same return contract as
+ * `tgrad_matmul`; no product path reads captured source. */
 extern lean_object* tgrad_matmul_alg_lean(
     size_t M, size_t K, size_t N,
     uint64_t a, uint64_t b, uint64_t out

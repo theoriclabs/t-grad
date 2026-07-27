@@ -4,6 +4,12 @@ Status: proposal. Written 2026-07-24, after a full review of the
 current release. Read `Tgrad/Ontology.lean` first — it states the
 sorts, the maps between them, and the gaps this plan closes.
 
+> Historical plan. [`PARITY.md`](PARITY.md) is now canonical. It replaces the
+> finite, layer-centric phase estimate below with a pinned upstream contract,
+> multidimensional coverage cells, ideal codebase boundaries, vertical work
+> slices, and an agent-driven convergence loop. This file remains as the
+> review-era migration record.
+
 Implementation update (2026-07-26): the review baseline below is historical.
 The renderer is now load-bearing, rangeification drives indexed view
 materialization, all 11 sentinels route through the parametric TC generator,

@@ -1,4 +1,5 @@
 import Tgrad.Spec.Evolution
+import Tgrad.Spec.Parity
 
 /-! # Tgrad.Spec.Work — work performed on the codebase
 
@@ -343,6 +344,23 @@ def workItems : List WorkItem :=
         [.build, .semantic, .provenance],
       recovery := "retain the direct observations but revert any prose or state transition that implies performance parity or complete evidence promotion",
       progress := .complete "0f4d594" },
+    { id := ew "parity.pin-upstream",
+      title := "capture a versioned upstream compatibility contract",
+      phase := .design, authority := .userGoal,
+      closesFindings := [], dependsOn := [], runtimeScope := [],
+      touches := [.specification, .gateHarness, .evidenceStore],
+      writes := ["scripts/dev/capture_tinygrad_contract.py",
+        "fixtures/upstream", "Tgrad/Spec/ParityTarget.lean", "TgradSpec.lean"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .tmpNamespace, .evidenceStore],
+      cost := 3, goalDistance := 0,
+      validation := plannedValidation
+        "one reproducible official tinygrad revision with generated source/API/Ops/dtype/backend/test manifests and an explicit empty-by-default exclusions ledger"
+        "capture from a clean upstream checkout; rebuild manifests independently; compare hashes; build TgradSpec; mutate one symbol and one hash to calibrate drift detection"
+        "the pin is exact; two captures agree; every manifest has provenance; mutations fail; no count or expected value is hand-authored; targetUpstream becomes confirmed only after review"
+        [.build, .apiContract, .semantic, .provenance, .humanReview],
+      recovery := "leave targetUpstream unknown, retain the candidate snapshot as research input, and repair the extractor rather than editing generated manifests",
+      progress := .planned },
     { id := ew "perf.rebaseline", title := "measure symmetric generated-kernel performance",
       phase := .verify, authority := .evidence,
       closesFindings := ["F-performance-methodology"],
@@ -1660,8 +1678,8 @@ theorem routing_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_safe_frontier_is_symmetric_performance :
-    frontierIds = [ew "perf.rebaseline"] := by
+theorem current_safe_frontier_contains_two_disjoint_trust_packets :
+    frontierIds = [ew "perf.rebaseline", ew "parity.pin-upstream"] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :
@@ -1801,6 +1819,8 @@ private def readySummary (item : WorkItem) : String :=
 
 def printReport : IO Unit := do
   IO.println "Tgrad checked specification"
+  IO.println s!"parity target confirmed={Parity.targetUpstream.isConfirmed}; long-horizon templates={Parity.program.length}"
+  IO.println s!"parity bootstrap templates: {String.intercalate ", " ((Parity.templatesReadyAfter []).map (fun item => item.id))}"
   IO.println s!"runtime work ({Runtime.workUnits.length} capabilities):"
   IO.println s!"  product={(Runtime.unitsInRealm .product).length}, verification={(Runtime.unitsInRealm .verification).length}, specification={(Runtime.unitsInRealm .specification).length}"
   IO.println s!"  missing-or-bypassed={Runtime.missingOrBypassed.length}"

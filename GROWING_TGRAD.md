@@ -15,6 +15,11 @@ The executable counterparts are:
   Tgrad;
 - `Tgrad/Spec/Work.lean`: the current findings-to-work projection and picker;
 - `Tgrad/Spec/LiveConditions.lean`: re-observable limits on concurrency.
+- `Tgrad/Spec/Parity.lean`: versioned parity contracts, ideal architecture,
+  long-horizon dependency seeds, and the gap-to-work packet boundary.
+
+`PARITY.md` is the canonical destination and growth program. This document is
+the transactional protocol by which one shaped packet changes the repository.
 
 Run `.lake/build/bin/tgrad-spec` to query the current model.
 

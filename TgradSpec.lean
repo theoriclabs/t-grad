@@ -7,6 +7,7 @@ import Tgrad.Spec.RuntimeWork
 import Tgrad.Spec.Growth
 import Tgrad.Spec.Evolution
 import Tgrad.Spec.Work
+import Tgrad.Spec.Parity
 
 /-! # TgradSpec — checked specification, separate from the product runtime
 

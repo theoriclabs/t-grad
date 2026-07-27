@@ -96,6 +96,10 @@ specification is checked without becoming part of
 the codebase from repository-evolution work performed **on** it. The checked
 model connects runtime observations to findings, growth cases, attempts,
 immutable candidate trees, exact-tree checks, and promotion certificates.
+[Reaching tinygrad parity](PARITY.md) supplies the versioned destination,
+coverage model, ideal module boundaries, dependency program, and agent work
+shape. Its stable contract and program vocabulary are checked in
+`Tgrad/Spec/Parity.lean`.
 
 The current `tgrad-spec` report also states the migration limit explicitly:
 warp parameterization, the codegen differential, its additive L12 layer, the

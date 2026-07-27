@@ -613,12 +613,16 @@ class Tensor:
         for d in (self._dtype, other._dtype):
             if d not in _SUPPORTED_DTYPES:
                 raise TgradTypeError(f"{name}: unsupported dtype {d!r}")
-        if self._shape != other._shape:
-            # Broadcasting is a View.expand away but is not wired until
-            # dtype promotion lands, so it is refused rather than guessed.
-            raise NotInLeanScope(
-                f"{name}: shapes must match (got {self._shape}, {other._shape}); "
-                f"broadcasting is not implemented")
+        # Broadcasting is resolved in Lean via View.expand (stride 0 on the
+        # stretched axis). Only the numpy-style legality rule is checked
+        # here so the error names the shapes.
+        if len(self._shape) != 2 or len(other._shape) != 2:
+            raise NotInLeanScope(f"{name}: rank-2 only")
+        for x, y in zip(self._shape, other._shape):
+            if x != y and x != 1 and y != 1:
+                raise TgradTypeError(
+                    f"{name}: shapes {self._shape} and {other._shape} are not "
+                    f"broadcastable")
         h = _lib.tgrad_tensor_binop(op_code, self._handle, other._handle)
         if h == 0:
             raise TgradError(f"tgrad_tensor_binop({name}) returned 0")

@@ -1,0 +1,505 @@
+{
+  "against": "upstream",
+  "aggregate": {
+    "files": 54,
+    "files_collect_error": 1,
+    "files_fail": 1,
+    "files_pass": 51,
+    "files_timeout": 0,
+    "tests_errors": 0,
+    "tests_failed": 6,
+    "tests_passed": 1517,
+    "tests_skipped": 97
+  },
+  "group": "null",
+  "ran_at_utc": "2026-07-27T09:45:13Z",
+  "results": [
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_attention.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 20,
+      "errors": 0,
+      "failed": 5,
+      "file": "test/null/test_autogen.py",
+      "passed": 14,
+      "skipped": 1,
+      "status": "fail"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_compile_failures.py",
+      "passed": 2,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 38,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_const_folding.py",
+      "passed": 38,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 20,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_device.py",
+      "passed": 13,
+      "skipped": 7,
+      "status": "pass"
+    },
+    {
+      "collected": 11,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_disk_cache.py",
+      "passed": 10,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 9,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_dtype.py",
+      "passed": 9,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 49,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_dtype_spec.py",
+      "passed": 49,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_elf.py",
+      "passed": 3,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 7,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_gc.py",
+      "passed": 7,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 5,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_gpudims.py",
+      "passed": 5,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 15,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_gradient.py",
+      "passed": 15,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 56,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_graph_rewrite.py",
+      "passed": 48,
+      "skipped": 8,
+      "status": "pass"
+    },
+    {
+      "collected": 8,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_hcq_iface.py",
+      "passed": 8,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 78,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_helpers.py",
+      "passed": 68,
+      "skipped": 10,
+      "status": "pass"
+    },
+    {
+      "collected": 12,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_indexing.py",
+      "passed": 12,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_linearizer_failures.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_linearizer_rewrite.py",
+      "passed": 3,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 16,
+      "errors": 0,
+      "failed": 1,
+      "file": "test/null/test_llm_server.py",
+      "passed": 15,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_llm_tokenizer.py",
+      "passed": 14,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 16,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_memory_planner.py",
+      "passed": 16,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_method_cache.py",
+      "passed": 3,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_microbenchmarks.py",
+      "passed": 14,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_mnist_dataset.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 25,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_multitensor.py",
+      "passed": 25,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 17,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_pattern_matcher.py",
+      "passed": 16,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_process_replay.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 9,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_real_world.py",
+      "passed": 4,
+      "skipped": 5,
+      "status": "pass"
+    },
+    {
+      "collected": 12,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_rearrange_einops.py",
+      "passed": 12,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_resnet.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_rewrite_bottom_up_gate.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 269,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_schedule.py",
+      "passed": 261,
+      "skipped": 8,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_schedule_cache.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 38,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_simplify_valid_idx.py",
+      "passed": 38,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 11,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_symbolic_failures.py",
+      "passed": 11,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_symbolic_tensor.py",
+      "passed": 14,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 25,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_tensor.py",
+      "passed": 22,
+      "skipped": 3,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_tensor_io.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 11,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_tensor_metadata.py",
+      "passed": 1,
+      "skipped": 10,
+      "status": "pass"
+    },
+    {
+      "collected": 215,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_tensor_uop_mixin.py",
+      "passed": 215,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 5,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_tensor_uop_representation.py",
+      "passed": 4,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 13,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_tqdm.py",
+      "passed": 11,
+      "skipped": 2,
+      "status": "pass"
+    },
+    {
+      "collected": 5,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_transcendental_helpers.py",
+      "passed": 5,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 68,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uop_graph.py",
+      "passed": 65,
+      "skipped": 3,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uop_repr.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 26,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uop_resolve.py",
+      "passed": 26,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 209,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uop_symbolic.py",
+      "passed": 209,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 49,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uop_vmin_vmax.py",
+      "passed": 47,
+      "skipped": 2,
+      "status": "pass"
+    },
+    {
+      "collected": 61,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uops.py",
+      "passed": 51,
+      "skipped": 10,
+      "status": "pass"
+    },
+    {
+      "collected": 27,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_uops_stats.py",
+      "passed": 20,
+      "skipped": 7,
+      "status": "pass"
+    },
+    {
+      "collected": 0,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_upat_compile.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "empty"
+    },
+    {
+      "collected": 18,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_validate_oob.py",
+      "passed": 16,
+      "skipped": 2,
+      "status": "pass"
+    },
+    {
+      "collected": 68,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_viz.py",
+      "passed": 54,
+      "skipped": 14,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/null/test_winograd.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    }
+  ],
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+}

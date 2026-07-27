@@ -126,7 +126,17 @@ def set_up_world(root: Path) -> tuple[Path, Path, Path]:
     upstream_package = fake_upstream / "tinygrad"
     fake_tgrad.mkdir()
     upstream_package.mkdir(parents=True)
-    (fake_tgrad / "tgrad.py").write_text("class Tensor:\n    pass\n", encoding="utf-8")
+    (fake_tgrad / "tgrad.py").write_text(
+        "import os\n"
+        "import sys\n"
+        "class Tensor:\n    pass\n"
+        "def _numel(shape):\n"
+        "    value = 1\n"
+        "    for dimension in shape:\n"
+        "        value *= dimension\n"
+        "    return value\n",
+        encoding="utf-8",
+    )
     (upstream_package / "__init__.py").write_text(
         "class Tensor:\n    pass\n", encoding="utf-8"
     )

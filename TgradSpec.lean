@@ -19,6 +19,8 @@ import Tgrad.Evidence.Observations
 import Tgrad.Evidence.PilotGenerated
 import Tgrad.Growth.Derived
 import Tgrad.Growth.PilotState
+import Tgrad.Growth.Work
+import Tgrad.Growth.PilotReport
 
 /-! # TgradSpec — checked specification, separate from the product runtime
 

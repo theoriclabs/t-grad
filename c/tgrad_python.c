@@ -466,3 +466,42 @@ uint64_t tgrad_matmul_view(uint64_t a_handle, uint64_t b_handle) {
     lean_dec_ref(result);
     return v;
 }
+
+/* Graph-indexed realize. These three replace per-op FFI growth: Tensor
+ * methods compose a UOp graph, and one entry lowers it. Signatures match
+ * .lake/build/ir/Tgrad/PythonFFI.c exactly. */
+extern lean_object* tgrad_tensor_binop_lean(uint8_t op, uint64_t h1, uint64_t h2);
+extern lean_object* tgrad_tensor_reduce_lean(uint8_t op, uint64_t h, size_t axis);
+extern lean_object* tgrad_realize_lean(uint64_t h);
+
+static uint64_t tgrad_unbox_handle(lean_object* result) {
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return 0;
+    }
+    uint64_t v = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return v;
+}
+
+uint64_t tgrad_tensor_binop(uint8_t op, uint64_t h1, uint64_t h2) {
+    return tgrad_unbox_handle(tgrad_tensor_binop_lean(op, h1, h2));
+}
+
+uint64_t tgrad_tensor_reduce(uint8_t op, uint64_t h, size_t axis) {
+    return tgrad_unbox_handle(tgrad_tensor_reduce_lean(op, h, axis));
+}
+
+uint64_t tgrad_realize(uint64_t h) {
+    return tgrad_unbox_handle(tgrad_realize_lean(h));
+}
+
+extern lean_object* tgrad_tensor_dtype_lean(uint64_t h);
+
+uint8_t tgrad_tensor_dtype(uint64_t h) {
+    lean_object* result = tgrad_tensor_dtype_lean(h);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t v = lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return v;
+}

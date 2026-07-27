@@ -78,6 +78,10 @@ where
   | .reshape _ newShape => newShape
   | .expand _ newShape  => newShape
   | .slice src slices   => sliceShapeNat (walk src) slices
+  -- Pointwise: both operands carry the same shape at this stage, so the
+  -- left one is representative. Broadcasting between differing shapes
+  -- is rejected before a graph is built, not silently resolved here.
+  | .binop _ a _ _      => walk a
   | _                   => panic! "L14.B.1: Tensor.shape: unsupported uop kind"
 
 /-- Derived: extract the underlying MTLBuffer handle from the BUFFER

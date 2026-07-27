@@ -1,46 +1,19 @@
 {
   "against": "tgrad",
   "aggregate": {
-    "files": 4,
-    "files_collect_error": 2,
-    "files_fail": 2,
+    "files": 1,
+    "files_collect_error": 0,
+    "files_fail": 1,
     "files_pass": 0,
     "files_timeout": 0,
-    "tests_errors": 2,
-    "tests_failed": 24,
+    "tests_errors": 0,
+    "tests_failed": 12,
     "tests_passed": 0,
     "tests_skipped": 0
   },
   "group": "null",
-  "ran_at_utc": "2026-07-27T09:55:52Z",
+  "ran_at_utc": "2026-07-27T16:05:54Z",
   "results": [
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/null/test_dtype.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 1,
-      "errors": 1,
-      "failed": 0,
-      "file": "test/null/test_dtype_spec.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "collect_error"
-    },
-    {
-      "collected": 12,
-      "errors": 0,
-      "failed": 12,
-      "file": "test/null/test_indexing.py",
-      "passed": 0,
-      "skipped": 0,
-      "status": "fail"
-    },
     {
       "collected": 12,
       "errors": 0,

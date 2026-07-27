@@ -224,6 +224,18 @@ class MatmulOnNonBufferUop(TgradError):
 
 
 _SUPPORTED_DTYPES = {"bf16"}
+# Bytes per element, used to check that a materialized buffer is
+# exactly as large as its declared shape requires.
+_DTYPE_BYTES = {"bf16": 2}
+
+
+def _numel(shape: tuple[int, ...]) -> int:
+    n = 1
+    for s in shape:
+        n *= int(s)
+    return n
+
+
 # L13.C+ scope: arbitrary 2D operand shapes are accepted. The
 # concrete shape support per matmul `(M, K) @ (K, N)` is decided at
 # __matmul__ time:
@@ -292,11 +304,11 @@ class Tensor:
     register a cleanup; per learnings/05_opaque_handle/python.py.
     """
     __slots__ = ("_buf", "_size", "_shape", "_dtype", "_handle", "_fin",
-                 "__weakref__")
+                 "_base", "__weakref__")
 
     def __init__(self, buf: int, size: int, shape: tuple[int, ...],
                  dtype: str, handle: int | None = None,
-                 owns_buf: bool = True):
+                 owns_buf: bool = True, base: "Tensor | None" = None):
         """`buf` and `size` describe the underlying MTLBuffer.
         `shape` and `dtype` are the *effective* (post-view) shape +
         dtype. `handle` is the Lean-side opaque tensor handle; if
@@ -304,11 +316,31 @@ class Tensor:
         `tgrad_tensor_from_buffer`. `owns_buf` controls whether
         garbage collection should free the buffer — view-derived
         Tensors share the underlying buffer with the source, so
-        only the root sets `owns_buf=True`."""
+        only the root sets `owns_buf=True`.
+
+        `base` is the Tensor this one is a view of. A view holds a
+        strong reference to it so the parent cannot be collected
+        while the view is alive. Without it the parent's finalizer
+        returns the MTLBuffer to the LRU pool (or releases it once
+        the pool is full) while the view still points at it, so the
+        view reads recycled or freed GPU memory."""
         self._buf   = buf
         self._size  = size
         self._shape = shape
         self._dtype = dtype
+        self._base  = base
+        # A materialized buffer must be exactly the size its shape
+        # implies. Views are exempt: `expand` legitimately presents a
+        # shape whose element count exceeds the allocation (stride 0),
+        # and the bound there is enforced by the Lean `Schedule.View`
+        # algebra, not by byte count.
+        if owns_buf:
+            want = _numel(shape) * _DTYPE_BYTES[dtype]
+            if want != size:
+                raise TgradTypeError(
+                    f"shape {shape} of dtype {dtype} needs {want} bytes "
+                    f"but the buffer is {size}; refusing to build a Tensor "
+                    f"whose shape disagrees with its allocation")
         if handle is None:
             shape_arr = (ctypes.c_size_t * len(shape))(*shape)
             handle = _lib.tgrad_tensor_from_buffer(
@@ -369,6 +401,12 @@ class Tensor:
         if len(shape) != 2 or any(s < 1 for s in shape):
             raise NotInLeanScope(
                 f"shape {shape} must be 2D with positive dims.")
+        want = _numel(shape) * _DTYPE_BYTES["bf16"]
+        if len(raw) != want:
+            raise TgradTypeError(
+                f"from_bf16_bytes: shape {shape} needs {want} bytes, got "
+                f"{len(raw)}. A shape larger than its buffer makes the "
+                f"kernel index past the allocation.")
         size = len(raw)
         buf = _lib.tgrad_tensor_alloc(size)
         if buf == 0:
@@ -380,7 +418,29 @@ class Tensor:
             raise TgradError(f"tgrad_tensor_write_bytes returned rc={rc}")
         return cls(buf, size, shape, "bf16")
 
+    _VIEW_KIND_NAMES = {1: "permute", 2: "reshape", 3: "expand", 4: "slice"}
+
+    def _reject_view_readback(self, method: str) -> None:
+        """Readback copies the underlying buffer verbatim; it does not
+        apply the view. Reading a view would therefore return the
+        parent's data laid out in the parent's order, wearing the
+        view's shape — silently wrong numbers rather than an error.
+
+        Materializing a view needs an indexed copy kernel driven by
+        `Schedule.View`; until that exists, refuse. Note `a.T @ b` is
+        unaffected: matmul goes through `Pipeline.realizeView`, which
+        does apply the view."""
+        kind = self._uop_kind_code()
+        name = self._VIEW_KIND_NAMES.get(kind)
+        if name is not None:
+            raise NotInLeanScope(
+                f"Tensor.{method}() on a {name} view is not supported: the "
+                f"buffer holds the pre-view data, so the result would be "
+                f"silently wrong. Materialize via a matmul, or read back "
+                f"the base tensor.")
+
     def numpy(self) -> np.ndarray:
+        self._reject_view_readback("numpy")
         out = (ctypes.c_uint8 * self._size)()
         rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
         if rc != 0:
@@ -388,6 +448,7 @@ class Tensor:
         return _fp32_from_bf16(bytes(out), self._shape)
 
     def to_bytes(self) -> bytes:
+        self._reject_view_readback("to_bytes")
         out = (ctypes.c_uint8 * self._size)()
         rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
         if rc != 0:
@@ -408,7 +469,7 @@ class Tensor:
                 f"Tensor.transpose: 2-D only (got shape={self._shape})")
         new_shape = (self._shape[1], self._shape[0])
         return Tensor(self._buf, self._size, new_shape, self._dtype,
-                      handle=new_h, owns_buf=False)
+                      handle=new_h, owns_buf=False, base=self)
 
     T = property(transpose)
 
@@ -423,7 +484,7 @@ class Tensor:
             raise TgradError(f"tgrad_tensor_permute(axes={axes}) returned 0")
         new_shape = tuple(self._shape[i] for i in axes)
         return Tensor(self._buf, self._size, new_shape, self._dtype,
-                      handle=new_h, owns_buf=False)
+                      handle=new_h, owns_buf=False, base=self)
 
     def reshape(self, *new_shape: int) -> "Tensor":
         n = len(new_shape)
@@ -432,7 +493,7 @@ class Tensor:
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_reshape(shape={new_shape}) returned 0")
         return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
-                      handle=new_h, owns_buf=False)
+                      handle=new_h, owns_buf=False, base=self)
 
     def expand(self, *new_shape: int) -> "Tensor":
         n = len(new_shape)
@@ -441,7 +502,7 @@ class Tensor:
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_expand(shape={new_shape}) returned 0")
         return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
-                      handle=new_h, owns_buf=False)
+                      handle=new_h, owns_buf=False, base=self)
 
     def __getitem__(self, key) -> "Tensor":
         # Accept a single slice or a tuple of slices.
@@ -463,6 +524,13 @@ class Tensor:
             if step <= 0:
                 raise TgradTypeError(
                     f"Tensor.__getitem__: only positive steps supported (got step={step})")
+            # These land in a `c_size_t` array; a negative value wraps
+            # to ~1.8e19, which Lean then clamps to an empty axis while
+            # Python computes a *larger* dim than the source. Reject.
+            if start < 0 or stop < 0:
+                raise TgradTypeError(
+                    f"Tensor.__getitem__[{i}]: negative indices are not "
+                    f"supported (got start={sl.start}, stop={sl.stop})")
             flat[3 * i]     = start
             flat[3 * i + 1] = stop
             flat[3 * i + 2] = step
@@ -471,7 +539,7 @@ class Tensor:
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_slice returned 0")
         return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
-                      handle=new_h, owns_buf=False)
+                      handle=new_h, owns_buf=False, base=self)
 
     def _uop_kind_code(self) -> int:
         """Return the underlying UOp kind: 0=BUFFER, 1=PERMUTE,

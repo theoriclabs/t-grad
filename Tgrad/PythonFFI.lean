@@ -47,27 +47,26 @@ def tensorReadBytes (bufPtr : UInt64) (nBytes : USize) : IO ByteArray :=
   Tgrad.Runtime.Metal.metalBufferReadBytes bufPtr nBytes
 
 /-- Cache for the compiled bf16 64×64 matmul library. Lazy: first
-    matmul64x64 call reads the MSL fixture and compiles; subsequent
+    matmul64x64 call renders the KernelDecl and compiles; subsequent
     calls reuse the cached library pointer. Skipping the per-call
-    `IO.FS.readFile` + `metalCompile` + `metalLibraryRelease` cycle
+    `renderKernel` + `metalCompile` + `metalLibraryRelease` cycle
     is the load-bearing perf optimization for L7's ratio predicate. -/
 initialize cachedMatmul64Lib : IO.Ref UInt64 ← IO.mkRef 0
 
-/-- Run the captured bf16 64×64 matmul kernel with caller-supplied
+/-- Run the rendered bf16 64×64 matmul kernel with caller-supplied
     input and output MTLBuffer pointers. Returns 0 on success;
-    negative codes match `metal_alloc.m`'s contract:
-       -1: MSL fixture missing on disk
-       -2: empty MSL
-       -3: metalCompile returned 0
+    negative codes:
+       -1: renderKernel produced empty MSL
+       -2: metalCompile returned 0
        other: dispatch's signed rc reinterpreted via `UInt32.toInt32`. -/
 @[export tgrad_matmul_64x64_lean]
 def matmul64x64 (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   -- Load the compiled library once; reuse across calls.
   let mut libPtr ← cachedMatmul64Lib.get
   if libPtr == 0 then
-    let mslPath := "fixtures/codegen/matmul_64x64.msl"
-    let msl ← (try IO.FS.readFile (System.FilePath.mk mslPath)
-               catch _ => pure "")
+    -- Rendered, not read. See `compileOrCacheGet`.
+    let msl := Tgrad.Renderer.Metal.renderKernel
+      (Tgrad.Renderer.Metal.matmulKernelDeclFor .bf16_64x64)
     if msl.isEmpty then return -1
     libPtr ← Tgrad.Runtime.Metal.metalCompile msl
     if libPtr == 0 then return -2
@@ -113,20 +112,28 @@ private def compileOrCacheGet (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : 
   let cached := cacheLookup key cache
   if cached != 0 then
     return cached
-  let mslPath := sentinel.fixturePath
-  let msl ← (try IO.FS.readFile (System.FilePath.mk mslPath) catch _ => pure "")
+  -- Kernel source comes from the Lean renderer. This previously read
+  -- `sentinel.fixturePath` off disk, so the benchmarked path executed
+  -- tinygrad's captured MSL and `renderKernel` was dead weight. The
+  -- rendered bytes are byte-equal to the captures (L12/L3), so this
+  -- swap is source-identical — it just makes the renderer load-bearing.
+  let msl := Tgrad.Renderer.Metal.renderKernel
+    (Tgrad.Renderer.Metal.matmulKernelDeclFor sentinel)
   if msl.isEmpty then return 0
   let lib ← Tgrad.Runtime.Metal.metalCompile msl
   if lib == 0 then return 0
   libCache.modify (fun c => (key, lib) :: c)
   pure lib
 
-/-- General bf16 matmul. (M, K, N) selects the right captured MSL via
-    `ShapeSentinel.ofTriple`. Returns 0 on success;
-    negative codes:
+/-- General bf16 matmul. (M, K, N) selects the right `KernelDecl` via
+    `ShapeSentinel.ofTriple`; the MSL is emitted by `renderKernel`.
+    Returns 0 on success; negative codes:
        -1: unsupported (M, K, N) — not in L11 manifest
-       -2: MSL fixture missing OR metalCompile failed
-       other: dispatch rc reinterpreted via UInt32.toInt32. -/
+       -2: renderKernel produced empty MSL OR metalCompile failed
+       other: dispatch rc reinterpreted via UInt32.toInt32.
+
+    No filesystem access: `fixtures/codegen/*.msl` are a differential
+    reference for the gates, not a runtime input. -/
 @[export tgrad_matmul_lean]
 def matmulGeneral (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   let sentinel ← match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M.toNat K.toNat N.toNat with

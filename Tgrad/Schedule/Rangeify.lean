@@ -1,4 +1,5 @@
 import Tgrad.Schedule.Indexing
+import Tgrad.Schedule.View
 import Tgrad.GraphRewrite
 
 /-! # Tgrad.Schedule.Rangeify — backward-chain driver + JSON I/O
@@ -61,20 +62,42 @@ def serialisedToJson (recs : List UOpRecord) (roots : List Nat) : String :=
   let shifted := recsJson.replace "\n" "\n  "
   "{\n  \"records\": " ++ shifted ++ ",\n  \"roots\": " ++ rootsToJson roots ++ "\n}"
 
-/-- L14.B.2.c: top-level rangeify entry called from
-    `Pipeline.realize`. Walks a SINK UOp tree and pushes movement-op
-    nodes into LOAD-index expressions.
+/-- Top-level rangeify: walk a UOp tree and push movement-op chains
+    down into LOAD-index expressions.
 
-    L14.B.2.c scope: minimal viable implementation that handles
-    BUFFER-only inputs as a no-op pass-through (the L11/L13/L13_F
-    case) and surfaces movement-op nodes verbatim in the output (the
-    L14.B.3 rule extension lifts phase-04's full pm_mops library to
-    actually rewrite LOAD-index UOps from PERMUTE chains; until then,
-    Pipeline.realize routes view-chain inputs through a parametric
-    scalar matmul whose A/B index UOps are derived from the movement
-    chain via `Pipeline.viewIndexUOp` rather than from rangeify's
-    rewrite). -/
-def rangeify (u : UOp) : UOp := u
+    Each maximal PERMUTE/RESHAPE/EXPAND/SLICE chain rooted at a
+    `.buffer` is collapsed into a `Schedule.View` and replaced by
+    `.index buffer (Σ idx_i * stride_i + offset)`. So a tree that goes
+    in with movement nodes comes out with none and with indexed loads
+    instead — which is what makes `RangeifyTraceRow`'s
+    `movement_count_in` / `movement_count_out` / `root_indexed_ops_count`
+    counters mean something.
+
+    This was `fun u => u` — a literal identity function sitting where
+    the scheduler belongs, with the real movement algebra reachable
+    only from a CLI subcommand over a fixture.
+
+    Chains this `View` representation cannot express (e.g. a reshape
+    of a transposed view, which needs two views) are left structurally
+    intact rather than approximated: `viewOfUOp` returns `none` and the
+    node is returned unchanged. -/
+partial def rangeify (u : UOp) : UOp :=
+  let collapse (m : UOp) : UOp :=
+    match Schedule.viewOfUOp m, Schedule.bufferRootOf m with
+    | some v, some buf =>
+        .index buf (Schedule.View.indexOf v (Schedule.canonicalVars v.rank))
+    | _, _ => m
+  match u with
+  | .permute _ _ | .reshape _ _ | .expand _ _ | .slice _ _ => collapse u
+  | .sink b            => .sink (rangeify b)
+  | .binop op a b d    => .binop op (rangeify a) (rangeify b) d
+  | .cast t e          => .cast t (rangeify e)
+  | .index buf off     => .index (rangeify buf) (rangeify off)
+  | .load addr d       => .load (rangeify addr) d
+  | .store addr val    => .store (rangeify addr) (rangeify val)
+  | .gep e lane        => .gep (rangeify e) lane
+  | .reduce op body ax => .reduce op (rangeify body) ax
+  | other              => other
 
 end Rangeify
 

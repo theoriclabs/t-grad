@@ -1,7 +1,6 @@
 """Tgrad's implemented dtype identifiers under tinygrad import spellings."""
 from __future__ import annotations
 
-import numpy as np
 import tgrad as _tgrad
 
 from ._unsupported import missing_attribute, unsupported, unsupported_type
@@ -61,6 +60,11 @@ DTYPES_DICT = {"bfloat16": _BF16, "float32": _F32}
 
 
 def _to_np_dtype(dtype):
+    # Keep package activation independent of NumPy.  The strict shim is also
+    # used to measure import-surface requirements in controlled environments;
+    # NumPy is needed only when this conversion is actually requested.
+    import numpy as np
+
     if dtype in (_BF16, _F32):
         # Tgrad's bf16 host readback is deliberately lifted to float32.
         return np.dtype(np.float32)

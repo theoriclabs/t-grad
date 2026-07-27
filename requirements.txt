@@ -1,0 +1,8 @@
+# Observation toolchain pin — records the environment observe_pilot.py is
+# meant to run in. Do not "fix" the live shared .venv to match; re-record
+# evidence only after an explicit human decision (plan step 4).
+#
+# Live venv at pin time: CPython 3.13.9 (see .python-version) + numpy 2.5.1
+# (cp313-macosx_14_0_arm64 wheel). Hash is the PyPI sha256 of that wheel.
+numpy==2.5.1 \
+    --hash=sha256:6165343f81b56ef8f514f396989e529b61d9dc709b99421b07e9f3e698e2287d

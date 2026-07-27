@@ -343,10 +343,26 @@ class Tensor:
     __slots__ = ("_buf", "_size", "_shape", "_dtype", "_handle", "_fin",
                  "_base", "__weakref__")
 
-    def __init__(self, buf: int, size: int, shape: tuple[int, ...],
-                 dtype: str, handle: int | None = None,
-                 owns_buf: bool = True, base: "Tensor | None" = None):
-        """`buf` and `size` describe the underlying MTLBuffer.
+    def __init__(self, data, dtype: str = "f32"):
+        """Construct a materialized Tensor from public Python data.
+
+        Internal runtime code uses ``_from_buffer`` so an integer MTLBuffer
+        address cannot be confused with scalar tensor data.
+        """
+        try:
+            arr = np.asarray(data)
+        except (TypeError, ValueError) as exc:
+            raise TgradTypeError(
+                f"Tensor data is not rectangular numeric input: {exc}") from exc
+        self._init_from_numpy(arr, dtype)
+
+    def _init_buffer(self, buf: int, size: int, shape: tuple[int, ...],
+                     dtype: str, handle: int | None = None,
+                     owns_buf: bool = True,
+                     base: "Tensor | None" = None) -> None:
+        """Initialize Tgrad's internal buffer/view representation.
+
+        `buf` and `size` describe the underlying MTLBuffer.
         `shape` and `dtype` are the *effective* (post-view) shape +
         dtype. `handle` is the Lean-side opaque tensor handle; if
         None (L14.A path), it's auto-registered via
@@ -392,32 +408,31 @@ class Tensor:
         else:
             self._fin = None
 
-    @property
-    def shape(self) -> tuple[int, ...]:
-        return self._shape
-
-    @property
-    def dtype(self) -> str:
-        return self._dtype
-
     @classmethod
-    def from_numpy(cls, arr: np.ndarray, dtype: str = "bf16") -> "Tensor":
+    def _from_buffer(cls, buf: int, size: int, shape: tuple[int, ...],
+                     dtype: str, handle: int | None = None,
+                     owns_buf: bool = True,
+                     base: "Tensor | None" = None) -> "Tensor":
+        tensor = cls.__new__(cls)
+        tensor._init_buffer(buf, size, shape, dtype, handle, owns_buf, base)
+        return tensor
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
         if dtype not in _SUPPORTED_DTYPES:
             raise TgradTypeError(
                 f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
-        if arr.ndim != 2:
-            raise TgradTypeError(f"L6.b: only 2-D tensors supported (got ndim={arr.ndim})")
-        if arr.dtype not in (np.float32, np.float64):
+        if arr.ndim > 3:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+        if arr.dtype.kind not in "biuf":
             raise TgradTypeError(
-                f"L6.b: from_numpy expects fp32 or fp64 input (got {arr.dtype}); "
-                f"will be cast to {dtype}")
+                f"Tensor data must be a rectangular bool/int/float array "
+                f"(got dtype={arr.dtype})")
         shape = tuple(int(s) for s in arr.shape)
-        # L13.C: accept any 2D shape with dims ≥ 1. The matmul path
-        # then routes (M, K, N) through tgrad_matmul (sentinel) or
-        # tgrad_matmul_small (scalar) based on pickDispatchPlan.
         if any(s < 1 for s in shape):
             raise NotInLeanScope(
-                f"shape {shape} has a non-positive dimension; refused.")
+                f"materialized Tensor dimensions must be positive (got {shape})")
         bytes_ = _bytes_from_numpy(arr, dtype)
         size = len(bytes_)
         buf = _lib.tgrad_tensor_alloc(size)
@@ -428,7 +443,25 @@ class Tensor:
         if rc != 0:
             _lib.tgrad_tensor_free(buf, size)
             raise TgradError(f"tgrad_tensor_write_bytes returned rc={rc}")
-        return cls(buf, size, shape, dtype)
+        try:
+            self._init_buffer(buf, size, shape, dtype)
+        except BaseException:
+            _lib.tgrad_tensor_free(buf, size)
+            raise
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self._shape
+
+    @property
+    def dtype(self) -> str:
+        return self._dtype
+
+    @classmethod
+    def from_numpy(cls, arr: np.ndarray, dtype: str = "bf16") -> "Tensor":
+        tensor = cls.__new__(cls)
+        tensor._init_from_numpy(np.asarray(arr), dtype)
+        return tensor
 
     @classmethod
     def from_bf16_bytes(cls, raw: bytes, shape: tuple[int, ...]) -> "Tensor":
@@ -453,7 +486,7 @@ class Tensor:
         if rc != 0:
             _lib.tgrad_tensor_free(buf, size)
             raise TgradError(f"tgrad_tensor_write_bytes returned rc={rc}")
-        return cls(buf, size, shape, "bf16")
+        return cls._from_buffer(buf, size, shape, "bf16")
 
     _VIEW_KIND_NAMES = {1: "permute", 2: "reshape", 3: "expand", 4: "slice"}
 
@@ -492,8 +525,8 @@ class Tensor:
             raise TgradError(
                 f"Tensor.{method}(): materialized shape {out_shape} disagrees "
                 f"with Python view shape {self._shape}")
-        return Tensor(out_buf, out_size, out_shape, self._dtype,
-                      handle=out_handle, owns_buf=True)
+        return Tensor._from_buffer(out_buf, out_size, out_shape, self._dtype,
+                                   handle=out_handle, owns_buf=True)
 
     def numpy(self) -> np.ndarray:
         tensor = self._materialize_for_readback("numpy")
@@ -524,8 +557,8 @@ class Tensor:
             raise TgradTypeError(
                 f"Tensor.transpose: 2-D only (got shape={self._shape})")
         new_shape = (self._shape[1], self._shape[0])
-        return Tensor(self._buf, self._size, new_shape, self._dtype,
-                      handle=new_h, owns_buf=False, base=self)
+        return Tensor._from_buffer(self._buf, self._size, new_shape, self._dtype,
+                                   handle=new_h, owns_buf=False, base=self)
 
     T = property(transpose)
 
@@ -539,17 +572,29 @@ class Tensor:
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_permute(axes={axes}) returned 0")
         new_shape = tuple(self._shape[i] for i in axes)
-        return Tensor(self._buf, self._size, new_shape, self._dtype,
-                      handle=new_h, owns_buf=False, base=self)
+        return Tensor._from_buffer(self._buf, self._size, new_shape, self._dtype,
+                                   handle=new_h, owns_buf=False, base=self)
 
     def reshape(self, *new_shape: int) -> "Tensor":
+        if len(new_shape) == 1 and isinstance(new_shape[0], (tuple, list)):
+            new_shape = tuple(new_shape[0])
+        try:
+            new_shape = tuple(int(dim) for dim in new_shape)
+        except (TypeError, ValueError) as exc:
+            raise TgradTypeError(f"Tensor.reshape: invalid shape {new_shape}") from exc
+        if any(dim < 1 for dim in new_shape):
+            raise TgradTypeError(
+                f"Tensor.reshape: dimensions must be positive (got {new_shape})")
+        if _numel(new_shape) != _numel(self._shape):
+            raise TgradTypeError(
+                f"Tensor.reshape: cannot reshape {self._shape} to {new_shape}")
         n = len(new_shape)
         arr = (ctypes.c_size_t * n)(*new_shape)
         new_h = _lib.tgrad_tensor_reshape(self._handle, arr, n)
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_reshape(shape={new_shape}) returned 0")
-        return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
-                      handle=new_h, owns_buf=False, base=self)
+        return Tensor._from_buffer(self._buf, self._size, tuple(new_shape), self._dtype,
+                                   handle=new_h, owns_buf=False, base=self)
 
     def expand(self, *new_shape: int) -> "Tensor":
         n = len(new_shape)
@@ -557,8 +602,8 @@ class Tensor:
         new_h = _lib.tgrad_tensor_expand(self._handle, arr, n)
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_expand(shape={new_shape}) returned 0")
-        return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
-                      handle=new_h, owns_buf=False, base=self)
+        return Tensor._from_buffer(self._buf, self._size, tuple(new_shape), self._dtype,
+                                   handle=new_h, owns_buf=False, base=self)
 
     def __getitem__(self, key) -> "Tensor":
         # Accept a single slice or a tuple of slices.
@@ -594,8 +639,8 @@ class Tensor:
         new_h = _lib.tgrad_tensor_slice(self._handle, flat, 3 * n)
         if new_h == 0:
             raise TgradError(f"tgrad_tensor_slice returned 0")
-        return Tensor(self._buf, self._size, tuple(new_shape), self._dtype,
-                      handle=new_h, owns_buf=False, base=self)
+        return Tensor._from_buffer(self._buf, self._size, tuple(new_shape), self._dtype,
+                                   handle=new_h, owns_buf=False, base=self)
 
     def _uop_kind_code(self) -> int:
         """Return the underlying UOp kind: 0=BUFFER, 1=PERMUTE,
@@ -633,8 +678,9 @@ class Tensor:
         m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
         n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
         out_dtype = _dtype_of_handle(out_handle)
-        return Tensor(out_buf, m * n * _DTYPE_BYTES[out_dtype], (m, n), out_dtype,
-                      handle=out_handle, owns_buf=True, base=None)
+        return Tensor._from_buffer(
+            out_buf, m * n * _DTYPE_BYTES[out_dtype], (m, n), out_dtype,
+            handle=out_handle, owns_buf=True, base=None)
 
     def __add__(self, other: "Tensor") -> "Tensor":
         return self._pointwise(other, _BINOP_ADD, "add")
@@ -663,8 +709,9 @@ class Tensor:
         m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
         n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
         dt = _dtype_of_handle(out_handle)
-        return Tensor(out_buf, m * n * _DTYPE_BYTES[dt], (m, n), dt,
-                      handle=out_handle, owns_buf=True, base=None)
+        return Tensor._from_buffer(
+            out_buf, m * n * _DTYPE_BYTES[dt], (m, n), dt,
+            handle=out_handle, owns_buf=True, base=None)
 
     def sum(self, axis: int = 1) -> "Tensor":
         return self._reduce(_BINOP_ADD, axis, "sum")
@@ -705,8 +752,9 @@ class Tensor:
             out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
             out_M = _lib.tgrad_tensor_shape_dim(out_handle, 0)
             out_N = _lib.tgrad_tensor_shape_dim(out_handle, 1)
-            return Tensor(out_buf, out_M * out_N * 2, (out_M, out_N), "bf16",
-                          handle=out_handle, owns_buf=True, base=None)
+            return Tensor._from_buffer(
+                out_buf, out_M * out_N * 2, (out_M, out_N), "bf16",
+                handle=out_handle, owns_buf=True, base=None)
 
         # Algebraic-emit route, retained so L12 can observe a distinct
         # cache path via --use-algebraic-emit.
@@ -726,8 +774,9 @@ class Tensor:
             out_M = _lib.tgrad_tensor_shape_dim(out_handle, 0)
             out_N = _lib.tgrad_tensor_shape_dim(out_handle, 1)
             out_size = out_M * out_N * 2  # bf16 = 2 bytes/elem
-            return Tensor(out_buf, out_size, (out_M, out_N), "bf16",
-                          handle=out_handle, owns_buf=True)
+            return Tensor._from_buffer(
+                out_buf, out_size, (out_M, out_N), "bf16",
+                handle=out_handle, owns_buf=True)
         M, K_a = self._shape
         K_b, N = other._shape
         if K_a != K_b:
@@ -767,7 +816,7 @@ class Tensor:
             raise TgradError(
                 f"{entry_name}(M={M}, K={K}, N={N}) returned rc={rc} "
                 f"(see PythonFFI.lean for rc → reason mapping)")
-        return Tensor(out_buf, out_size, (M, N), "bf16")
+        return Tensor._from_buffer(out_buf, out_size, (M, N), "bf16")
 
 
 def bench(shape: str = "64x64x64", dtype: str = "bf16") -> dict:

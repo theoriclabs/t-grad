@@ -45,8 +45,9 @@ def fused_matmul(a, b):
     buf = _lib.tgrad_tensor_raw_buffer(out)
     dims = [_lib.tgrad_tensor_shape_dim(out, i) for i in range(3)]
     dt = _dtype_of_handle(out)
-    return Tensor(buf, dims[0]*dims[1]*_DTYPE_BYTES[dt], (dims[0], dims[1]),
-                  dt, handle=out, owns_buf=True, base=None), dims
+    return Tensor._from_buffer(
+        buf, dims[0]*dims[1]*_DTYPE_BYTES[dt], (dims[0], dims[1]),
+        dt, handle=out, owns_buf=True, base=None), dims
 
 fails = 0
 for (M, K, N) in [(4,4,4), (8,4,6), (16,16,16), (3,5,7), (64,64,64), (2,32,9)]:

@@ -71,6 +71,7 @@ cheap_preflight() {
   check_no_axiom           || return 1
   check_no_unsafe          || return 1
   check_no_gate_regression || return 1
+  check_shell_continuation || return 1
 
   if [[ -f "$TGRAD_DIR/c/Makefile" ]]; then
     make -C "$TGRAD_DIR/c" >/tmp/tgrad_devcheck_make.log 2>&1 || {

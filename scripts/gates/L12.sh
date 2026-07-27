@@ -167,14 +167,25 @@ echo "  ✓ semantic differential: 11/11 source-different kernels are bit-identi
 # ─── LAYER C2: numerical sweep through alternate generated cache ─────
 BENCH_JSONL="$WORK_DIR/generated_bench.jsonl"
 BENCH_LOG="$WORK_DIR/bench.log"
+# A ratio predicate evaluated from ONE sample is not a measurement.
+# At --warmup 1 --measured 1 this sweep reported ratio_median 2.38 /
+# ratio_max 4.24 with 37/50 pairs missing ratio<=1.5; the identical
+# code at --warmup 30 --measured 30 reports 1.18 / 1.41 with 0
+# misses. Same predicate, opposite verdict, from sampling alone.
+# 30/30 matches L11.sh:116 and is the same order as the tinygrad
+# baseline being divided by (n_warmup 10, n_measured 30).
+#
+# These comments sit ABOVE the command, not inside it. They were once
+# between `bench-full \` and the flags, and a `\` continuation followed
+# by a comment line does not continue: bash joined line 1 to the first
+# `#`, leaving the flag line to run as its own command. The sweep ran
+# with NO flags --- no --use-algebraic-emit (so it measured the wrong
+# emitter, which is the entire point of this gate), no --output, and
+# default warmup/measured, which is exactly the one-sample regime the
+# comment above exists to forbid. It reported perf_miss 30/50 while
+# `--use-algebraic-emit: command not found` scrolled past. Do not move
+# a comment back inside a continued command.
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-full \
-    # A ratio predicate evaluated from ONE sample is not a measurement.
-    # At --warmup 1 --measured 1 this sweep reported ratio_median 2.38 /
-    # ratio_max 4.24 with 37/50 pairs missing ratio<=1.5; the identical
-    # code at --warmup 30 --measured 30 reports 1.18 / 1.41 with 0
-    # misses. Same predicate, opposite verdict, from sampling alone.
-    # 30/30 matches L11.sh:116 and is the same order as the tinygrad
-    # baseline being divided by (n_warmup 10, n_measured 30).
     --use-algebraic-emit --output "$BENCH_JSONL" --warmup 30 --measured 30) \
     >"$BENCH_LOG" 2>&1 || {
   echo "  ✗ generated-emitter bench-full failed"

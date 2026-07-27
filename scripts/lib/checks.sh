@@ -153,6 +153,27 @@ ensure_dylib() {
 }
 
 # -----------------------------------------------------------------------
+# check_shell_continuation — reject `\` continuation followed by a comment.
+#
+# Bash joins the continued line into the comment, so every flag after it
+# runs as a separate command and is silently dropped. L12's perf sweep
+# spent an unknown time benchmarking the wrong emitter at the wrong
+# sample count this way, while the comment it dropped explained in
+# detail why the sample count mattered. `bash -n` accepts it; the gate
+# stays green; only the measurement changes.
+# -----------------------------------------------------------------------
+check_shell_continuation() {
+  local log=/tmp/tgrad_shell_continuation.log
+  if python3 "$TGRAD_DIR/scripts/dev/shell_continuation_audit.py" \
+       "$TGRAD_DIR/scripts" >"$log" 2>&1; then
+    return 0
+  fi
+  echo "  ✗ shell continuation followed by comment (flags silently dropped)"
+  sed 's/^/      /' "$log"
+  return 1
+}
+
+# -----------------------------------------------------------------------
 # check_no_gate_regression — verify GREEN_GATES never shrinks vs git HEAD.
 #
 # Catches the case where an agent removes a gate from the green list to

@@ -2,8 +2,8 @@
 
 Loads `libtgrad.dylib` (built by `c/Makefile`'s `dylib` target),
 calls into Lean's @[export] entries through C trampolines. No
-subprocess; sub-millisecond per-call overhead so L7's perf parity is
-meaningful.
+subprocess. Performance claims use the explicit prepared-runtime boundary;
+ordinary ``a @ b`` includes route selection and output allocation.
 
 Usage:
     python -m tgrad bench --shape 64x64x64
@@ -117,6 +117,22 @@ _lib.tgrad_matmul_tc_eligible.argtypes = [
     ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
 ]
 _lib.tgrad_matmul_tc_eligible.restype  = ctypes.c_int32
+
+# Prepared fixed-shape boundary. Preparation resolves rendering/compilation,
+# route, function name, and launch geometry. Repeated runs reuse caller-owned
+# device buffers and the same output allocation.
+_lib.tgrad_matmul_prepare.argtypes = [
+    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+]
+_lib.tgrad_matmul_prepare.restype = ctypes.c_uint64
+_lib.tgrad_matmul_run_prepared.argtypes = [
+    ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
+]
+_lib.tgrad_matmul_run_prepared.restype = ctypes.c_int32
+_lib.tgrad_matmul_plan_release.argtypes = [ctypes.c_uint64]
+_lib.tgrad_matmul_plan_release.restype = None
+_lib.tgrad_matmul_plan_route.argtypes = [ctypes.c_uint64]
+_lib.tgrad_matmul_plan_route.restype = ctypes.c_uint32
 
 # L14.A: opaque-handle tensor registry. `tgrad_tensor_from_buffer`
 # constructs a Lean-side Tensor (UOp graph) and returns an opaque
@@ -623,6 +639,133 @@ class Tensor:
                 f"{entry_name}(M={M}, K={K}, N={N}) returned rc={rc} "
                 f"(see PythonFFI.lean for rc → reason mapping)")
         return Tensor(out_buf, out_size, (M, N), "bf16")
+
+    def prepare_matmul(self, other: "Tensor") -> "PreparedMatmul":
+        """Prepare a fixed-shape, buffer-backed matmul for repeated dispatch.
+
+        Route selection, rendering/compilation, and output allocation happen
+        here. ``PreparedMatmul.run`` reuses all prepared state and synchronizes
+        before returning.
+        """
+        return PreparedMatmul(self, other)
+
+
+class PreparedMatmul:
+    """Reusable fixed-shape matmul execution state.
+
+    This is the public Tgrad side of the prepared-runtime performance
+    boundary. It deliberately accepts only materialized BUFFER operands:
+    movement-view realization is a separate compiler operation and cannot be
+    smuggled into a supposedly prepared timing interval.
+    """
+
+    __slots__ = (
+        "_a", "_b", "_output", "_plan", "_route", "_fin", "__weakref__"
+    )
+
+    _ROUTE_NAMES = {1: "sentinel", 2: "tensor_core", 3: "scalar"}
+
+    def __init__(self, a: Tensor, b: Tensor):
+        if not isinstance(a, Tensor) or not isinstance(b, Tensor):
+            raise TgradTypeError("PreparedMatmul requires two Tensor operands")
+        if a.dtype != "bf16" or b.dtype != "bf16":
+            raise TgradTypeError("PreparedMatmul supports bf16 only")
+        if a._uop_kind_code() != 0 or b._uop_kind_code() != 0:
+            raise TgradTypeError("PreparedMatmul requires materialized BUFFER operands")
+        M, K_a = a.shape
+        K_b, N = b.shape
+        if K_a != K_b:
+            raise TgradTypeError(
+                f"PreparedMatmul contraction mismatch ({a.shape} @ {b.shape})"
+            )
+        plan = int(_lib.tgrad_matmul_prepare(M, K_a, N))
+        if plan == 0:
+            raise TgradError(
+                f"tgrad_matmul_prepare(M={M}, K={K_a}, N={N}) returned 0"
+            )
+        output_size = M * N * _DTYPE_BYTES["bf16"]
+        output_buffer = int(_lib.tgrad_tensor_alloc(output_size))
+        if output_buffer == 0:
+            _lib.tgrad_matmul_plan_release(plan)
+            raise TgradError(
+                f"tgrad_tensor_alloc({output_size}) for prepared output returned 0"
+            )
+        try:
+            output = Tensor(output_buffer, output_size, (M, N), "bf16")
+        except BaseException:
+            _lib.tgrad_tensor_free(output_buffer, output_size)
+            _lib.tgrad_matmul_plan_release(plan)
+            raise
+        route = int(_lib.tgrad_matmul_plan_route(plan))
+        if route not in self._ROUTE_NAMES:
+            output._fin()
+            _lib.tgrad_matmul_plan_release(plan)
+            raise TgradError(f"prepared plan {plan} returned invalid route code {route}")
+        self._a = a
+        self._b = b
+        self._output = output
+        self._plan = plan
+        self._route = route
+        self._fin = weakref.finalize(self, _lib.tgrad_matmul_plan_release, plan)
+
+    @property
+    def output(self) -> Tensor:
+        return self._output
+
+    @property
+    def route(self) -> str:
+        return self._ROUTE_NAMES[self._route]
+
+    @property
+    def plan_handle(self) -> int:
+        return self._plan if self._fin.alive else 0
+
+    def _validate_operands(self, a: Tensor, b: Tensor) -> None:
+        if a._uop_kind_code() != 0 or b._uop_kind_code() != 0:
+            raise TgradTypeError("prepared run requires materialized BUFFER operands")
+        if a.shape != self._a.shape or b.shape != self._b.shape:
+            raise TgradTypeError(
+                f"prepared run shape changed: expected {self._a.shape} @ {self._b.shape}, "
+                f"got {a.shape} @ {b.shape}"
+            )
+        if a.dtype != self._a.dtype or b.dtype != self._b.dtype:
+            raise TgradTypeError("prepared run dtype changed")
+
+    def run(self, a: Tensor | None = None, b: Tensor | None = None) -> Tensor:
+        if not self._fin.alive:
+            raise TgradError("PreparedMatmul plan has been released")
+        left = self._a if a is None else a
+        right = self._b if b is None else b
+        self._validate_operands(left, right)
+        rc = _lib.tgrad_matmul_run_prepared(
+            self._plan, left._buf, right._buf, self._output._buf
+        )
+        if rc != 0:
+            raise TgradError(
+                f"tgrad_matmul_run_prepared(plan={self._plan}, route={self.route}) "
+                f"returned rc={rc}"
+            )
+        return self._output
+
+    def poison_output(self, byte: int = 0xA5) -> None:
+        if not 0 <= byte <= 255:
+            raise ValueError("poison byte must be in [0, 255]")
+        payload = bytes([byte]) * self._output._size
+        array = (ctypes.c_uint8 * len(payload)).from_buffer_copy(payload)
+        rc = _lib.tgrad_tensor_write_bytes(
+            self._output._buf, array, len(payload)
+        )
+        if rc != 0:
+            raise TgradError(f"poisoning prepared output returned rc={rc}")
+
+    def close(self) -> None:
+        self._fin()
+
+    def __enter__(self) -> "PreparedMatmul":
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        self.close()
 
 
 def bench(shape: str = "64x64x64", dtype: str = "bf16") -> dict:

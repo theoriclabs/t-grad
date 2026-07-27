@@ -78,6 +78,14 @@ class FakeSession:
             {"fake_prepared_route": True},
         )
 
+    def prepared_replacement_correctness(
+        self, _a_payload: bytes, _b_payload: bytes
+    ) -> Any:
+        return paired.PreparedCorrectness(
+            bytes((value ^ 0x01) for value in self.adapter.prepared_output),
+            {"fake_input_replacement": True},
+        )
+
     def measure(self, boundary_id: str) -> Any:
         if boundary_id != "repeated":
             raise AssertionError(f"unexpected fake boundary: {boundary_id}")
@@ -212,7 +220,7 @@ class PairedRuntimeTests(unittest.TestCase):
                 ]
                 self.assertEqual(Counter(first_sides), Counter({"AB": 3, "BA": 3}))
             expected_raw_count = config.sessions * (
-                2 * len(self.make_adapters())
+                3 * len(self.make_adapters())
                 + (config.warmup_pairs + config.samples_per_session) * 2
             )
             self.assertEqual(len(raw), expected_raw_count)
@@ -242,6 +250,80 @@ class PairedRuntimeTests(unittest.TestCase):
             self.assertEqual(
                 manifest["summary"]["sha256"], paired._sha256_file(config.summary_output)
             )
+
+    def test_default_pair_uses_symmetric_prepared_runtime_boundaries(self) -> None:
+        comparison = paired.default_comparisons()[0]
+        self.assertEqual(comparison.numerator_boundary, "prepared_runtime")
+        self.assertEqual(comparison.denominator_boundary, "tinyjit_replay")
+        self.assertFalse(comparison.diagnostic)
+        self.assertFalse(comparison.kernel_speed_claim_eligible)
+
+    def test_tgrad_prepared_session_poisons_and_reuses_output(self) -> None:
+        output_bytes = b"\x12\x34" * 4
+
+        class FakeOutput:
+            _buf = 99
+
+            def to_bytes(self) -> bytes:
+                return output_bytes
+
+        class FakePrepared:
+            route = "sentinel"
+
+            def __init__(self):
+                self.output = FakeOutput()
+                self.poison_calls = 0
+                self.run_calls = 0
+                self.close_calls = 0
+
+            def poison_output(self) -> None:
+                self.poison_calls += 1
+
+            def run(self) -> Any:
+                self.run_calls += 1
+                return self.output
+
+            def close(self) -> None:
+                self.close_calls += 1
+
+        class FakeTensor:
+            instances: list[Any] = []
+
+            def __init__(self):
+                self.prepared = FakePrepared()
+                self.__class__.instances.append(self)
+
+            @classmethod
+            def from_bf16_bytes(cls, _payload: bytes, _shape: tuple[int, int]) -> Any:
+                return cls()
+
+            def __matmul__(self, _other: Any) -> Any:
+                return FakeOutput()
+
+            def prepare_matmul(self, _other: Any) -> Any:
+                return self.prepared
+
+        module = type("FakeTgradModule", (), {"Tensor": FakeTensor})
+        session = paired._TgradSession(
+            module,
+            paired.Workload(m=2, k=2, n=2),
+            b"\x00" * 8,
+            b"\x00" * 8,
+        )
+        with mock.patch.object(paired.time, "perf_counter_ns", side_effect=[100, 200]):
+            phases = session.prepare()
+        self.assertEqual(phases[0].boundary_id, "tgrad_prepare")
+        prepared = session.prepared_correctness()
+        plan = FakeTensor.instances[0].prepared
+        self.assertEqual(prepared.output, output_bytes)
+        self.assertEqual(plan.poison_calls, 1)
+        self.assertTrue(prepared.metadata["output_buffer_reused"])
+        with mock.patch.object(paired.time, "perf_counter_ns", side_effect=[300, 400]):
+            measured = session.measure("prepared_runtime")
+        self.assertGreater(measured.duration_ns, 0)
+        self.assertTrue(measured.metadata["output_buffer_reused"])
+        session.close()
+        self.assertEqual(plan.close_calls, 1)
 
     def test_deterministic_fake_reruns_match_exactly(self) -> None:
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

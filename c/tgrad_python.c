@@ -287,6 +287,54 @@ int32_t tgrad_matmul_tc_eligible(size_t M, size_t K, size_t N) {
     return v;
 }
 
+/* Prepared fixed-shape matmul. Preparation resolves and compiles the route;
+ * repeated runs receive already allocated device buffers and synchronize
+ * inside the existing Metal dispatch. */
+extern lean_object* tgrad_matmul_prepare_lean(size_t M, size_t K, size_t N);
+extern lean_object* tgrad_matmul_run_prepared_lean(
+    uint64_t plan, uint64_t a, uint64_t b, uint64_t out);
+extern lean_object* tgrad_matmul_plan_release_lean(uint64_t plan);
+extern lean_object* tgrad_matmul_plan_route_lean(uint64_t plan);
+
+uint64_t tgrad_matmul_prepare(size_t M, size_t K, size_t N) {
+    lean_object* result = tgrad_matmul_prepare_lean(M, K, N);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return 0;
+    }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+int32_t tgrad_matmul_run_prepared(
+    uint64_t plan, uint64_t a, uint64_t b, uint64_t out) {
+    lean_object* result = tgrad_matmul_run_prepared_lean(plan, a, b, out);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return -1000;
+    }
+    int32_t value = (int32_t)lean_unbox_uint32(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+void tgrad_matmul_plan_release(uint64_t plan) {
+    lean_object* result = tgrad_matmul_plan_release_lean(plan);
+    lean_dec_ref(result);
+}
+
+uint32_t tgrad_matmul_plan_route(uint64_t plan) {
+    lean_object* result = tgrad_matmul_plan_route_lean(plan);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return 0;
+    }
+    uint32_t value = lean_unbox_uint32(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
 /* L14.A — Tensor registry (opaque handle → Lean-owned Tensor).
  *
  * `tgrad_tensor_from_buffer` constructs a `Tensor { uop := .buffer h

@@ -480,11 +480,35 @@ def workItems : List WorkItem :=
         [.build, .semantic, .performance, .provenance, .resourceIsolation],
       recovery := "keep verify.performance missing and delete the harness candidate if its fake calibration or metadata contract is incomplete",
       progress := .complete "29c41e5" },
+    { id := ew "perf.prepared-boundary",
+      title := "make the repeated matmul boundary symmetric",
+      phase := .build, authority := .agentExecution,
+      closesFindings := [],
+      dependsOn := [ew "codegen.delete-transcription",
+        ew "harness.paired-performance"],
+      runtimeScope := [rw "verify.paired-performance-observer"],
+      touches := [.pythonAuthoring, .leanFfi, .metalRuntime, .gateHarness,
+        .specification],
+      writes := ["Tgrad/PythonFFI.lean", "c/tgrad_python.c",
+        "python/tgrad.py", "scripts/perf/paired_runtime.py",
+        "scripts/perf/README.md", "scripts/dev/test_paired_runtime.py",
+        "scripts/dev/test_prepared_matmul.py",
+        "Tgrad/Spec/PerformanceBoundary.lean", "Tgrad/Spec/Work.lean"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .metalGpu],
+      cost := 3, goalDistance := 0,
+      validation := plannedValidation
+        "a public fixed-shape plan that reuses compiled execution state, resident inputs, and output storage, paired with verified TinyJit replay"
+        "build the product and spec; run CPU harness falsifiers; run the prepared lifecycle/foreign-fixture test serially; then run one paired Metal smoke without drawing a performance verdict"
+        "both sides replace a second same-shape input pair bit-exactly, preserve output-buffer identity, restore primary inputs, and time only invoke-through-completion; no allocation, compile, threshold, or frozen baseline enters the default comparison"
+        [.build, .semantic, .performance, .provenance, .resourceIsolation],
+      recovery := "retain the bounded asymmetric observer and leave verify.performance missing if either prepared route cannot establish the same boundary",
+      progress := .planned },
     { id := ew "perf.rebaseline", title := "measure symmetric generated-kernel performance",
       phase := .verify, authority := .evidence,
       closesFindings := ["F-performance-methodology"],
       dependsOn := [ew "codegen.delete-transcription",
-        ew "harness.paired-performance"],
+        ew "harness.paired-performance", ew "perf.prepared-boundary"],
       runtimeScope := [rw "verify.performance"],
       touches := [.gateHarness, .evidenceStore],
       writes := ["fixtures/perf/generated_codegen.json", "EXPERIMENT_RESULT.md"],
@@ -493,8 +517,8 @@ def workItems : List WorkItem :=
       cost := 5, goalDistance := 0,
       validation := plannedValidation
         "paired same-session distributions for both runtimes, with a repeatability model before any verdict"
-        "interleave synchronized dispatch-only samples serially; repeat complete runs; retain raw samples; estimate within-run and between-run variance; predeclare a threshold derived from that variance or publish no pass/fail threshold"
-        "same boundary and cache/JIT policy; both denominators live; uncertainty and throughput physically sane; the verdict is stable across repeats and no threshold is tuned to make a run green"
+        "interleave synchronized prepared-runtime samples serially; repeat complete runs; retain raw samples; estimate within-run and between-run variance; predeclare a threshold derived from that variance or publish no pass/fail threshold"
+        "both sides reuse compiled fixed-shape state, resident inputs, and output storage; both denominators are live; uncertainty and effective operational rate are physically sane; the verdict is stable across repeats and no threshold is tuned to make a run green"
         [.performance, .provenance, .resourceIsolation],
       recovery := "report regression or indeterminate variance; never substitute a frozen denominator or tune the threshold after observing failures",
       progress := .planned },
@@ -745,10 +769,11 @@ def growthCases : List Growth.Case :=
           "raw samples, per-run miss counts, ratio distributions, and within/between-run variance",
         observe "verify.performance" "paired generated matmul comparison"
           "both runtimes execute the same timed work boundary live in one interleaved session"
-          "measure paired dispatch-only and end-to-end distributions serially, then repeat complete sessions"
+          "measure paired prepared-runtime distributions and a separately labelled end-to-end diagnostic serially, then repeat complete sessions"
           "paired raw samples, cache/JIT and boundary metadata, uncertainty, throughput, and thermal context"],
       evolutionWork := [ew "spec.record-regeneration-observation",
-        ew "harness.paired-performance", ew "perf.rebaseline"],
+        ew "harness.paired-performance", ew "perf.prepared-boundary",
+        ew "perf.rebaseline"],
       deltas := [
         delta "verify.paired-performance-observer" .addCapability
           [.performance, .observability, .provenance] .missing .bounded
@@ -764,7 +789,7 @@ def growthCases : List Growth.Case :=
         "publish unknown/regression when variance is too large; never reuse stale ratios or choose a threshold after seeing the result",
       epistemic := .confirmed
         "42838f2 supplies the bounded observer, but the performance claim remains unpromotable: identical e90607f 30/30 runs varied from 2 to 25 to 10 misses"
-        "exact-tree live smoke plus direct repeatability diagnosis; full paired multi-run variance and symmetric kernel boundaries remain missing" },
+        "exact-tree live smoke plus direct repeatability diagnosis; the prepared-runtime boundary candidate still needs serial verification and full paired multi-run variance remains missing" },
     { id := "G-evidence-provenance",
       findingIds := ["F-evidence-provenance"],
       observations := [
@@ -2317,7 +2342,7 @@ theorem current_authoring_frontier_exposes_oracle_and_performance_lanes :
     frontierIds =
       [ ew "oracle.calibrate-upstream-suite",
         ew "oracle.classify-public-contract",
-        ew "perf.rebaseline" ] := by
+        ew "perf.prepared-boundary" ] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :

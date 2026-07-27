@@ -63,8 +63,16 @@ bfloat16 payloads, and their bf16 output bytes must match exactly. Each timed
 session then prepares its real repeated-call route and byte-checks that route
 again before collecting a sample. On tinygrad this second check is an actual
 captured TinyJit replay, not the un-JIT reference call. The operator forces and
-records `JIT=1`, requires a non-null capture object and valid replay count, and
-rejects a disabled or failed capture before timing.
+records `DEV=METAL`, `JIT=1`, `DEBUG=0`, `PROFILE=0`, `BEAM=0`, and
+`GRAPH_ONE_KERNEL=0`, requires a non-null capture object and valid replay
+count, verifies that replay retains the captured output buffer, and rejects a
+disabled or failed capture before timing. On Tgrad it is
+an explicit `PreparedMatmul` plan with one compiled route and one reusable
+output allocation; correctness poisons that output first and asserts its
+buffer identity is unchanged after execution. Before timing, both prepared
+routes also execute a second deterministic same-shape input pair, must agree
+bit-for-bit, must differ from the primary output, and then restore the primary
+inputs. This catches a captured route that merely returns stale output.
 
 Measurements are organized into sessions. Within each session, a seeded
 schedule interleaves the two implementations in both `AB` and `BA` order. The
@@ -91,16 +99,18 @@ code and configuration therefore cannot alias as one evidence run.
 Every reported timing is labeled with the boundary it actually measures.
 Boundaries are not interchangeable:
 
-- The Tgrad synchronized route measures the named Tgrad execution route and
-  includes the synchronization required to make completion observable at that
-  boundary.
+- The default Tgrad prepared-runtime route excludes route selection,
+  rendering/compilation, and output allocation. It includes the Python
+  prepared call, Lean plan lookup, FFI, Metal submission, and the wait that
+  makes completion observable.
 - The TinyJit replay boundary measures replay of an already prepared TinyJit
   program. It is not a measurement of initial capture or compilation.
 - TinyJit's first and capture calls are retained as separate composite
   preparation observations. They include runtime and synchronization and are
-  not mislabeled as isolated compiler timings. Tgrad's isolated compile and
-  dispatch-only boundaries are explicitly unavailable where the public route
-  cannot expose them.
+  not mislabeled as isolated compiler timings. Tgrad plan creation is likewise
+  retained as a separate composite preparation observation. Dispatch-only GPU
+  timestamps remain unavailable because neither public route exposes the same
+  portable counter boundary.
 - An optional un-JIT measurement is a distinct diagnostic boundary. It is
   reported separately and must not be compared as though it were TinyJit
   replay or the synchronized Tgrad route.
@@ -110,9 +120,9 @@ platform, the operator records that boundary as unavailable. It does not
 silently substitute another boundary, fabricate a zero, or fold unlike
 boundaries together.
 
-The default pair is an operational repeated-call comparison, not a kernel
-comparison: Tgrad includes output allocation while tinygrad uses prepared
-TinyJit replay. Every comparison carries the machine-readable field
+The default pair is a symmetric prepared-runtime comparison, not a kernel
+comparison: both sides reuse fixed-shape compiled state, resident inputs, and
+output storage, and both return only after device completion. Every comparison carries the machine-readable field
 `kernel_speed_claim_eligible`; it is `false` for every boundary currently
 available. No downstream report may relabel these observations as kernel
 speed.
@@ -129,7 +139,8 @@ a noisy runtime comparison. The summary also retains absolute duration and
 effective operational-rate quantiles for both sides so physical plausibility
 can be checked without reverse-engineering a ratio. The rate is
 `2*M*K*N / observed boundary time`; because the boundaries include host work,
-allocation, FFI, and synchronization, it is not isolated kernel throughput.
+runtime lookup/replay, FFI or Python dispatch, and synchronization, it is not
+isolated kernel throughput.
 
 The output also captures provenance needed to understand a run: current and
 reference revisions, the pinned reference tree, dirty-state information when

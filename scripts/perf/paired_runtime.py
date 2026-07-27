@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TINYGRAD_SOURCE = Path("/tmp/tgrad-upstream-19c4d736")
 EXPECTED_TINYGRAD_COMMIT = "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
@@ -151,6 +151,10 @@ class AdapterSession(Protocol):
     def prepare(self) -> Iterable[PhaseObservation]: ...
 
     def prepared_correctness(self) -> PreparedCorrectness: ...
+
+    def prepared_replacement_correctness(
+        self, a_payload: bytes, b_payload: bytes
+    ) -> PreparedCorrectness: ...
 
     def measure(self, boundary_id: str) -> Measurement: ...
 
@@ -307,6 +311,23 @@ def workload_material(workload: Workload) -> tuple[bytes, bytes, dict[str, Any],
         },
     }
     return a_payload, b_payload, manifest, _sha256_json(manifest)
+
+
+def replacement_payloads(workload: Workload) -> tuple[bytes, bytes, dict[str, Any]]:
+    """A second same-shape pair used to prove prepared routes replace inputs."""
+    a_seed = _stable_seed(workload.input_seed, "prepared-replacement", "a")
+    b_seed = _stable_seed(workload.input_seed, "prepared-replacement", "b")
+    a_payload = deterministic_bf16_payload(workload.m * workload.k, a_seed)
+    b_payload = deterministic_bf16_payload(workload.k * workload.n, b_seed)
+    manifest = {
+        "purpose": "prepared_input_replacement_correctness",
+        "shape": workload.shape,
+        "a_seed": a_seed,
+        "b_seed": b_seed,
+        "a_sha256": _sha256_bytes(a_payload),
+        "b_sha256": _sha256_bytes(b_payload),
+    }
+    return a_payload, b_payload, manifest
 
 
 def _git_command(path: Path, *args: str) -> str:
@@ -874,6 +895,7 @@ def run_harness(
     ):
         raise HarnessError("refusing to overwrite an existing run artifact")
     a_payload, b_payload, manifest, workload_hash = workload_material(workload)
+    replacement_a, replacement_b, replacement_manifest = replacement_payloads(workload)
     provenance: dict[str, dict[str, Any]] = {}
     for name, adapter in sorted(adapters.items()):
         adapter_provenance = adapter.provenance()
@@ -907,6 +929,7 @@ def run_harness(
         "timing_boundaries": boundaries,
         "comparisons": [comparison.to_dict() for comparison in comparisons],
         "correctness_preflight": correctness,
+        "prepared_replacement_manifest": replacement_manifest,
     }
     run_id = _sha256_json(run_identity)
     raw_handle, raw_temporary = _open_atomic_text(config.raw_output)
@@ -935,6 +958,7 @@ def run_harness(
     try:
         for session_index in range(config.sessions):
             sessions: dict[str, AdapterSession] = {}
+            replacement_outputs: dict[str, dict[str, Any]] = {}
             try:
                 for name in sorted(adapters):
                     adapter = adapters[name]
@@ -976,6 +1000,29 @@ def run_harness(
                             "output_sha256": prepared_sha256,
                             "metadata": dict(prepared.metadata),
                         })
+                        replacement = sessions[adapter_name].prepared_replacement_correctness(
+                            replacement_a, replacement_b
+                        )
+                        replacement_sha256 = _sha256_bytes(replacement.output)
+                        if replacement_sha256 == expected["sha256"]:
+                            raise CorrectnessError(
+                                f"prepared replacement route for {adapter_name} returned the "
+                                "primary output unchanged"
+                            )
+                        replacement_outputs[adapter_name] = {
+                            "bytes": len(replacement.output),
+                            "sha256": replacement_sha256,
+                        }
+                        emit({
+                            "record_type": "prepared_replacement_correctness",
+                            "phase": "preparation",
+                            "included_in_analysis": False,
+                            "session_index": session_index,
+                            "adapter": adapter_name,
+                            "output_bytes": len(replacement.output),
+                            "output_sha256": replacement_sha256,
+                            "metadata": dict(replacement.metadata),
+                        })
                     except BaseException as exc:
                         error = {
                             "session_index": session_index,
@@ -992,6 +1039,14 @@ def run_harness(
                         raise MeasurementRunError(
                             f"preparation failed for {adapter_name} in session {session_index}", {}
                         ) from exc
+                replacement_values = list(replacement_outputs.values())
+                if len(replacement_values) != len(adapters) or any(
+                    value != replacement_values[0] for value in replacement_values[1:]
+                ):
+                    raise CorrectnessError(
+                        "prepared routes disagree after same-shape input replacement: "
+                        f"{replacement_outputs}"
+                    )
                 for comparison in comparisons:
                     phases = (("warmup", config.warmup_pairs),
                               ("measured", config.samples_per_session))
@@ -1186,11 +1241,23 @@ class _TgradSession:
         self._a = module.Tensor.from_bf16_bytes(a_payload, (workload.m, workload.k))
         self._b = module.Tensor.from_bf16_bytes(b_payload, (workload.k, workload.n))
         self._last = None
+        self._prepared = None
         unavailable = lambda boundary_id, category, reason: BoundarySpec(
             id=boundary_id, category=category, description=reason, includes=(), excludes=(),
             available=False, unavailable_reason=reason,
         )
         self._boundaries = {
+            "tgrad_prepare": BoundarySpec(
+                id="tgrad_prepare", category="compile_capture",
+                description=(
+                    "Composite one-time route selection, rendering/compile cache lookup, "
+                    "plan registration, and reusable output allocation."
+                ),
+                includes=("route selection", "rendering", "compile/cache lookup",
+                          "plan registration", "output allocation"),
+                excludes=("input construction", "output readback"),
+                diagnostic=True,
+            ),
             "repeated_synchronized_matmul": BoundarySpec(
                 id="repeated_synchronized_matmul",
                 category="end_to_end",
@@ -1201,6 +1268,19 @@ class _TgradSession:
                 includes=("Python call", "route selection", "output allocation", "FFI",
                           "Metal dispatch", "device synchronization"),
                 excludes=("input construction", "output readback", "output release"),
+                diagnostic=True,
+            ),
+            "prepared_runtime": BoundarySpec(
+                id="prepared_runtime",
+                category="prepared_runtime",
+                description=(
+                    "PreparedMatmul.run wall time with compiled route and reusable output; "
+                    "includes Python call, plan lookup, FFI, Metal submission, and device wait."
+                ),
+                includes=("Python prepared call", "Lean plan lookup", "FFI",
+                          "Metal dispatch", "device synchronization"),
+                excludes=("route selection", "rendering", "compilation", "input construction",
+                          "output allocation", "output readback", "output release"),
             ),
             "dispatch_runtime": unavailable(
                 "dispatch_runtime", "dispatch_runtime",
@@ -1222,26 +1302,100 @@ class _TgradSession:
         return (self._a @ self._b).to_bytes()
 
     def prepare(self) -> Sequence[PhaseObservation]:
-        return ()
+        started = time.perf_counter_ns()
+        self._prepared = self._a.prepare_matmul(self._b)
+        duration = time.perf_counter_ns() - started
+        return (PhaseObservation(
+            "tgrad_prepare", "Tgrad prepared-plan creation",
+            Measurement(duration, {
+                "route": self._prepared.route,
+                "boundary_is_composite": True,
+                "includes_output_allocation": True,
+            }),
+        ),)
 
     def prepared_correctness(self) -> PreparedCorrectness:
-        output = self.correctness_output()
+        if self._prepared is None:
+            raise CorrectnessError("Tgrad prepared correctness requested before preparation")
+        output_buffer = self._prepared.output._buf
+        self._prepared.poison_output()
+        result = self._prepared.run()
+        if result is not self._prepared.output or result._buf != output_buffer:
+            raise CorrectnessError("Tgrad prepared route did not reuse its output buffer")
+        output = result.to_bytes()
         return PreparedCorrectness(
             output,
-            {"route": "repeated_synchronized_matmul", "prepared_state": "not_applicable"},
+            {
+                "route": self._prepared.route,
+                "prepared_state": "compiled_plan_and_reusable_output",
+                "output_buffer_reused": True,
+                "output_poisoned_before_run": True,
+                "synchronization": "inside Tgrad Metal dispatch",
+            },
+        )
+
+    def prepared_replacement_correctness(
+        self, a_payload: bytes, b_payload: bytes
+    ) -> PreparedCorrectness:
+        if self._prepared is None:
+            raise CorrectnessError("Tgrad replacement check requested before preparation")
+        alternate_a = self._module.Tensor.from_bf16_bytes(
+            a_payload, (self._workload.m, self._workload.k)
+        )
+        alternate_b = self._module.Tensor.from_bf16_bytes(
+            b_payload, (self._workload.k, self._workload.n)
+        )
+        output_buffer = self._prepared.output._buf
+        self._prepared.poison_output(0x5A)
+        replacement = self._prepared.run(alternate_a, alternate_b)
+        output = replacement.to_bytes()
+        if replacement._buf != output_buffer:
+            raise CorrectnessError("Tgrad replacement run changed its output buffer")
+        # Restore the primary inputs before warmup/timing.
+        self._prepared.run()
+        return PreparedCorrectness(
+            output,
+            {
+                "route": self._prepared.route,
+                "same_plan": True,
+                "same_output_buffer": True,
+                "inputs_replaced": True,
+                "primary_inputs_restored": True,
+            },
         )
 
     def measure(self, boundary_id: str) -> Measurement:
-        if boundary_id != "repeated_synchronized_matmul":
-            raise HarnessError(f"unsupported Tgrad boundary: {boundary_id}")
-        started = time.perf_counter_ns()
-        result = self._a @ self._b
-        duration = time.perf_counter_ns() - started
-        self._last = result
-        return Measurement(duration, {"synchronization": "inside Tgrad Metal dispatch"})
+        if boundary_id == "prepared_runtime":
+            if self._prepared is None:
+                raise HarnessError("Tgrad prepared boundary measured before preparation")
+            output_buffer = self._prepared.output._buf
+            started = time.perf_counter_ns()
+            result = self._prepared.run()
+            duration = time.perf_counter_ns() - started
+            if result._buf != output_buffer:
+                raise HarnessError("Tgrad prepared measurement changed output buffer")
+            self._last = result
+            return Measurement(duration, {
+                "route": self._prepared.route,
+                "output_buffer_reused": True,
+                "synchronization": "inside Tgrad Metal dispatch",
+            })
+        if boundary_id == "repeated_synchronized_matmul":
+            started = time.perf_counter_ns()
+            result = self._a @ self._b
+            duration = time.perf_counter_ns() - started
+            self._last = result
+            return Measurement(duration, {
+                "diagnostic": True,
+                "synchronization": "inside Tgrad Metal dispatch",
+            })
+        raise HarnessError(f"unsupported Tgrad boundary: {boundary_id}")
 
     def close(self) -> None:
         self._last = None
+        if self._prepared is not None:
+            self._prepared.close()
+        self._prepared = None
         self._a = None
         self._b = None
 
@@ -1285,6 +1439,11 @@ class TgradAdapter:
             environment={
                 "DEV": os.environ.get("DEV"),
                 "METAL": os.environ.get("METAL"),
+                "JIT": os.environ.get("JIT"),
+                "DEBUG": os.environ.get("DEBUG"),
+                "PROFILE": os.environ.get("PROFILE"),
+                "BEAM": os.environ.get("BEAM"),
+                "GRAPH_ONE_KERNEL": os.environ.get("GRAPH_ONE_KERNEL"),
                 "runtime_binary": binary.to_dict(),
             },
             revision_validation=validation,
@@ -1331,6 +1490,7 @@ class _TinygradSession:
         ).realize()
         self._last = None
         self._capture_verified = False
+        self._prepared_output_buffer = None
 
         def jit_body(a: Any, b: Any) -> Any:
             return (a @ b).cast(self._dtypes.bfloat16).realize()
@@ -1354,7 +1514,7 @@ class _TinygradSession:
                 excludes=("input construction", "output readback"), diagnostic=True,
             ),
             "tinyjit_replay": BoundarySpec(
-                id="tinyjit_replay", category="tinyjit_replay",
+                id="tinyjit_replay", category="prepared_runtime",
                 description="Prepared TinyJit replay call plus explicit Device synchronization.",
                 includes=("Python TinyJit call", "captured program replay", "device synchronization"),
                 excludes=("initial capture", "initial compile", "input construction", "output readback"),
@@ -1373,6 +1533,16 @@ class _TinygradSession:
 
     def _sync(self) -> None:
         self._Device[self._Device.DEFAULT].synchronize()
+
+    @staticmethod
+    def _output_buffer(result: Any) -> Any:
+        try:
+            realized = result.uop.base.realized
+        except AttributeError as exc:
+            raise CorrectnessError("TinyJit result exposes no realized output buffer") from exc
+        if realized is None:
+            raise CorrectnessError("TinyJit result output is not realized")
+        return realized.base
 
     def _unjit(self) -> Any:
         result = (self._a @ self._b).cast(self._dtypes.bfloat16).realize()
@@ -1411,6 +1581,7 @@ class _TinygradSession:
                 f"cnt={self._jit.cnt}, captured={self._jit.captured is not None}"
             )
         self._capture_verified = True
+        self._prepared_output_buffer = self._output_buffer(self._last)
 
     def prepared_correctness(self) -> PreparedCorrectness:
         if not self._capture_verified or self._jit.captured is None or self._jit.cnt < 2:
@@ -1420,6 +1591,8 @@ class _TinygradSession:
         self._sync()
         if self._jit.captured is None or self._jit.cnt != count_before + 1:
             raise CorrectnessError("TinyJit replay state changed unexpectedly during correctness check")
+        if self._output_buffer(result) is not self._prepared_output_buffer:
+            raise CorrectnessError("TinyJit replay did not reuse its captured output buffer")
         return PreparedCorrectness(
             _numpy_to_bf16_payload(result.numpy()),
             {
@@ -1428,15 +1601,61 @@ class _TinygradSession:
                 "tinyjit_count_after": self._jit.cnt,
                 "captured": True,
                 "explicit_device_synchronize": True,
+                "output_buffer_reused": True,
+            },
+        )
+
+    def prepared_replacement_correctness(
+        self, a_payload: bytes, b_payload: bytes
+    ) -> PreparedCorrectness:
+        if not self._capture_verified or self._prepared_output_buffer is None:
+            raise CorrectnessError("TinyJit replacement check requested before capture")
+        alternate_a = self._Tensor(
+            _bf16_payload_to_numpy(
+                a_payload, (self._workload.m, self._workload.k)
+            ),
+            device="METAL", dtype=self._dtypes.bfloat16,
+        ).realize()
+        alternate_b = self._Tensor(
+            _bf16_payload_to_numpy(
+                b_payload, (self._workload.k, self._workload.n)
+            ),
+            device="METAL", dtype=self._dtypes.bfloat16,
+        ).realize()
+        count_before = self._jit.cnt
+        replacement = self._jit(alternate_a, alternate_b)
+        self._sync()
+        if self._jit.cnt != count_before + 1 or self._jit.captured is None:
+            raise CorrectnessError("TinyJit input replacement left replay state")
+        if self._output_buffer(replacement) is not self._prepared_output_buffer:
+            raise CorrectnessError("TinyJit input replacement changed captured output buffer")
+        output = _numpy_to_bf16_payload(replacement.numpy())
+        # Restore the primary inputs before warmup/timing.
+        self._last = self._jit(self._a, self._b)
+        self._sync()
+        if self._output_buffer(self._last) is not self._prepared_output_buffer:
+            raise CorrectnessError("TinyJit primary-input restore changed output buffer")
+        return PreparedCorrectness(
+            output,
+            {
+                "tinyjit_phase": "verified_replay_input_replacement",
+                "captured": True,
+                "same_output_buffer": True,
+                "inputs_replaced": True,
+                "primary_inputs_restored": True,
             },
         )
 
     def measure(self, boundary_id: str) -> Measurement:
         if boundary_id == "tinyjit_replay":
-            return self._measure_call(
+            measurement = self._measure_call(
                 lambda: self._jit(self._a, self._b),
-                {"tinyjit_phase": "replay", "explicit_device_synchronize": True},
+                {"tinyjit_phase": "replay", "explicit_device_synchronize": True,
+                 "output_buffer_reused": True},
             )
+            if self._output_buffer(self._last) is not self._prepared_output_buffer:
+                raise CorrectnessError("timed TinyJit replay changed its output buffer")
+            return measurement
         if boundary_id == "unjit_end_to_end":
             return self._measure_call(
                 lambda: (self._a @ self._b).cast(self._dtypes.bfloat16).realize(),
@@ -1446,6 +1665,7 @@ class _TinygradSession:
 
     def close(self) -> None:
         self._last = None
+        self._prepared_output_buffer = None
         self._jit = None
         self._a = None
         self._b = None
@@ -1477,9 +1697,18 @@ class TinygradAdapter:
             else (inherited_legacy_metal if inherited_legacy_metal is not None else "<unset>")
         )
         requested_python = os.environ.pop("TGRAD_PAIRED_REQUESTED_PYTHON", None)
-        inherited_jit = os.environ.get("JIT", "<unset>")
-        os.environ["DEV"] = "METAL"
-        os.environ["JIT"] = "1"
+        forced_selectors = {
+            "DEV": "METAL",
+            "JIT": "1",
+            "DEBUG": "0",
+            "PROFILE": "0",
+            "BEAM": "0",
+            "GRAPH_ONE_KERNEL": "0",
+        }
+        inherited_selectors = {
+            key: os.environ.get(key, "<unset>") for key in forced_selectors
+        }
+        os.environ.update(forced_selectors)
         self._module = _import_from_source("tinygrad", self._source, self._source / "tinygrad")
         self._provenance = AdapterProvenance(
             name=self.name,
@@ -1492,8 +1721,11 @@ class TinygradAdapter:
                 "legacy_METAL_removed": original_legacy_metal != "<unset>",
                 "legacy_METAL_inherited_value": original_legacy_metal,
                 "METAL_effective": os.environ.get("METAL"),
-                "JIT_inherited": inherited_jit,
-                "JIT_effective": os.environ.get("JIT"),
+                "forced_selectors": forced_selectors,
+                "inherited_selectors": inherited_selectors,
+                "effective_selectors": {
+                    key: os.environ.get(key) for key in forced_selectors
+                },
                 "JIT_requirement": "capture object and replay output verified before timing",
                 "requested_python_executable": requested_python,
                 "effective_python_executable": str(Path(sys.executable).resolve()),
@@ -1513,14 +1745,15 @@ class TinygradAdapter:
 
 def default_comparisons(include_unjit_diagnostic: bool = False) -> list[Comparison]:
     comparisons = [Comparison(
-        id="tgrad_repeated_vs_tinygrad_tinyjit_replay",
+        id="tgrad_prepared_vs_tinygrad_tinyjit_replay",
         numerator_adapter="tgrad",
-        numerator_boundary="repeated_synchronized_matmul",
+        numerator_boundary="prepared_runtime",
         denominator_adapter="tinygrad",
         denominator_boundary="tinyjit_replay",
         interpretation=(
-            "Operational repeated-call comparison. Tgrad includes route/allocation/FFI/dispatch/sync; "
-            "tinygrad includes TinyJit replay/Python/sync. It is not an isolated kernel comparison."
+            "Prepared-runtime comparison. Both sides reuse fixed-shape compiled execution state, "
+            "device-resident inputs, and output storage; both include Python invocation, runtime "
+            "submission, and completion synchronization. It is not an isolated kernel comparison."
         ),
         kernel_speed_claim_eligible=False,
     )]

@@ -357,6 +357,123 @@ def matmulTcEligible (M K N : USize) : IO UInt32 := do
   | .ok _    => pure 1
 
 -- ----------------------------------------------------------------------
+-- Symmetric prepared-runtime performance boundary.
+-- ----------------------------------------------------------------------
+
+/-- Immutable execution state for repeated fixed-shape matmul. Compilation,
+route selection, function naming, and launch geometry happen before timing;
+each run supplies already-resident input/output buffers and performs only the
+plan lookup plus synchronized Metal dispatch. -/
+structure PreparedMatmulPlan where
+  M : Nat
+  K : Nat
+  N : Nat
+  routeCode : UInt32
+  libPtr : UInt64
+  fnName : String
+  totalX : Nat
+  totalY : Nat
+  totalZ : Nat
+  localX : Nat
+  localY : Nat
+  localZ : Nat
+
+initialize preparedMatmulPlans : IO.Ref (List (UInt64 × PreparedMatmulPlan)) ←
+  IO.mkRef []
+initialize nextPreparedMatmulPlan : IO.Ref UInt64 ← IO.mkRef 1
+
+private def preparedPlanLookup
+    (handle : UInt64) : List (UInt64 × PreparedMatmulPlan) → Option PreparedMatmulPlan
+  | [] => none
+  | (candidate, plan) :: rest =>
+      if candidate == handle then some plan else preparedPlanLookup handle rest
+
+private def registerPreparedMatmulPlan (plan : PreparedMatmulPlan) : IO UInt64 := do
+  let handle ← nextPreparedMatmulPlan.get
+  nextPreparedMatmulPlan.set (handle + 1)
+  preparedMatmulPlans.modify fun plans => (handle, plan) :: plans
+  pure handle
+
+private def buildPreparedMatmulPlan (M K N : Nat) : IO (Option PreparedMatmulPlan) := do
+  if M < 1 ∨ K < 1 ∨ N < 1 then return none
+  match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M K N with
+  | some sentinel =>
+      let libPtr ← compileOrCacheGet sentinel
+      if libPtr == 0 then return none
+      let dims := Tgrad.Pipeline.generatedDispatchDimsFor sentinel
+      pure <| some {
+        M, K, N, routeCode := 1, libPtr,
+        fnName := Tgrad.Pipeline.generatedKernelNameFor sentinel,
+        totalX := dims.grid.x * dims.threadgroup.x,
+        totalY := dims.grid.y * dims.threadgroup.y,
+        totalZ := dims.grid.z * dims.threadgroup.z,
+        localX := dims.threadgroup.x,
+        localY := dims.threadgroup.y,
+        localZ := dims.threadgroup.z }
+  | none =>
+      if (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N).isOk then
+        let libPtr ← compileOrCacheGetTcManual M K N
+        if libPtr == 0 then return none
+        let dims := Tgrad.Renderer.Metal.tcLaunchDims M N
+        pure <| some {
+          M, K, N, routeCode := 2, libPtr,
+          fnName := s!"matmul_tc_manual_{M}x{K}x{N}",
+          totalX := dims.grid.x * dims.threadgroup.x,
+          totalY := dims.grid.y * dims.threadgroup.y,
+          totalZ := dims.grid.z * dims.threadgroup.z,
+          localX := dims.threadgroup.x,
+          localY := dims.threadgroup.y,
+          localZ := dims.threadgroup.z }
+      else
+        let libPtr ← compileOrCacheGetSmall M K N
+        if libPtr == 0 then return none
+        pure <| some {
+          M, K, N, routeCode := 3, libPtr,
+          fnName := s!"matmul_scalar_{M}x{K}x{N}",
+          totalX := M, totalY := N, totalZ := 1,
+          localX := 1, localY := 1, localZ := 1 }
+
+/-- Prepare one fixed-shape matmul. Returns an opaque nonzero plan handle, or
+zero if shape validation, rendering, or compilation fails. -/
+@[export tgrad_matmul_prepare_lean]
+def matmulPrepare (M K N : USize) : IO UInt64 := do
+  match ← buildPreparedMatmulPlan M.toNat K.toNat N.toNat with
+  | none => pure 0
+  | some plan => registerPreparedMatmulPlan plan
+
+/-- Invoke prepared state with caller-owned device buffers. The output buffer
+is supplied by the caller and may be reused across arbitrarily many runs.
+Returns -1 for an unknown/released plan and -2 for a null buffer. -/
+@[export tgrad_matmul_run_prepared_lean]
+def matmulRunPrepared
+    (handle aPtr bPtr outPtr : UInt64) : IO Int32 := do
+  let plans ← preparedMatmulPlans.get
+  let plan ← match preparedPlanLookup handle plans with
+    | none => return -1
+    | some value => pure value
+  if aPtr == 0 ∨ bPtr == 0 ∨ outPtr == 0 then return -2
+  let rc ← Tgrad.Runtime.Metal.metalDispatch plan.libPtr plan.fnName
+    #[outPtr, aPtr, bPtr]
+    (USize.ofNat plan.totalX) (USize.ofNat plan.totalY) (USize.ofNat plan.totalZ)
+    (USize.ofNat plan.localX) (USize.ofNat plan.localY) (USize.ofNat plan.localZ)
+  pure rc.toInt32
+
+/-- Release only the plan handle. Compiled libraries remain in the existing
+process cache, just as TinyJit's compiled programs remain cached. -/
+@[export tgrad_matmul_plan_release_lean]
+def matmulPlanRelease (handle : UInt64) : IO Unit :=
+  preparedMatmulPlans.modify fun plans => plans.filter fun entry => entry.1 != handle
+
+/-- Route metadata for evidence: 1=generated sentinel, 2=generated general
+tensor-core, 3=scalar fallback, 0=unknown/released. -/
+@[export tgrad_matmul_plan_route_lean]
+def matmulPlanRoute (handle : UInt64) : IO UInt32 := do
+  let plans ← preparedMatmulPlans.get
+  pure <| match preparedPlanLookup handle plans with
+    | none => 0
+    | some plan => plan.routeCode
+
+-- ----------------------------------------------------------------------
 -- L14.A: TensorRegistry + tgrad_tensor_from_buffer.
 --
 -- Python holds an opaque `UInt64` handle; Lean owns the underlying

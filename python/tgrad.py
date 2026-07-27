@@ -171,6 +171,8 @@ _lib.tgrad_tensor_reduce.argtypes = [ctypes.c_uint8, ctypes.c_uint64, ctypes.c_s
 _lib.tgrad_tensor_reduce.restype  = ctypes.c_uint64
 _lib.tgrad_realize.argtypes = [ctypes.c_uint64]
 _lib.tgrad_realize.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_dtype.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
 
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_view.restype  = ctypes.c_uint64
@@ -231,10 +233,39 @@ _BINOP_ADD = 0
 _BINOP_MUL = 1
 _BINOP_SUB = 2
 
-_SUPPORTED_DTYPES = {"bf16"}
+_SUPPORTED_DTYPES = {"bf16", "f32"}
 # Bytes per element, used to check that a materialized buffer is
 # exactly as large as its declared shape requires.
-_DTYPE_BYTES = {"bf16": 2}
+_DTYPE_BYTES = {"bf16": 2, "f32": 4}
+
+
+_DTYPE_OF_CODE = {0: "bf16", 1: "f32", 2: "f16", 3: "i32"}
+
+
+def _dtype_of_handle(h: int) -> str:
+    """Result dtype as Lean computed it. Python never recomputes the
+    promotion lattice; `Dtype.lub` stays single-sourced."""
+    code = _lib.tgrad_tensor_dtype(h)
+    name = _DTYPE_OF_CODE.get(code)
+    if name is None:
+        raise TgradError(f"tgrad_tensor_dtype returned unknown code {code}")
+    return name
+
+
+def _bytes_from_numpy(arr: np.ndarray, dtype: str) -> bytes:
+    if dtype == "bf16":
+        return _bf16_from_fp32(arr)
+    if dtype == "f32":
+        return arr.astype(np.float32).tobytes()
+    raise TgradTypeError(f"unsupported dtype {dtype!r}")
+
+
+def _numpy_from_bytes(b: bytes, shape: tuple[int, ...], dtype: str) -> np.ndarray:
+    if dtype == "bf16":
+        return _fp32_from_bf16(b, shape)
+    if dtype == "f32":
+        return np.frombuffer(b, dtype=np.float32).reshape(shape).copy()
+    raise TgradTypeError(f"unsupported dtype {dtype!r}")
 
 
 def _numel(shape: tuple[int, ...]) -> int:
@@ -387,7 +418,7 @@ class Tensor:
         if any(s < 1 for s in shape):
             raise NotInLeanScope(
                 f"shape {shape} has a non-positive dimension; refused.")
-        bytes_ = _bf16_from_fp32(arr)
+        bytes_ = _bytes_from_numpy(arr, dtype)
         size = len(bytes_)
         buf = _lib.tgrad_tensor_alloc(size)
         if buf == 0:
@@ -470,7 +501,7 @@ class Tensor:
         rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
-        return _fp32_from_bf16(bytes(out), tensor._shape)
+        return _numpy_from_bytes(bytes(out), tensor._shape, tensor._dtype)
 
     def to_bytes(self) -> bytes:
         tensor = self._materialize_for_readback("to_bytes")
@@ -579,9 +610,9 @@ class Tensor:
     def _pointwise(self, other: "Tensor", op_code: int, name: str) -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented
-        if self._dtype != "bf16" or other._dtype != "bf16":
-            raise TgradTypeError(
-                f"{name}: bf16 only (got {self._dtype}, {other._dtype})")
+        for d in (self._dtype, other._dtype):
+            if d not in _SUPPORTED_DTYPES:
+                raise TgradTypeError(f"{name}: unsupported dtype {d!r}")
         if self._shape != other._shape:
             # Broadcasting is a View.expand away but is not wired until
             # dtype promotion lands, so it is refused rather than guessed.
@@ -597,7 +628,8 @@ class Tensor:
         out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
         m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
         n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
-        return Tensor(out_buf, m * n * 2, (m, n), "bf16",
+        out_dtype = _dtype_of_handle(out_handle)
+        return Tensor(out_buf, m * n * _DTYPE_BYTES[out_dtype], (m, n), out_dtype,
                       handle=out_handle, owns_buf=True, base=None)
 
     def __add__(self, other: "Tensor") -> "Tensor":

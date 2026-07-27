@@ -27,6 +27,15 @@ namespace Tgrad
 namespace Renderer
 namespace Metal
 
+/-- MSL scalar type for a Tgrad dtype. `none` means the backend has no
+    spelling for it yet, which is a refusal rather than a fallback: a
+    silently wrong element type would corrupt every load and store. -/
+def mslScalarType : Dtype → Option String
+  | .bfloat16_ => some "bfloat"
+  | .float32_  => some "float"
+  | .float16_  => some "half"
+  | _          => none
+
 /-- MSL spelling of the pointwise operators that are meaningful for a
     float dtype. The integer and comparison members of `BinOp`
     (`shl`, `andB`, `cmplt`, …) are deliberately absent: they are not
@@ -58,36 +67,39 @@ def elementwiseOpName : BinOp → String
     convention `Pipeline.viewIndexUOpForA/B` already emit, so the same
     `View`-derived index UOps work unchanged. -/
 def elementwiseKernelDecl (op : BinOp) (rows cols : Nat)
-    (aIdx bIdx : UOp) (tag : String) : Option KernelDecl :=
-  match elementwiseOpStr op with
-  | none => none
-  | some opStr =>
+    (aIdx bIdx : UOp) (aTy bTy outTy : Dtype) (tag : String) : Option KernelDecl :=
+  match elementwiseOpStr op, mslScalarType aTy, mslScalarType bTy,
+        mslScalarType outTy with
+  | some opStr, some aS, some bS, some outS =>
     let outIdx : UOp :=
       .binop .add
         (.binop .mul (.var "gidx0" .int32_)
                      (.const .int32_ (.i (Int.ofNat cols))) .int32_)
         (.var "gidx1" .int32_) .int32_
     some
-      { name     := s!"ew_{elementwiseOpName op}_{tag}_{rows}x{cols}",
+      { name     := s!"ew_{elementwiseOpName op}_{aTy.toStr}_{bTy.toStr}_{outTy.toStr}_{tag}_{rows}x{cols}",
         wmmaArgs := [],
         args     := [
-          .buffer { qualifier := "device", baseType := "bfloat", name := "data0" },
-          .buffer { qualifier := "device", baseType := "bfloat", name := "data1" },
-          .buffer { qualifier := "device", baseType := "bfloat", name := "data2" },
+          .buffer { qualifier := "device", baseType := outS, name := "data0" },
+          .buffer { qualifier := "device", baseType := aS,   name := "data1" },
+          .buffer { qualifier := "device", baseType := bS,   name := "data2" },
           .attr   { baseType := "uint3", name := "gid",
                     attrStr := "[[threadgroup_position_in_grid]]" },
         ],
         body     := [
           .declInt "gidx0" "gid.x" (some s!"{rows}"),
           .declInt "gidx1" "gid.y" (some s!"{cols}"),
-          .loadIndexed "bfloat val0" "data1" aIdx,
-          .loadIndexed "bfloat val1" "data2" bIdx,
+          .loadIndexed s!"{aS} val0" "data1" aIdx,
+          .loadIndexed s!"{bS} val1" "data2" bIdx,
           -- Compute in fp32 and let `storeIndexed` apply the bf16 cast,
           -- matching how the matmul kernels accumulate.
-          .storeIndexed "data0" outIdx
+          -- Compute in fp32 regardless of operand width, then cast once
+          -- to the promoted output type.
+          .storeIndexedAs outS "data0" outIdx
             s!"((float)val0){opStr}((float)val1)"
         ],
         trailingNewline := false }
+  | _, _, _, _ => none
 
 
 /-- **Regression obligation for a bug that shipped in this file.**
@@ -99,16 +111,16 @@ def elementwiseKernelDecl (op : BinOp) (rows cols : Nat)
     not, because only the latter collided. Distinct operators must
     therefore produce distinct kernel identities. -/
 theorem elementwise_names_separate_operators :
-    (elementwiseKernelDecl .add 4 4 (.var "i" .int32_) (.var "j" .int32_) "t").map
+    (elementwiseKernelDecl .add 4 4 (.var "i" .int32_) (.var "j" .int32_) .bfloat16_ .bfloat16_ .bfloat16_ "t").map
         (fun d => d.name)
-      ≠ (elementwiseKernelDecl .sub 4 4 (.var "i" .int32_) (.var "j" .int32_) "t").map
+      ≠ (elementwiseKernelDecl .sub 4 4 (.var "i" .int32_) (.var "j" .int32_) .bfloat16_ .bfloat16_ .bfloat16_ "t").map
         (fun d => d.name) := by
   native_decide
 
 /-- Unsupported operators build no kernel at all, rather than emitting
     a plausible one. -/
 theorem elementwise_rejects_unsupported :
-    (elementwiseKernelDecl .andB 4 4 (.var "i" .int32_) (.var "j" .int32_) "t").isNone := by
+    (elementwiseKernelDecl .andB 4 4 (.var "i" .int32_) (.var "j" .int32_) .bfloat16_ .bfloat16_ .bfloat16_ "t").isNone := by
   native_decide
 
 end Metal

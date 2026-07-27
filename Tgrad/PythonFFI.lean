@@ -611,15 +611,33 @@ private def runBufferMatmul (a b : Tgrad.Tensor) (M K N : Nat) :
   pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes } [M, N] .bfloat16_))
 
 
+/-- Dtype of a tensor handle, as the code `dtypeOfCode` decodes.
+
+    A query, not an operation: it does not grow with the op set. It
+    exists so Python can learn a promoted result type instead of
+    reimplementing `Dtype.lub`, which would put a second copy of the
+    lattice on the other side of the FFI where nothing checks it. -/
+@[export tgrad_tensor_dtype_lean]
+def tensorDtype (h : UInt64) : IO UInt8 := do
+  let some t ← TensorRegistry.get? h | return 255
+  pure (match t.dtype with
+        | .bfloat16_ => 0
+        | .float32_  => 1
+        | .float16_  => 2
+        | .int32_    => 3
+        | _          => 255)
+
 /-- Compiled-kernel cache for pointwise ops. Keyed on the operator, the
     output extent and a hash of BOTH rendered index expressions, so two
     different view chains never collide on one kernel. -/
 initialize libCacheEw : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
 private def compileOrCacheGetEw (op : BinOp) (rows cols : Nat)
-    (aIdx bIdx : UOp) : IO (Option (UInt64 × String)) := do
+    (aIdx bIdx : UOp) (aTy bTy outTy : Tgrad.Dtype) :
+    IO (Option (UInt64 × String)) := do
   let tag := toString (String.hash (aIdx.renderIndexExpr ++ "|" ++ bIdx.renderIndexExpr))
-  match Tgrad.Renderer.Metal.elementwiseKernelDecl op rows cols aIdx bIdx tag with
+  match Tgrad.Renderer.Metal.elementwiseKernelDecl op rows cols aIdx bIdx
+          aTy bTy outTy tag with
   | none => return none
   | some decl =>
     let key := decl.name
@@ -648,10 +666,14 @@ private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
     let vars : List UOp := [.var "gidx0" .int32_, .var "gidx1" .int32_]
     let aIdx := Tgrad.Schedule.View.indexOf va vars
     let bIdx := Tgrad.Schedule.View.indexOf vb vars
-    match (← compileOrCacheGetEw op rows cols aIdx bIdx) with
+    -- The promoted result type comes from the dtype lattice. `Dtype.lub`
+    -- has existed and been correct since L1 with no caller outside the
+    -- JSON table emitters; this is its first load-bearing use.
+    let outTy := Tgrad.Dtype.lub a.dtype b.dtype
+    match (← compileOrCacheGetEw op rows cols aIdx bIdx a.dtype b.dtype outTy) with
     | none => return none
     | some (lib, fnName) => do
-      let outBytes := rows * cols * 2
+      let outBytes := rows * cols * outTy.sizeBytes
       let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
       if outBuf == 0 then return none
       let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName
@@ -661,7 +683,7 @@ private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
         Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
         return none
       pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
-                  [rows, cols] .bfloat16_))
+                  [rows, cols] outTy))
   | _, _, _, _ => return none
 
 /-- Materialise a graph and return a handle to the result.
@@ -705,8 +727,10 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
       -- Pointwise. Reachable for every operator `elementwiseOpStr`
       -- accepts; the rest fail to build a kernel rather than emitting
       -- something plausible.
-      let a : Tgrad.Tensor := { uop := aU, dtype := .bfloat16_ }
-      let b : Tgrad.Tensor := { uop := bU, dtype := .bfloat16_ }
+      -- Operand dtypes come from their own buffer leaves, so a mixed
+      -- pair promotes rather than being silently read as bf16.
+      let a : Tgrad.Tensor := { uop := aU, dtype := aU.dtypeOf }
+      let b : Tgrad.Tensor := { uop := bU, dtype := bU.dtypeOf }
       match (← runElementwise op a b) with
       | none     => return 0
       | some out => TensorRegistry.register out

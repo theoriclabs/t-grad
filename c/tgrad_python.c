@@ -495,3 +495,13 @@ uint64_t tgrad_tensor_reduce(uint8_t op, uint64_t h, size_t axis) {
 uint64_t tgrad_realize(uint64_t h) {
     return tgrad_unbox_handle(tgrad_realize_lean(h));
 }
+
+extern lean_object* tgrad_tensor_dtype_lean(uint64_t h);
+
+uint8_t tgrad_tensor_dtype(uint64_t h) {
+    lean_object* result = tgrad_tensor_dtype_lean(h);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t v = lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return v;
+}

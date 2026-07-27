@@ -50,7 +50,23 @@ class UnsupportedCapability:
     def __exit__(self, exc_type, exc, tb):
         self._raise()
 
+    def __eq__(self, other):
+        self._raise()
+
+    def __ne__(self, other):
+        self._raise()
+
+    def __hash__(self):
+        # Defining __eq__ would otherwise set __hash__ = None (unhashable,
+        # TypeError).  Raise the same capability error so a marker can never
+        # silently serve as a dict/set key.  Shim modules only store these as
+        # attributes; nothing in the shim or substitution tests puts them in
+        # hashed containers, so this does not break import or activation.
+        self._raise()
+
     def __repr__(self) -> str:
+        # Must not raise: pytest assertion rewriting, tracebacks, and
+        # debuggers print the marker when a real use fails.
         return f"<unsupported Tgrad capability {self.name}>"
 
 

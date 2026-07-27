@@ -34,6 +34,7 @@ import Tgrad.Growth.BroadcastAddPacketV3
 import Tgrad.Growth.BroadcastAddPacketV4
 import Tgrad.Growth.BroadcastAddPacketV5
 import Tgrad.Growth.BroadcastAddPacketV6
+import Tgrad.Growth.BroadcastAddObservationV1
 import Tgrad.Growth.BroadcastAddPacket
 import Tgrad.Growth.PilotReport
 

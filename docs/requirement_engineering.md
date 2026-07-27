@@ -643,6 +643,24 @@ split instead. Subject-protocol equivalence is probe/schema/manifest/semantic-
 lock identity; observer and Git identities remain per-run provenance; a new
 pure relation module is independently hashed and mutation-calibrated.
 
+The first admissible TGrad comparison is now recorded as
+`a4fcdc9090a20ce6c01283d3795bb55e099a3fcd45e29f608f2e128182022bba`.
+All six scenarios reached the strict TGrad substitution and then stopped at
+`construct_left`: `tinygrad.Tensor` is correctly identical to `tgrad.Tensor`,
+but Tgrad's `Tensor.__init__` still exposes its internal `(buf, size, shape,
+dtype, ...)` protocol instead of tinygrad's public `Tensor(data, dtype=...)`
+protocol. The five legal scenarios each have six downstream semantic
+dimensions unobserved. The incompatible-shape scenario happened to share the
+upstream terminal outcome `raised`, but differs in stage, exception class, and
+message; this is not incompatibility-error conformance.
+
+This observation changes the next work item without changing the requirement:
+the immediate candidate is the public construction boundary. It should expose
+downstream add observations for the already-supported float32 cases while
+leaving unsupported int32 behavior explicit. It must not be described as a
+broadcast-add implementation or as parity progress until a fresh run observes
+those dimensions.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working
@@ -659,8 +677,8 @@ changes. Track these measures per closed work cycle:
 | Manual-verdict count | Coverage, completion, priority, or promotion cells edited by an agent instead of derived | Zero status cells, but derivation code changed after the result; stability gate not met | Zero status edits and zero derivation changes within a frozen cycle |
 | Change locality | Unrelated requirement axes changed / unrelated axes present | No unrelated requirement was promoted or failed | Zero unexplained churn |
 | Reproducibility | Identical-input runs producing byte-identical evidence and status | Deterministic observer checks and repeated status hashes agree on the current host | Three clean reruns; distributions plus method identity for performance |
-| Evidence-boundary self-falsification | Verifier defects detected before promotion / defects exercised | 2/2 in this cycle: temporary-root-dependent normalization and undefined artifact-copy source were both rejected before a bundle landed | Every discovered verifier defect becomes a replay or mutation regression |
-| Cycle cost | Human decisions, agent time, wall time, scarce hardware time, and files touched to close one obligation | CPU-only, but no comparative diagnosis-time baseline was recorded | Must be cheaper to diagnose than the raw-suite/manual-roadmap alternative |
+| Evidence-boundary self-falsification | Verifier defects detected before promotion / defects exercised | Six distinct definition/tooling defects were stopped before a product claim: hidden sandbox GPU access, two over-strong trace footprints, mutable-old-hash chronology, child active-manifest projection, self-invalidating full verifier identity, and observer/relation self-reference | Every discovered verifier defect becomes a replay or mutation regression |
+| Cycle cost | Human decisions, agent time, wall time, scarce hardware time, and files touched to close one obligation | High: six protocol/tooling revisions were needed before one upstream and one TGrad observation became comparable. The payoff is exact localization at public construction rather than a false arithmetic verdict; the cost is not yet proven economical | Must become cheaper on the next three requirement cycles than raw-suite/manual-roadmap diagnosis |
 
 Two metrics need special care.
 

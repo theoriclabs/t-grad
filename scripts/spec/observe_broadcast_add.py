@@ -35,7 +35,10 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from scripts.spec import broadcast_add_relation
+try:
+    from scripts.spec import broadcast_add_relation
+except ModuleNotFoundError:
+    import broadcast_add_relation
 
 
 REPO = Path(__file__).resolve().parents[2]

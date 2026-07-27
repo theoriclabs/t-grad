@@ -383,7 +383,7 @@ def workItems : List WorkItem :=
         "no collision, broad cleanup, or global symlink; direct and nested entry points initialize safely; only the root owner cleans; shared build/GPU/evidence resources remain serial"
         [.build, .semantic, .safety, .resourceIsolation],
       recovery := "retain serial verification and revert the affected script batch if any direct or nested entry point loses its artifacts",
-      progress := .inProgress "agent-carver" },
+      progress := .complete "602897e" },
     { id := ew "harness.paired-performance",
       title := "author a live paired performance observation harness",
       phase := .build, authority := .userGoal,
@@ -636,6 +636,24 @@ def growthCases : List Growth.Case :=
       epistemic := .confirmed
         "aa67497 added C3 before deletion; 9f2ab91 retires only transcription byte equality and keeps 11/11 semantic execution load-bearing"
         "executable gate layer, source inequality, Nodup theorem, and reproduced wrong-but-distinct falsifiability rows" },
+    { id := "G-run-isolation",
+      findingIds := ["F-verification-temp-collision"],
+      observations := [observe "verify.run-isolation" "concurrent script runs"
+        "nested gate/devcheck artifacts remain under distinct owned roots and rangeify traces use explicit paths"
+        "launch concurrent contexts, join nested consumers, attempt broad/unmarked roots, and exercise owner/non-owner cleanup"
+        "root identities, artifact contents, trace paths, ownership markers, rejection results, and post-exit filesystem state"],
+      evolutionWork := [ew "harness.namespace-temporaries"],
+      deltas := [delta "verify.run-isolation" .addCapability
+        [.safety, .observability, .maintainability] .missing .loadBearing
+        "replace process-global temporary names with an owned, inherited run context"],
+      stage := .promoted,
+      promotion := promote ["verify.run-isolation", "verify.lean-build"]
+        [.build, .semantic, .safety, .resourceIsolation]
+        "the exact tree builds; direct/nested/concurrent contexts isolate artifacts; unsafe roots and missing trace paths reject"
+        "serialize shared Lean builds, Metal work, timing, and evidence writes independently of temporary isolation",
+      epistemic := .confirmed
+        "602897e removes fixed gate/devcheck and Lean trace paths, adds owned roots, and calibrates concurrent and unsafe-root behavior"
+        "exact detached tree acdbe442: build/spec report, shell syntax, devcheck entry, trace failure/success, and concurrent self-test pass" },
     { id := "G-symmetric-performance",
       findingIds := ["F-performance-methodology"],
       observations := [
@@ -1764,6 +1782,107 @@ def liveEvolutionEvents : List Event :=
         residualRisks :=
           [ "targetContract is still unknown because no immutable Tgrad subject/profile coverage matrix exists",
             "test-file requirements are coarse inventory rows until the upstream adapter extracts test cases and applicability",
+            "the candidate commit predates this promotion record" ] },
+    .attemptAbandoned
+      { value := "attempt-harness-namespace-temporaries-20260727" }
+      "the agent-authored script batch was retained, but integration added Lean trace-path and shared-root safety obligations outside the original lease; ownership moved to an exact-tree integrator attempt",
+    .attemptStarted
+      { id := { value := "attempt-harness-run-isolation-integration-20260727" },
+        intent := ew "harness.namespace-temporaries", actor := "codex-primary",
+        base :=
+          { commit := "6b946c77ecaf104d1ff5ad146fced211d3f6a864",
+            tree := "fdfc7967774492fd484103c1b5c2c9ce404270eb",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .add, target := "scripts/lib/run_context.sh" },
+            { kind := .add, target := "scripts/dev/test_run_context.sh" },
+            { kind := .modify, target := "scripts/lib/checks.sh" },
+            { kind := .modify, target := "scripts/gate.sh" },
+            { kind := .modify, target := "scripts/devcheck.sh" },
+            { kind := .modify, target := "scripts/runtime_independence.sh" },
+            { kind := .modify, target := "scripts/differential_codegen.sh" },
+            { kind := .modify, target := "scripts/dev/l15_a_audit.py" },
+            { kind := .modify, target := "scripts/gates" },
+            { kind := .modify, target := "Tgrad/Pipeline.lean" },
+            { kind := .modify, target := "Tgrad/Spec/LiveConditions.lean" },
+            { kind := .modify, target := "Tgrad/Spec/RuntimeWork.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" },
+            { kind := .modify, target := "PARITY.md" },
+            { kind := .modify, target := "GROWING_TGRAD.md" } ],
+        lease :=
+          { token := "codex-primary-run-isolation-integration",
+            resources := [.sourceTree], validThroughEpoch := 1000 } },
+    .candidateProduced
+      { id := { value := "candidate-run-isolation-602897e" },
+        attempt := { value := "attempt-harness-run-isolation-integration-20260727" },
+        tree := "acdbe4423703a56009c196760c4d9984c5312743",
+        observedEffects :=
+          [ { kind := .add, target := "scripts/lib/run_context.sh" },
+            { kind := .add, target := "scripts/dev/test_run_context.sh" },
+            { kind := .modify, target := "scripts/lib/checks.sh" },
+            { kind := .modify, target := "scripts/gate.sh" },
+            { kind := .modify, target := "scripts/devcheck.sh" },
+            { kind := .modify, target := "scripts/runtime_independence.sh" },
+            { kind := .modify, target := "scripts/differential_codegen.sh" },
+            { kind := .modify, target := "scripts/dev/l15_a_audit.py" },
+            { kind := .modify, target := "scripts/gates" },
+            { kind := .modify, target := "Tgrad/Pipeline.lean" },
+            { kind := .modify, target := "Tgrad/Spec/LiveConditions.lean" },
+            { kind := .modify, target := "Tgrad/Spec/RuntimeWork.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" },
+            { kind := .modify, target := "PARITY.md" },
+            { kind := .modify, target := "GROWING_TGRAD.md" } ],
+        summary := "owned run roots replace fixed gate/devcheck artifacts; nested consumers inherit identity; Lean tracing requires an explicit path; unsafe shared roots reject" },
+    .checkRecorded
+      { id := { value := "check-run-isolation-build-602897e" },
+        candidate := { value := "candidate-run-isolation-602897e" },
+        tree := "acdbe4423703a56009c196760c4d9984c5312743",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "clean detached worktree at 602897e: lake build tgrad-spec; run tgrad-spec and require 27 well-formed runtime capabilities",
+        artifactDigest := "sha256:0450815f83b7ac7f9ced453160c5c773805220f30446e442a9eee800d6b84413" },
+    .checkRecorded
+      { id := { value := "check-run-isolation-semantic-602897e" },
+        candidate := { value := "candidate-run-isolation-602897e" },
+        tree := "acdbe4423703a56009c196760c4d9984c5312743",
+        validator := rw "verify.run-isolation", obligation := .semantic,
+        outcome := .passed,
+        command := "detached tree: bash scripts/dev/test_run_context.sh; bash scripts/devcheck.sh L0; require nested consumers share only their parent root and preserve expected artifacts",
+        artifactDigest := "sha256:cc35f0b61c8a83d1a3424ecff7de98a890561830d6fcc10736a458095da86f73" },
+    .checkRecorded
+      { id := { value := "check-run-isolation-safety-602897e" },
+        candidate := { value := "candidate-run-isolation-602897e" },
+        tree := "acdbe4423703a56009c196760c4d9984c5312743",
+        validator := rw "verify.run-isolation", obligation := .safety,
+        outcome := .passed,
+        command := "detached tree: reject /tmp, invalid child names, non-empty unmarked shared roots, incomplete ownership, and missing TGRAD_RANGEIFY_TRACE_PATH; only exact marked owners clean",
+        artifactDigest := "sha256:20a97eee1c224bf743f7b7f28616fc127e82fbb7efef288cbc3f222dd6d63672" },
+    .checkRecorded
+      { id := { value := "check-run-isolation-concurrency-602897e" },
+        candidate := { value := "candidate-run-isolation-602897e" },
+        tree := "acdbe4423703a56009c196760c4d9984c5312743",
+        validator := rw "verify.run-isolation", obligation := .resourceIsolation,
+        outcome := .passed,
+        command := "detached tree: launch alpha/beta contexts concurrently; require distinct roots, artifacts, nested logs, and rangeify traces; rg finds no fixed /tmp path in gate/devcheck/Lean trace surfaces",
+        artifactDigest := "sha256:9c6c4d12bee78d29e864164df3a5bc0b12f981e99ddd2ba6ea53c2b915006fe8" },
+    .promoted
+      { growthCase := "G-run-isolation",
+        candidate := { value := "candidate-run-isolation-602897e" },
+        checkRuns :=
+          [ { value := "check-run-isolation-build-602897e" },
+            { value := "check-run-isolation-semantic-602897e" },
+            { value := "check-run-isolation-safety-602897e" },
+            { value := "check-run-isolation-concurrency-602897e" } ],
+        requiredObligations := [.build, .semantic, .safety, .resourceIsolation],
+        acceptedBy := ["harsh", "codex-primary"],
+        target :=
+          { commit := "602897eef58ac4883aff7091662b851b808d5222",
+            tree := "acdbe4423703a56009c196760c4d9984c5312743",
+            dirty := false },
+        residualRisks :=
+          [ "shared .lake build outputs still serialize",
+            "Metal correctness and all timing remain serial on one GPU",
+            "committed evidence integration remains a single-writer operation",
             "the candidate commit predates this promotion record" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
@@ -1772,9 +1891,9 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 2 && state.candidates.length == 13 &&
-      state.checks.length == 51 && state.promotions.length == 9 &&
-      state.abandoned.length == 5
+      state.activeAttempts.length == 1 && state.candidates.length == 14 &&
+      state.checks.length == 55 && state.promotions.length == 10 &&
+      state.abandoned.length == 6
   | .error _ => false
 
 def liveActiveIntentIds : List Growth.EvolutionWorkId :=
@@ -1854,8 +1973,8 @@ def readyByPriority : List WorkItem :=
 
 def selectNext? : Option WorkItem := readyByPriority.head?
 
-/-- Greedy, priority-ordered authoring frontier. Verification is intentionally
-not parallelized; see `verificationCompatible` and resource policies. -/
+/-- Greedy, priority-ordered authoring frontier. Verification compatibility is
+queried separately because its capacity is resource-specific. -/
 def parallelAuthoringFrontier : List WorkItem :=
   readyByPriority.foldl (fun selected candidate =>
     if selected.all (authoringCompatible candidate) then
@@ -2043,6 +2162,13 @@ theorem upstream_contract_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "parity.pin-upstream")) &&
       Parity.targetUpstream.isConfirmed &&
       Parity.targetRequirements.length == ParityTarget.requirementCount) = true := by
+  native_decide
+
+theorem run_isolation_is_promoted_and_released :
+    (livePromotedIntentIds.contains (ew "harness.namespace-temporaries") &&
+      completedIds.contains (ew "harness.namespace-temporaries") &&
+      !(liveActiveIntentIds.contains (ew "harness.namespace-temporaries")) &&
+      !(exclusiveForVerification .tmpNamespace)) = true := by
   native_decide
 
 theorem generated_sentinels_case_matches_runtime_and_finding_state :

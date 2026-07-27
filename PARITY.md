@@ -777,7 +777,8 @@ rules. The human-readable critical path is:
 2. Import/adapter-run upstream null, unit and backend tests; publish the first
    honest score plus explicit exclusions.
 3. Namespace temporary artifacts so build-independent CPU verification can
-   parallelize. Implemented; exact-tree promotion is pending.
+   parallelize. Promoted at candidate `602897e`; shared builds, GPU work,
+   timing, and evidence integration remain serial.
 4. Replace frozen performance denominators with live paired observations; keep
    verdict `indeterminate` until repeated-session variance supports a rule.
 5. Finish coherent evidence regeneration and make provenance audit fatal only

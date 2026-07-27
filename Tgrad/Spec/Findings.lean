@@ -118,6 +118,11 @@ def findings : List Finding :=
       description := "scanning tensor.py alone found 47 methods and understated the inherited 297-method Tensor surface by 6.3x",
       state := .confirmed (.remediated "3ed1e49")
         "the extractor walks every tinygrad/mixin module, records per-source members, and refuses to emit when no mixins are found" },
+    { id := "F-verification-temp-collision", severity := .high,
+      component := .gateHarness,
+      description := "fixed process-global temporary paths made concurrent gate and devcheck observations overwrite one another",
+      state := .confirmed (.remediated "602897e")
+        "the exact candidate has zero fixed gate/devcheck or Lean trace paths; concurrent owned roots, nested inheritance, explicit trace paths, unsafe-root rejection, and cleanup isolation are executable checks" },
     { id := "F-division-semantics", severity := .medium,
       component := .rewriteEngine,
       description := "constant fold, Python oracle, and C renderer disagree for negatives",
@@ -147,7 +152,7 @@ def remediatedFindings : List Finding := findings.filter (fun finding =>
   | _ => false)
 
 example : openFindings.length = 2 := by native_decide
-example : remediatedFindings.length = 14 := by native_decide
+example : remediatedFindings.length = 15 := by native_decide
 example : findings.all (fun finding => finding.state.hasUpgradePath) = true := by
   native_decide
 example : findingCoverage.hasUpgradePath = true := by native_decide

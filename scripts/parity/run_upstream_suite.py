@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -37,8 +38,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 OUT_DIR = REPO / "fixtures" / "parity"
-VENV_PY = REPO / ".venv" / "bin" / "python"
+DEFAULT_VENV_PY = Path(
+    os.environ.get("TGRAD_PARITY_PYTHON", REPO / ".venv" / "bin" / "python")
+)
 DEFAULT_CHECKOUT = Path("/tmp/tg_oracle/tinygrad")
+SHIM_ROOT = Path(__file__).resolve().parent / "shim"
+SHIM_RUNNER = SHIM_ROOT / "run_pytest.py"
 
 SUMMARY = re.compile(
     r"(?:(\d+) failed)?,?\s*(?:(\d+) passed)?,?\s*(?:(\d+) skipped)?"
@@ -46,15 +51,15 @@ SUMMARY = re.compile(
 )
 
 
-def run_file(py: Path, checkout: Path, rel: str, timeout: int, env_extra: dict) -> dict:
-    import os
-
+def run_file(py: Path, checkout: Path, rel: str, timeout: int,
+             env_extra: dict, pytest_runner: Path | None = None) -> dict:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(checkout)
     env.update(env_extra)
+    pytest_command = ["-m", "pytest"] if pytest_runner is None else [str(pytest_runner)]
     try:
         p = subprocess.run(
-            [str(py), "-m", "pytest", rel, "-q", "--no-header", "-p", "no:cacheprovider"],
+            [str(py), *pytest_command, rel, "-q", "--no-header", "-p", "no:cacheprovider"],
             cwd=checkout, capture_output=True, text=True, timeout=timeout, env=env,
         )
         out = p.stdout + p.stderr
@@ -95,12 +100,16 @@ def main() -> int:
     ap.add_argument("--against", choices=["upstream", "tgrad"], required=True)
     ap.add_argument("--group", default="null", choices=["null", "unit", "backend"])
     ap.add_argument("--checkout", type=Path, default=DEFAULT_CHECKOUT)
+    ap.add_argument("--python", type=Path, default=DEFAULT_VENV_PY,
+                    help="pytest environment (or set TGRAD_PARITY_PYTHON)")
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--file", action="append", default=[], metavar="NAME",
+                    help="run one file from the selected group; repeatable")
     args = ap.parse_args()
 
-    if not VENV_PY.exists():
-        print(f"missing venv python at {VENV_PY}", file=sys.stderr)
+    if not args.python.exists():
+        print(f"missing venv python at {args.python}", file=sys.stderr)
         return 1
     group_dir = args.checkout / "test" / args.group
     if not group_dir.is_dir():
@@ -117,27 +126,56 @@ def main() -> int:
         for p in group_dir.glob("*.py")
         if p.name != "__init__.py"
     )
+    if args.file and args.limit:
+        print("--file and --limit cannot be used together", file=sys.stderr)
+        return 1
+    if args.file:
+        available = {Path(rel).name: rel for rel in files}
+        unknown = [name for name in args.file if Path(name).name not in available]
+        if unknown:
+            print(
+                f"unknown test file(s) for group {args.group}: {', '.join(unknown)}",
+                file=sys.stderr,
+            )
+            return 1
+        files = [available[Path(name).name] for name in args.file]
     if args.limit:
         files = files[: args.limit]
 
     env_extra = {}
+    pytest_runner = None
     if args.against == "tgrad":
-        # The substitution shim goes here. Until it exists this mode is
-        # refused rather than silently reporting upstream's numbers as
-        # Tgrad's, which would be the exact self-referential score
-        # PARITY.md rules out.
-        print(
-            "  --against tgrad is not implemented yet.\n"
-            "  Refusing to run: without a substitution shim this would\n"
-            "  measure tinygrad against itself and report it as Tgrad's\n"
-            "  score.",
-            file=sys.stderr,
+        # Keep Tgrad's authoring package reachable, but never put the upstream
+        # checkout on tinygrad's package path.  The bootstrap imports and
+        # verifies the regular shim package before pytest changes sys.path.
+        inherited_pythonpath = os.environ.get("PYTHONPATH", str(REPO / "python"))
+        env_extra["PYTHONPATH"] = os.pathsep.join(
+            [str(SHIM_ROOT), inherited_pythonpath]
         )
-        return 2
+        # Child interpreters spawned by upstream tests must not prepend their
+        # upstream cwd ahead of sitecustomize and the strict shim.
+        env_extra["PYTHONSAFEPATH"] = "1"
+        pytest_runner = SHIM_RUNNER
+        verify = subprocess.run(
+            [str(args.python), str(SHIM_RUNNER), "--verify-only"],
+            cwd=args.checkout,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **env_extra},
+        )
+        if verify.returncode != 0:
+            print(
+                "Tgrad substitution preflight failed; refusing to record a score:\n"
+                + verify.stdout + verify.stderr,
+                file=sys.stderr,
+            )
+            return 2
+        print(f"  {verify.stdout.strip()}")
 
     results = []
     for i, rel in enumerate(files, 1):
-        r = run_file(VENV_PY, args.checkout, rel, args.timeout, env_extra)
+        r = run_file(args.python, args.checkout, rel, args.timeout,
+                     env_extra, pytest_runner)
         results.append(r)
         print(f"  [{i:3d}/{len(files)}] {r['status']:14s} {rel}  "
               f"({r['passed']}p/{r['failed']}f/{r['skipped']}s/{r['errors']}e)")

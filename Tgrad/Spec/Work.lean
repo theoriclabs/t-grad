@@ -188,6 +188,25 @@ def workItems : List WorkItem :=
         [.apiContract, .safety, .numerical, .differential],
       recovery := "retain explicit NotInLeanScope readback until every view form validates",
       progress := .complete "e6241bd" },
+    { id := ew "compiler.graph-indexed-realize",
+      title := "replace operation-indexed FFI dispatch with graph-indexed realization",
+      phase := .build, authority := .agentExecution,
+      closesFindings := [], dependsOn := [ew "view.materialize"],
+      runtimeScope := [rw "product.realize-graph", rw "product.select-matmul-route",
+        rw "product.lower-scalar-matmul", rw "product.lower-tc-matmul"],
+      touches := [.pythonAuthoring, .tensorIr, .leanFfi, .scheduler],
+      writes := ["Tgrad/PythonFFI.lean", "Tgrad/Pipeline.lean",
+        "c/tgrad_python.c", "python/tgrad.py"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .metalGpu],
+      cost := 4, goalDistance := 0,
+      validation := plannedValidation
+        "one tgrad_realize(handle) path lowers a registered UOp graph while existing matmul behavior and generated routes remain unchanged"
+        "construct matmul as a deferred graph; realize through the generic export; run exact existing correctness and 11-sentinel differential checks serially"
+        "matmul uses the graph-indexed path; no operation-specific Python dispatch is added; all existing results remain bit-identical"
+        [.build, .apiContract, .semantic, .differential, .resourceIsolation],
+      recovery := "keep the operation-indexed exports until graph realization preserves the complete existing semantic envelope; do not add elementwise breadth on two spines",
+      progress := .inProgress "orchestrator: codegen/graph-realize; exclusive product-file and verification lease" },
     { id := ew "codegen.differential-harness",
       title := "compare captured and generated kernels semantically",
       phase := .promote, authority := .agentExecution,
@@ -368,76 +387,115 @@ def workItems : List WorkItem :=
       closesFindings := [], dependsOn := [ew "parity.pin-upstream"],
       runtimeScope := [rw "verify.upstream-suite-calibration"],
       touches := [.gateHarness, .evidenceStore],
-      writes := ["scripts/parity/run_upstream_suite.py",
-        "scripts/dev/test_parity_suite.py",
-        "fixtures/parity/suite_upstream_null_19c4d736f2bc.json"],
+      writes := ["scripts/parity/calibrate_upstream_suite.py",
+        "scripts/parity/test_calibrate_upstream_suite.py",
+        "fixtures/parity/suite_upstream_*.json"],
       authoringResources := [.sourceTree],
       verificationResources := [.tmpNamespace, .evidenceStore],
       cost := 2, goalDistance := 0,
       validation := plannedValidation
-        "a pinned, clean, environment-attributed upstream self-run whose aggregate accounts for all 54 files and whose failures retain diagnosable raw evidence"
+        "pinned, clean, environment-attributed upstream self-runs whose aggregate accounts for all 138 files and whose failures retain diagnosable raw evidence"
         "validate commit/tree/clean state and manifest inventory; run in a pinned Python/dependency environment; record stdout/stderr digests or bounded excerpts; inject an empty file, partial limit, dirty checkout, and collection failure"
-        "no partial run overwrites full evidence; every status category sums to files; content hash is timestamp-independent; the current 49 pass, 1 fail, 3 collect-error, 1 empty outcomes are either repaired or explicitly calibrated"
+        "no partial run overwrites full evidence; every status category sums to files; content hash is timestamp-independent; the current 133 pass, 1 fail, 3 collect-error, 1 empty outcomes are either repaired or explicitly calibrated"
         [.semantic, .provenance, .resourceIsolation, .humanReview],
-      recovery := "retain c462ece as unpromoted diagnostic input and refuse to use its aggregate as a parity denominator",
-      progress := .planned },
+      recovery := "retain 572bd98 as unpromoted diagnostic input and refuse to use its aggregate as a parity denominator",
+      progress := .inProgress "codex-primary: diagnosable repeated full runs pending" },
     { id := ew "oracle.classify-public-contract",
       title := "classify upstream tests before observing Tgrad results",
       phase := .design, authority := .userGoal,
       closesFindings := [], dependsOn := [ew "parity.pin-upstream"],
       runtimeScope := [rw "verify.test-contract-classification"],
       touches := [.specification, .evidenceStore],
-      writes := ["scripts/parity/classify_test_contract.py",
-        "fixtures/parity/test_contract_19c4d736f2bc.json",
-        "Tgrad/Spec/ParityTarget.lean", "PARITY.md"],
+      writes := ["scripts/parity/classify_oracle.py",
+        "fixtures/parity/oracle_classification.json", "PARITY.md"],
       authoringResources := [.sourceTree],
       verificationResources := [.leanBuildTree, .evidenceStore],
       cost := 2, goalDistance := 0,
       validation := plannedValidation
-        "a total 138-file applicability ledger separating public compatibility, internal representation, backend-specific, and explicit exclusion rows with rationale"
+        "a pre-score classification of all 138 test files plus the 3 package initializers, separating public compatibility, internal representation, infrastructure, and unresolved ambiguity with rationale"
         "derive rows from the pinned inventory before any Tgrad suite run; require independent review; mutate, omit, duplicate, and reclassify rows after freezing"
         "every upstream file has exactly one class; exclusions are empty-by-default and hash-bound; public API tests cannot be excluded because Tgrad currently fails them"
         [.apiContract, .semantic, .provenance, .humanReview],
       recovery := "keep all ambiguous files in-scope until classification is resolved; never fit the denominator to a measured numerator",
-      progress := .planned },
+      progress := .complete "575f22e" },
     { id := ew "parity.import-test-contract",
       title := "implement the thin upstream-suite Tgrad adapter",
       phase := .build, authority := .agentExecution,
       closesFindings := [],
-      dependsOn := [ew "oracle.calibrate-upstream-suite",
-        ew "oracle.classify-public-contract"],
+      dependsOn := [ew "oracle.classify-public-contract"],
       runtimeScope := [rw "verify.tgrad-suite-adapter"],
       touches := [.pythonAuthoring, .gateHarness, .evidenceStore],
-      writes := ["scripts/parity/tgrad_adapter.py",
-        "scripts/parity/run_upstream_suite.py",
-        "scripts/dev/test_parity_adapter.py"],
+      writes := ["scripts/parity/run_upstream_suite.py",
+        "scripts/parity/shim", "scripts/parity/test_substitution_shim.py"],
       authoringResources := [.sourceTree],
       verificationResources := [.tmpNamespace, .metalGpu, .evidenceStore],
       cost := 4, goalDistance := 0,
       validation := plannedValidation
-        "the same frozen public-contract tests run against Tgrad through a minimal import/API substitution, with unsupported behavior failing rather than being emulated in the adapter"
-        "run adapter unit mutations; compare upstream mode unchanged; execute the first backend-free public shard against Tgrad; hash adapter, relation, environment, and both subject trees"
-        "the adapter contains no numerical implementation, expected-output rewrite, broad skip, tolerance weakening, or fallback import of tinygrad as Tgrad"
-        [.build, .apiContract, .differential, .provenance, .resourceIsolation],
+        "a minimal import/API substitution whose unsupported surface fails explicitly and which never falls back to real tinygrad"
+        "run adapter unit mutations; prove tinygrad.Tensor is tgrad.Tensor; reject unavailable tinygrad submodules and fallback imports"
+        "the adapter contains no numerical implementation, expected-output rewrite, broad skip, tolerance weakening, or fallback import"
+        [.build, .apiContract, .semantic, .provenance],
       recovery := "delete or narrow a thick adapter and leave the numerator unknown; never report upstream-on-upstream results as Tgrad",
+      progress := .complete "7bc43ca" },
+    { id := ew "parity.run-attributable-test-contract",
+      title := "run the frozen public contract with attributable evidence",
+      phase := .verify, authority := .evidence,
+      closesFindings := [],
+      dependsOn := [ew "oracle.calibrate-upstream-suite",
+        ew "parity.import-test-contract"],
+      runtimeScope := [rw "verify.tgrad-suite-adapter"],
+      touches := [.gateHarness, .evidenceStore],
+      writes := ["scripts/parity/run_upstream_suite.py",
+        "fixtures/parity/suite_tgrad_*.json"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.tmpNamespace, .metalGpu, .evidenceStore],
+      cost := 3, goalDistance := 0,
+      validation := plannedValidation
+        "all 34 frozen public files run against one clean Tgrad subject with exact verifier, environment, relation, and raw-artifact identities"
+        "record both subject trees; retain stdout, stderr, and JUnit per file; bind adapter and relation hashes; reject dirty trees, fallback imports, missing artifacts, and partial runs"
+        "every result is attributable and stage-preserving; failures remain failures rather than exclusions; no aggregate is promoted before validator calibration"
+        [.apiContract, .semantic, .provenance, .resourceIsolation],
+      recovery := "retain the historical 0/34 run as diagnostic-only and publish no numerator until the rerun is attributable",
       progress := .planned },
     { id := ew "parity.publish-first-coverage",
-      title := "publish the first immutable Tgrad coverage matrix",
-      phase := .promote, authority := .evidence,
+      title := "publish the first diagnostic requirement projection",
+      phase := .verify, authority := .evidence,
       closesFindings := [], dependsOn := [ew "parity.import-test-contract"],
       runtimeScope := [rw "verify.parity-coverage-matrix"],
       touches := [.specification, .evidenceStore],
-      writes := ["fixtures/parity/tgrad_coverage",
-        "Tgrad/Spec/Parity.lean", "Tgrad/Spec/ParityTarget.lean", "PARITY.md"],
+      writes := ["fixtures/parity/coverage_diagnostic_19c4d736f2bc.json",
+        "scripts/parity/project_suite_coverage.py",
+        "scripts/parity/test_project_suite_coverage.py",
+        "Tgrad/Spec/ParityCoverage.lean", "PARITY.md"],
       authoringResources := [.sourceTree],
-      verificationResources := [.leanBuildTree, .tmpNamespace, .metalGpu, .evidenceStore],
+      verificationResources := [.leanBuildTree, .tmpNamespace, .evidenceStore],
       cost := 3, goalDistance := 0,
       validation := plannedValidation
-        "a total coverage matrix for one immutable Tgrad commit/tree and support profile over the generated 590-row target, with no invented percentage"
-        "join classified suite results and direct API/Ops/dtype/backend checks to requirement IDs; require pass, fail, excluded, or not-applicable evidence for every row; rebuild Lean specifications"
-        "targetContract becomes confirmed only when subject, profile, adapter, relation, environment, oracle, and evidence hashes resolve; uncovered and failing rows remain visible"
-        [.build, .apiContract, .semantic, .provenance, .humanReview],
+        "an exact ordered 590-row Metal projection that preserves required, excluded, not-applicable, observed, and unknown states without a percentage"
+        "rederive every cell from the frozen requirement, classification, upstream, adapter, and Tgrad result inputs; reject semantic mutations even after rehashing"
+        "471/104/15 dispositions and the 29 collection/5 execution split are exact; missing subject, verifier, environment, raw, relation, and calibration identities remain typed blockers"
+        [.apiContract, .semantic, .provenance, .humanReview],
       recovery := "leave targetContract unknown and retain the partial matrix as diagnostic evidence until every requirement has an attributable state",
+      progress := .inProgress "codex-primary: diagnostic projection; attributable rerun pending" },
+    { id := ew "parity.promote-first-coverage",
+      title := "promote attributable atomic parity observations",
+      phase := .promote, authority := .evidence,
+      closesFindings := [],
+      dependsOn := [ew "parity.publish-first-coverage",
+        ew "parity.run-attributable-test-contract"],
+      runtimeScope := [rw "verify.parity-coverage-matrix"],
+      touches := [.specification, .evidenceStore],
+      writes := ["fixtures/parity/tgrad_coverage", "Tgrad/Spec/ParityCoverage.lean",
+        "Tgrad/Spec/Parity.lean", "PARITY.md"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .tmpNamespace, .evidenceStore],
+      cost := 4, goalDistance := 0,
+      validation := plannedValidation
+        "atomic observations joined to one immutable Tgrad subject/profile with confirmed adapter, relation, environment, oracle, verifier, diagnostics, and calibrated validators"
+        "import attributable observations; reject missing/duplicate/orphan/stale evidence; rebuild Lean; require exact obligation counts and independent origins for every pass"
+        "only observed cells import; targetContract stays unknown until every required obligation is selected and universally conformant"
+        [.build, .apiContract, .semantic, .provenance, .humanReview],
+      recovery := "retain the total diagnostic projection and leave targetContract unknown when any identity, calibration, or obligation is unresolved",
       progress := .planned },
     { id := ew "harness.namespace-temporaries",
       title := "namespace every gate and devcheck temporary artifact",
@@ -2340,11 +2398,8 @@ theorem routing_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_authoring_frontier_exposes_oracle_and_performance_lanes :
-    frontierIds =
-      [ ew "oracle.calibrate-upstream-suite",
-        ew "oracle.classify-public-contract",
-        ew "perf.prepared-boundary" ] := by
+theorem current_authoring_frontier_respects_the_graph_realize_lease :
+    frontierIds = [] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :

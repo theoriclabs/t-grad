@@ -127,3 +127,39 @@ exclusion additionally requires an imported pre-score classification.
 6. Validate exact counts and joins, then render the checked Lean snapshot.
 
 Until step 6, `Tgrad.Spec.Parity.targetContract` remains unknown.
+
+## First diagnostic projection
+
+The frozen classification and strict substitution runner now provide a first
+partial observation. Generate its ordered 590-cell projection with:
+
+```sh
+python3 scripts/parity/project_suite_coverage.py
+```
+
+and check the committed projection without rewriting it with:
+
+```sh
+python3 scripts/parity/project_suite_coverage.py --check
+```
+
+This projection is not the promotable matrix described above. It records the
+facts available from the historical suite JSON while preserving what those
+files omitted:
+
+- the exact Tgrad subject and verifier trees are `unknown`;
+- the execution environment and raw diagnostics are `unknown`;
+- the relation registry and validator-calibration bundle are `unknown`;
+- collection failures remain distinct from tests that collected and failed;
+- excluded and not-applicable rows remain visible; and
+- no pass percentage is computed.
+
+For the Metal profile, the current projection accounts for all 590 generated
+rows: 471 required, 104 excluded by the pre-score classification, and 15
+non-Metal backend rows not applicable. Of the required rows, 34 public test
+files have observations (`29` collection failures and `5` execution failures)
+and 437 rows remain unobserved. It can shape the next work packet, but it cannot
+import observations into `Contract.cells` until a rerun binds the subject and
+verifier trees, environment, adapter, relation, validator calibration, and
+retained raw artifacts. Universal contract promotion remains a separate,
+stronger condition after every required obligation is observed.

@@ -22,7 +22,7 @@ Stated plainly, because the roadmap only works if the origin is honest:
 | UOp / Ops surface | 82 generated `Ops` members | 21 local constructors; partial lowering |
 | dtypes | 52 generated public names on `dtypes` | bf16 is load-bearing; parts of a wider lattice exist but are not on the path |
 | backends | 16 generated runtime modules; active target profile not yet selected | Metal only |
-| tests | 138 generated null/unit/backend files; 54 in the backend-free null group | no upstream-test adapter yet |
+| tests | 138 generated null/unit/backend files; 34 frozen public-surface files | strict no-fallback substitution exists; historical unattributed diagnostic: `0/34` files pass |
 | rank | n-D | 2-D product path; bounded movement algebra underneath |
 | autograd | part of upstream contract | absent |
 | JIT / optimization search | part of upstream contract | absent |
@@ -30,8 +30,10 @@ Stated plainly, because the roadmap only works if the origin is honest:
 These numbers come from
 `fixtures/parity/upstream_19c4d736f2bc.json`, not from this prose. The generated
 Lean module turns them into 590 mandatory requirement rows. A compatibility
-percentage still must not be published: the denominator now exists, but no
-subject-tree/profile coverage matrix or parity evidence exists yet.
+percentage still must not be published. The first suite projection now covers
+all 590 rows under the Metal profile, but only 34 test-file rows have runtime
+observations, and those artifacts omit the exact Tgrad subject tree and
+environment needed for promotion.
 
 The first extraction attempt exposed two anti-flattery hazards. `Ops` lives in
 `tinygrad/uop/__init__.py`, not the tempting `tinygrad/uop/ops.py`; missing that
@@ -159,8 +161,8 @@ The sequence is forced by one observation: there is no general path, so every
 operation added now tends toward a bespoke generator—the architecture that
 produced the replay problem.
 
-**Phase 0 — build the instrument.** The tinygrad-suite shim and its
-score. Start with `test/null`: no GPU, so it runs in CI and in
+**Phase 0 — build the instrument.** The tinygrad-suite shim and its exact
+coverage projection. Start with `test/null`: no GPU, so it runs in CI and in
 parallel. Everything after this is measured by it, so it comes first.
 
 **Phase 1 — executable semantics.** Establish dtype/scalar meaning, current
@@ -245,12 +247,22 @@ on the product path, theorem existence. But they stop being the
 measure of progress. A self-authored ratchet is a self-referential
 oracle at the project scale, and §4 applies to it too.
 
-## 8. First move
+## 8. First measured move
 
-Build the shim and publish the first score, before writing any feature
-code. It will be a low number. That is the point: it is the first
-statement about this project's distance to tinygrad that was not
-produced by this project.
+The strict shim now exists and never falls back to real tinygrad. Against the
+34 files frozen as `api_surface` before observing Tgrad, the first run passes
+`0/34`: 29 files stop during collection because the compatibility package lacks
+an imported symbol or submodule, while 5 collect and then fail assertions.
+That split matters. The dominant gap is currently substitution/public-surface
+breadth, not evidence that 29 numerical implementations are wrong.
+
+This is the first foreign observation of distance, but not yet a promotable
+coverage certificate. The historical result files record the upstream pin and
+per-file outcomes but not the exact Tgrad subject/verifier trees, environment
+manifest, raw diagnostics, relation registry, or validator calibration.
+`Tgrad.Spec.Parity.firstPublicSurfaceProjection` therefore keeps those
+identities `unknown`; `scripts/parity/project_suite_coverage.py` materializes
+the 590 ordered diagnostic cells without inventing them.
 
 ## 9. The system that grows Tgrad
 
@@ -597,7 +609,8 @@ passing observation does not rerun every sabotage; it cites a validator whose
 versioned falsifier manifest has already been observed red. If validator code,
 adapter, relation or calibration changes, prior evidence is stale.
 
-Generated scorecards are views over these records, never hand-authored truth.
+Generated coverage reports are views over these records, never hand-authored
+truth and never a scalar percentage.
 Changing a test adapter, exclusion, tolerance, denominator, or expected result
 invalidates affected evidence and is reviewed as a contract change.
 
@@ -775,7 +788,7 @@ rules. The human-readable critical path is:
 
 1. Pin upstream and generate manifests. Promoted at candidate `8c87034`.
 2. Import/adapter-run upstream null, unit and backend tests; publish the first
-   honest score plus explicit exclusions.
+   exact status distribution with explicit exclusions and unobserved rows.
 3. Namespace temporary artifacts so build-independent CPU verification can
    parallelize. Promoted at candidate `602897e`; shared builds, GPU work,
    timing, and evidence integration remain serial.
@@ -1009,3 +1022,24 @@ therefore classified `internal_repr` at this file-level metric, even if it also
 contains numerical checks. Internal and infrastructure files are exclusions,
 not parity failures, and classification is fixed from the pinned upstream
 source before any Tgrad score is consulted.
+
+The resulting Metal-profile projection has an exact, non-overlapping account:
+
+- 590 generated requirement cells total;
+- 471 required (436 public symbols, the Metal backend, and 34 public test files);
+- 104 upstream test files excluded by the frozen representation/infrastructure
+  policy;
+- 15 non-Metal backend rows not applicable;
+- 34 required test rows observed, all failing (`29` at collection, `5` after
+  collection); and
+- 437 required rows still unobserved.
+
+The upstream fixtures run all 138 inventory files: 133 files pass and 3 have
+collection errors, 1 fails, and 1 is empty, with 3419 passing tests overall.
+Crucially, the frozen 34-file public subset is green upstream (`34/34`, 1003
+passing and 146 skipped tests), so its current Tgrad red result is not caused by
+the five unrelated upstream calibration failures. These are exact counts, not
+a scalar parity score. The complete ordered projection is
+`fixtures/parity/coverage_diagnostic_19c4d736f2bc.json`; its content hash and
+the requirement, source-fixture, adapter, classification, and result identities
+are pinned by `Tgrad.Spec.Parity.firstPublicSurfaceProjection`.

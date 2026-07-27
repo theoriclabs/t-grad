@@ -162,6 +162,13 @@ def workUnits : List WorkUnit :=
       ["Tgrad/Tensor.lean", "Tgrad/PythonFFI.lean"] .bounded
       "query Tensor.uop and movement constructors"
       "unsupported or malformed view chains can remain latent until realization",
+    absent "product.realize-graph" "graph-indexed tensor realization"
+      .product .materialize [.uopGraph] [.tensorResult]
+      .leanFfi [.tensorRegistry, .hostMemory, .metalBufferPool, .metalGpu]
+      [.fixedHostOverhead, .outputElements, .reductionElements, .dispatchCount]
+      "route every registered graph through one realization entry point, preserving existing generated matmul routes before adding operation breadth"
+      "construct a deferred matmul graph, realize it through one exported handle operation, and retain the existing sentinel differential as the semantic oracle"
+      "the public FFI remains operation-indexed, so each new operation would otherwise require another export, trampoline, ctypes binding, and Python dispatch branch",
     implemented "product.compose-view" "view composition"
       .product .normalize [.uopGraph] [.view, .indexExpr]
       .viewAlgebra [.hostMemory] [.fixedHostOverhead]
@@ -256,28 +263,36 @@ def workUnits : List WorkUnit :=
     implemented "verify.upstream-suite-calibration" "upstream suite self-calibration"
       .verification .observe [.candidateRevision, .scenario] [.executionObservation, .report]
       .gateHarness [.sourceTree, .tmpNamespace, .evidenceStore] [.scenarioCount, .evidenceCount]
-      ["scripts/parity/run_upstream_suite.py",
-       "fixtures/parity/suite_upstream_null_19c4d736f2bc.json"] .bounded
-      "run the pinned upstream null-suite against upstream itself and retain per-file outcomes"
-      "the first capture is 49/54, omits raw diagnostics and environment identity, undercounts an empty file in its aggregate categories, and is not yet promotable calibration evidence",
-    absent "verify.test-contract-classification" "public compatibility test classification"
+      ["scripts/parity/calibrate_upstream_suite.py",
+       "scripts/parity/run_upstream_suite.py",
+       "fixtures/parity/suite_upstream_null_19c4d736f2bc.json",
+       "fixtures/parity/suite_upstream_unit_19c4d736f2bc.json",
+       "fixtures/parity/suite_upstream_backend_19c4d736f2bc.json"] .bounded
+      "run the complete 54/43/41 pinned groups against upstream; retain exact per-file status and use the diagnosable runner for repeatability calibration"
+      "the aggregate is 133/138 files and 3419 passing tests, but the committed aggregate fixtures predate environment identity and retained raw diagnostics; repeated diagnosable full runs remain pending",
+    implemented "verify.test-contract-classification" "public compatibility test classification"
       .verification .validate [.candidateRevision, .scenario] [.validationEvidence, .report]
       .specification [.sourceTree, .evidenceStore] [.scenarioCount]
-      "classify every discovered upstream test as public compatibility, internal representation, backend-specific, or explicit exclusion before observing Tgrad results"
-      "compare a reviewed generated classification with the pinned 138-file inventory and reject missing, duplicate, or post-score exclusions"
-      "without a predeclared applicability relation, the denominator can be fitted to the implementation",
-    absent "verify.tgrad-suite-adapter" "thin upstream-suite Tgrad adapter"
+      ["scripts/parity/classify_oracle.py",
+       "fixtures/parity/oracle_classification.json"] .loadBearing
+      "regenerate the pre-score 138-test classification and require exact agreement with the pinned upstream inventory and reviewed rationales"
+      "classification is intentionally file-grained; mixed internal/public files remain excluded until a finer foreign partition replaces the file-level policy",
+    implemented "verify.tgrad-suite-adapter" "thin upstream-suite Tgrad adapter"
       .verification .validate [.candidateRevision, .scenario] [.executionObservation, .validationEvidence]
       .gateHarness [.sourceTree, .tmpNamespace, .evidenceStore] [.scenarioCount]
-      "implement a minimal audited import/API substitution whose hash participates in evidence identity"
-      "run adapter mutation tests and the same classified suite against both upstream and Tgrad"
-      "the current --against tgrad mode refuses execution, so no Tgrad numerator exists",
-    absent "verify.parity-coverage-matrix" "immutable subject/profile coverage matrix"
+      ["scripts/parity/run_upstream_suite.py", "scripts/parity/shim",
+       "scripts/parity/test_substitution_shim.py"] .bounded
+      "preload the strict shim, prove tinygrad.Tensor is tgrad.Tensor, reject every unimplemented tinygrad submodule, and run the frozen public files"
+      "the first 34-file artifacts omit exact Tgrad subject/environment identity and raw diagnostics, so their red result is diagnostic rather than promotable",
+    implemented "verify.parity-coverage-matrix" "diagnostic requirement projection"
       .verification .observe [.candidateRevision, .validationEvidence] [.validationEvidence, .report]
       .evidenceStore [.sourceTree, .evidenceStore] [.scenarioCount, .evidenceCount]
-      "materialize every generated requirement against one immutable Tgrad tree and support profile with pass, fail, excluded, or not-applicable evidence"
-      "require total requirement coverage, foreign-oracle identity, adapter/relation hashes, and no fabricated percentage"
-      "targetContract remains unknown and parity has a denominator but no attributable numerator",
+      ["scripts/parity/coverage_matrix.py",
+       "scripts/parity/project_suite_coverage.py",
+       "fixtures/parity/coverage_diagnostic_19c4d736f2bc.json",
+       "Tgrad/Spec/ParityCoverage.lean"] .bounded
+      "materialize the exact ordered 590-row denominator and project frozen classification/results without collapsing collection failures, exclusions, or unknown rows into a scalar score"
+      "the diagnostic projection has 34 red test rows and 437 unobserved required rows; targetContract remains unknown until an attributable rerun supplies subject, environment, relation, and calibrated evidence identities",
     implemented "verify.run-isolation" "run-scoped verification artifact isolation"
       .verification .validate [.candidateRevision, .scenario] [.validationEvidence]
       .gateHarness [.sourceTree, .tmpNamespace] [.scenarioCount]

@@ -1,9 +1,9 @@
 {
   "gate": "L9",
-  "ts_utc": "2026-06-22T14:28:50Z",
-  "host_profile": "apple_m4_mini_release",
+  "ts_utc": "2026-07-27T06:42:17Z",
+  "host": "Harshs-MacBook-Air.local",
   "platform": "Darwin 24.5.0 arm64",
-  "commit": "a06d475cba262dfee999fe2b5fee50d27a083ea4",
+  "commit": "e90607f1b11da91535c11b0cff88d9d47a1be1ef",
   "scope": "L9.a — 22-rule extended symbolic_simple subset (L1's 16 + 6 new); full 62-rule port is L9.b",
   "rule_count": 22,
   "hashes": {

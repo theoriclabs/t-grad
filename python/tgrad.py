@@ -162,6 +162,16 @@ _lib.tgrad_tensor_uop_kind.restype  = ctypes.c_uint8
 # uop, Python routes here; the Lean side runs the parametric scalar
 # matmul (`Pipeline.realizeView`) with A/B load-index UOps derived
 # from the input uop chains.
+# Graph-indexed realize. Tensor methods compose a UOp graph and one
+# entry lowers it, so a new op costs a node constructor and a table row
+# rather than another export/trampoline/binding triple.
+_lib.tgrad_tensor_binop.argtypes = [ctypes.c_uint8, ctypes.c_uint64, ctypes.c_uint64]
+_lib.tgrad_tensor_binop.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_reduce.argtypes = [ctypes.c_uint8, ctypes.c_uint64, ctypes.c_size_t]
+_lib.tgrad_tensor_reduce.restype  = ctypes.c_uint64
+_lib.tgrad_realize.argtypes = [ctypes.c_uint64]
+_lib.tgrad_realize.restype  = ctypes.c_uint64
+
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_view.restype  = ctypes.c_uint64
 
@@ -215,6 +225,10 @@ class MatmulOnNonBufferUop(TgradError):
     `Schedule.Rangeify` into the realize path. The view methods are
     plumbed; the kernel-side view-aware codegen lands at L14.B.2."""
 
+
+# Op codes shared with PythonFFI.binOpOfCode.
+_BINOP_ADD = 0
+_BINOP_MUL = 1
 
 _SUPPORTED_DTYPES = {"bf16"}
 # Bytes per element, used to check that a materialized buffer is
@@ -565,6 +579,35 @@ class Tensor:
         # L14.B.2.c: route view inputs through Pipeline.realizeView
         # (which runs the parametric scalar matmul with view-derived
         # index UOps). Replaces L14.B.1's MatmulOnNonBufferUop guard.
+        M, K_a = self._shape
+        K_b, N = other._shape
+        if K_a != K_b:
+            raise TgradTypeError(
+                f"matmul: contraction dim mismatch ({self._shape} @ {other._shape})")
+
+        if not _USE_ALGEBRAIC:
+            # Graph-indexed path. Build `reduce add (mul a b)` and hand it
+            # to one entry; Lean picks sentinel / TC / scalar / view. The
+            # shape inspection that used to happen here now happens where
+            # the type system can see it.
+            prod = _lib.tgrad_tensor_binop(_BINOP_MUL, self._handle, other._handle)
+            if prod == 0:
+                raise TgradError("tgrad_tensor_binop(mul) returned 0")
+            graph = _lib.tgrad_tensor_reduce(_BINOP_ADD, prod, 1)
+            if graph == 0:
+                raise TgradError("tgrad_tensor_reduce(add) returned 0")
+            out_handle = _lib.tgrad_realize(graph)
+            if out_handle == 0:
+                raise TgradError(
+                    f"tgrad_realize failed for {self._shape} @ {other._shape}")
+            out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+            out_M = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+            out_N = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+            return Tensor(out_buf, out_M * out_N * 2, (out_M, out_N), "bf16",
+                          handle=out_handle, owns_buf=True, base=None)
+
+        # Algebraic-emit route, retained so L12 can observe a distinct
+        # cache path via --use-algebraic-emit.
         a_kind = self._uop_kind_code()
         b_kind = other._uop_kind_code()
         if a_kind != 0 or b_kind != 0:

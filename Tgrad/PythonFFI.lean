@@ -541,4 +541,111 @@ def matmulView (aHandle bHandle : UInt64) : IO UInt64 := do
   | .error _ => pure 0
   | .ok t    => TensorRegistry.register t
 
+-- ----------------------------------------------------------------------
+-- Graph-indexed realize.
+--
+-- Eight of this module's exports are matmul routes, and Python picks
+-- between them by inspecting shapes. That does not scale: every new op
+-- would cost another export, another C trampoline, another ctypes
+-- binding and another branch in `__matmul__`. It also puts the routing
+-- decision in Python, where it is invisible to Lean's type system.
+--
+-- These three entries replace that shape. Tensor methods build a UOp
+-- graph; `tgrad_realize` lowers whatever graph it is handed and decides
+-- the route itself. An op then costs a node constructor and a table
+-- row, with no ABI surface at all.
+-- ----------------------------------------------------------------------
+
+private def binOpOfCode : UInt8 → Option BinOp
+  | 0 => some .add
+  | 1 => some .mul
+  | _ => none
+
+/-- Compose a binary node over two graphs. -/
+@[export tgrad_tensor_binop_lean]
+def tensorBinop (opCode : UInt8) (h1 h2 : UInt64) : IO UInt64 := do
+  let some t1 ← TensorRegistry.get? h1 | return 0
+  let some t2 ← TensorRegistry.get? h2 | return 0
+  let some op := binOpOfCode opCode | return 0
+  TensorRegistry.register { uop := .binop op t1.uop t2.uop t1.dtype, dtype := t1.dtype }
+
+/-- Compose a reduction node over one graph. -/
+@[export tgrad_tensor_reduce_lean]
+def tensorReduce (opCode : UInt8) (h : UInt64) (axis : USize) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h | return 0
+  let some op := binOpOfCode opCode | return 0
+  let ax : UOp := .const .int32_ (.i (Int.ofNat axis.toNat))
+  TensorRegistry.register { uop := .reduce op t.uop [ax], dtype := t.dtype }
+
+/-- Buffer-operand matmul for shapes with no captured sentinel: the
+    parametric WMMA kernel where the generator accepts the shape, the
+    scalar fallback otherwise. Allocates its own output, so the caller
+    hands over a graph and receives a materialised tensor. -/
+private def runBufferMatmul (a b : Tgrad.Tensor) (M K N : Nat) :
+    IO (Option Tgrad.Tensor) := do
+  let outBytes := M * N * 2
+  let tcOk := (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N).isOk
+  let libPtr ← if tcOk then compileOrCacheGetTcManual M K N
+               else compileOrCacheGetSmall M K N
+  if libPtr == 0 then return none
+  let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+  if outBuf == 0 then return none
+  let d := Tgrad.Renderer.Metal.tcLaunchDims M N
+  let fnName := if tcOk then s!"matmul_tc_manual_{M}x{K}x{N}"
+                else s!"matmul_scalar_{M}x{K}x{N}"
+  let tx := if tcOk then d.grid.x * d.threadgroup.x else M
+  let ty := if tcOk then d.grid.y * d.threadgroup.y else N
+  let tz := if tcOk then d.grid.z * d.threadgroup.z else 1
+  let lx := if tcOk then d.threadgroup.x else 1
+  let ly := if tcOk then d.threadgroup.y else 1
+  let lz := if tcOk then d.threadgroup.z else 1
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outBuf, a.buffer.raw, b.buffer.raw]
+    (USize.ofNat tx) (USize.ofNat ty) (USize.ofNat tz)
+    (USize.ofNat lx) (USize.ofNat ly) (USize.ofNat lz)
+  if rc != 0 then
+    Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+    return none
+  pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes } [M, N] .bfloat16_))
+
+/-- Materialise a graph and return a handle to the result.
+
+    The accepted shape today is the matmul marker
+    `reduce add (mul a b)`. That marker is built from existing UOp
+    constructors rather than a bespoke `.matmul` node, so the step that
+    replaces this special-case lowering with generic elementwise +
+    reduce lowering changes only the *lowering* and not the graph.
+
+    Honest limitation: the operands are not broadcast to a common shape,
+    so the `mul` node is not yet a well-typed elementwise product. Making
+    it well-typed is the generic-elementwise step's job. -/
+@[export tgrad_realize_lean]
+def realizeGraph (h : UInt64) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h | return 0
+  match t.uop with
+  | .reduce .add (.binop .mul aU bU _) _ =>
+      let a : Tgrad.Tensor := { uop := aU, dtype := .bfloat16_ }
+      let b : Tgrad.Tensor := { uop := bU, dtype := .bfloat16_ }
+      let aShape := a.shape
+      let bShape := b.shape
+      let some M := aShape[0]? | return 0
+      let some K := aShape[1]? | return 0
+      let some N := bShape[1]? | return 0
+      if !a.isBufferUop || !b.isBufferUop then
+        match (← Tgrad.Pipeline.realizeView a b) with
+        | .error _ => return 0
+        | .ok out  => TensorRegistry.register out
+      else
+        match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M K N with
+        | some s =>
+            match (← Tgrad.Pipeline.realize a b s) with
+            | .error _ => return 0
+            | .ok out  => TensorRegistry.register out
+        | none =>
+            match (← runBufferMatmul a b M K N) with
+            | none     => return 0
+            | some out => TensorRegistry.register out
+  | _ => return 0
+
+
 end Tgrad.PythonFFI

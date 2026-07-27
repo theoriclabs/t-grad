@@ -333,11 +333,11 @@ def workItems : List WorkItem :=
       verificationResources := [.metalGpu, .tmpNamespace, .evidenceStore],
       cost := 5, goalDistance := 0,
       validation := plannedValidation
-        "live same-session distributions for both runtimes"
-        "run synchronized dispatch-only benchmark serially"
-        "same boundary, TinyJit policy stated, distributions and throughput sane"
+        "paired same-session distributions for both runtimes, with a repeatability model before any verdict"
+        "interleave synchronized dispatch-only samples serially; repeat complete runs; retain raw samples; estimate within-run and between-run variance; predeclare a threshold derived from that variance or publish no pass/fail threshold"
+        "same boundary and cache/JIT policy; both denominators live; uncertainty and throughput physically sane; the verdict is stable across repeats and no threshold is tuned to make a run green"
         [.performance, .provenance, .resourceIsolation],
-      recovery := "report regression; do not substitute frozen or asymmetric baseline",
+      recovery := "report regression or indeterminate variance; never substitute a frozen denominator or tune the threshold after observing failures",
       progress := .planned },
     { id := ew "evidence.regenerate", title := "regenerate evidence at the shipped commit",
       phase := .promote, authority := .evidence,
@@ -350,11 +350,11 @@ def workItems : List WorkItem :=
       verificationResources := [.metalGpu, .tmpNamespace, .evidenceStore],
       cost := 4, goalDistance := 0,
       validation := plannedValidation
-        "evidence naming HEAD with recomputable hashes"
-        "run gates serially; recompute every recorded hash"
-        "commit equals HEAD; all source, child, and baseline hashes resolve"
+        "all 37 evidence files naming one shipped commit with recomputable hashes"
+        "after perf.rebaseline is promoted, run gates serially; retain red results; recompute every recorded hash; reject a partial snapshot"
+        "all 37 files come from their current scripts; commit equals the measured tree; all source, child, and baseline hashes resolve; L11 is not made green by threshold tuning"
         [.provenance, .semantic, .humanReview],
-      recovery := "discard generated snapshot if tree is dirty or any hash is unresolved",
+      recovery := "keep reproducible partial files as diagnostic history but do not promote the snapshot while any gate or provenance class remains red",
       progress := .planned },
     { id := ew "evidence.enforce-provenance", title := "make provenance audit a fatal release predicate",
       phase := .promote, authority := .evidence,
@@ -537,21 +537,28 @@ def growthCases : List Growth.Case :=
         "executable gate layer, source inequality, Nodup theorem, and reproduced wrong-but-distinct falsifiability rows" },
     { id := "G-symmetric-performance",
       findingIds := ["F-performance-methodology"],
-      observations := [observe "verify.performance" "generated matmul comparison"
-        "both runtimes execute the same timed work boundary in one session"
-        "measure dispatch-only and end-to-end distributions serially"
-        "raw samples, boundary metadata, throughput, and thermal context"],
+      observations := [
+        observe "verify.performance-repeatability" "identical generated-route repeats"
+          "the old ratio predicate has bounded variance small enough to support a stable decision"
+          "repeat the same 30/30 run serially on one code revision and GPU"
+          "raw samples, per-run miss counts, ratio distributions, and within/between-run variance",
+        observe "verify.performance" "paired generated matmul comparison"
+          "both runtimes execute the same timed work boundary live in one interleaved session"
+          "measure paired dispatch-only and end-to-end distributions serially, then repeat complete sessions"
+          "paired raw samples, cache/JIT and boundary metadata, uncertainty, throughput, and thermal context"],
       evolutionWork := [ew "perf.rebaseline"],
       deltas := [delta "verify.performance" .replaceBypass
         [.performance, .observability, .provenance] .bypassed .loadBearing
-        "replace asymmetric frozen-baseline ratios with a symmetric experiment"],
+        "replace asymmetric frozen-baseline ratios with a paired experiment whose decision rule is derived from measured variance"],
       stage := .selected,
-      promotion := promote ["verify.performance", "verify.evidence-integrity"]
+      promotion := promote ["verify.performance-repeatability", "verify.performance",
+          "verify.evidence-integrity"]
         [.performance, .provenance, .resourceIsolation]
-        "methods are symmetric and reported throughput is physically plausible"
-        "publish unknown/regression rather than reusing stale ratios",
-      epistemic := .confirmed "current performance claim is not promotable"
-        "measurement-boundary and physical-plausibility audit" },
+        "both sides are live and paired; repeated distributions support a predeclared variance-derived rule; reported throughput is physically plausible"
+        "publish unknown/regression when variance is too large; never reuse stale ratios or choose a threshold after seeing the result",
+      epistemic := .confirmed
+        "current performance claim is not promotable: identical e90607f 30/30 runs varied from 2 to 25 to 10 misses, with ratio_max 1.655/3.667/2.552"
+        "direct serial repeatability report plus L12's 1/1 versus 30/30 verdict reversal" },
     { id := "G-evidence-provenance",
       findingIds := ["F-evidence-provenance"],
       observations := [
@@ -579,8 +586,8 @@ def growthCases : List Growth.Case :=
         "regenerated evidence passes the calibrated audit and release entry points enforce it"
         "keep audit diagnostic-only until regeneration; discard any dirty or unresolved snapshot",
       epistemic := .confirmed
-        "bdc01b0 reports 37/37 absent commit, 73/115 unresolved hashes, 28 roll-up disagreements, and 27 writer mismatches"
-        "repeatable auditor calibrated to pass synthetic HEAD-tied evidence" } ]
+        "7c7dc0f retains 11 script-produced files at e90607f; the current audit still reports 26/37 absent commits, 76/115 unresolved hashes, 28 roll-up disagreements, and 17 writer mismatches"
+        "repeatable auditor calibrated to pass synthetic HEAD-tied evidence; the partial regeneration remains unpromoted" } ]
 
 def itemIds : List Growth.EvolutionWorkId := workItems.map (·.id)
 
@@ -1324,7 +1331,88 @@ def liveEvolutionEvents : List Event :=
             "captured MSL remains as an executable differential oracle",
             "committed release evidence still has absent-commit and stale-hash provenance",
             "alternate generated cache and historical gates retain migration debt",
-            "many untouched gates still share fixed /tmp paths" ] } ]
+            "many untouched gates still share fixed /tmp paths" ] },
+    /- `7c7dc0f` is deliberately a candidate, not a promotion. The serial
+       regeneration repaired two real gate blockers and retained the eleven
+       evidence files that their scripts could reproduce. L11 then falsified
+       the performance predicate's repeatability, so no replacement L11
+       evidence or all-green snapshot was accepted. A committed candidate can
+       still be an abandoned attempt. -/
+    .attemptStarted
+      { id := { value := "attempt-evidence-regeneration-20260726" },
+        intent := ew "evidence.regenerate",
+        actor := "claude-window-2-tab-1",
+        base :=
+          { commit := "7dff169a08876e79e0c4d657cca386dacb8e199e",
+            tree := "2e4bc9a16e22af0bf5538f36f1feb89d98f03894",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .modify, target := "scripts/gates/L12.sh" },
+            { kind := .modify, target := "scripts/gates/L14_B_1.sh" },
+            { kind := .modify, target := "fixtures/gate_evidence/L0.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L1.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L2.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L3.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L4.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L5.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L6.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L7.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L8.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L9.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L10.json" } ],
+        lease :=
+          { token := "coord-window-2-tab-1-evidence-regeneration",
+            resources := [.sourceTree, .tmpNamespace, .metalGpu, .evidenceStore],
+            validThroughEpoch := 3000 } },
+    .candidateProduced
+      { id := { value := "candidate-evidence-regeneration-5ccb293" },
+        attempt := { value := "attempt-evidence-regeneration-20260726" },
+        tree := "5ccb293d45874a5cde3f47d1d0516dce51359f1c",
+        observedEffects :=
+          [ { kind := .modify, target := "scripts/gates/L12.sh" },
+            { kind := .modify, target := "scripts/gates/L14_B_1.sh" },
+            { kind := .modify, target := "fixtures/gate_evidence/L0.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L1.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L2.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L3.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L4.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L5.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L6.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L7.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L8.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L9.json" },
+            { kind := .modify, target := "fixtures/gate_evidence/L10.json" } ],
+        summary := "repair two regeneration blockers and retain eleven script-produced evidence files while leaving the non-repeatable L11 result red" },
+    .checkRecorded
+      { id := { value := "check-partial-regeneration-provenance-7c7dc0f" },
+        candidate := { value := "candidate-evidence-regeneration-5ccb293" },
+        tree := "5ccb293d45874a5cde3f47d1d0516dce51359f1c",
+        validator := rw "verify.evidence-audit", obligation := .provenance,
+        outcome := .failed
+          "only 11/37 files are reachable; 26 absent commits, 76/115 unresolved hashes, 28 bad roll-ups, and 17 writer-key mismatches remain",
+        command := "python3 scripts/dev/evidence_provenance_audit.py",
+        artifactDigest := "sha256:b79b7ad39140abb95b83cba7007ec5541558bcf205d8bc18fb77c4bb6cfc3f64" },
+    .checkRecorded
+      { id := { value := "check-L11-repeatability-e90607f" },
+        candidate := { value := "candidate-evidence-regeneration-5ccb293" },
+        tree := "5ccb293d45874a5cde3f47d1d0516dce51359f1c",
+        validator := rw "verify.performance-repeatability", obligation := .performance,
+        outcome := .failed
+          "identical consecutive 30/30 runs missed 2/50, 25/50, and 10/50 with ratio maxima 1.655, 3.667, and 2.552",
+        command := "reported serial L11 repeats on e90607f and one GPU; raw sample files were not committed, so the summary falsifies repeatability but cannot validate parity",
+        artifactDigest := "sha256:a6336dee9a134b36c8e3a53bf331b28d7c3496a66f2abcbfb1cba70e2d7a9bc4" },
+    .checkRecorded
+      { id := { value := "check-L12-sample-sensitivity-e90607f" },
+        candidate := { value := "candidate-evidence-regeneration-5ccb293" },
+        tree := "5ccb293d45874a5cde3f47d1d0516dce51359f1c",
+        validator := rw "verify.performance-repeatability", obligation := .performance,
+        outcome := .failed
+          "the same generated route changed from median/max 2.38/4.24 and 37 misses at 1/1 to 1.18/1.41 and zero misses at 30/30",
+        command := "compare the reported L12 C2 1/1 and 30/30 diagnostics on e90607f; correctness remains 50/50",
+        artifactDigest := "sha256:029ce9086b149fdfce30e023c8a09007e2818f4283c9746a388e0208d26ffae7" },
+    .attemptAbandoned
+      { value := "attempt-evidence-regeneration-20260726" }
+      "perf.rebaseline is still unresolved and L11 is empirically non-repeatable; retain the 11 reproducible files and gate repairs as diagnostic progress, but do not promote a partial or threshold-tuned snapshot" ]
 
 def liveEvolutionState : Except TransitionError State :=
   replay itemIds liveEvolutionEvents
@@ -1332,9 +1420,9 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 0 && state.candidates.length == 9 &&
-      state.checks.length == 40 && state.promotions.length == 7 &&
-      state.abandoned.length == 2
+      state.activeAttempts.length == 0 && state.candidates.length == 10 &&
+      state.checks.length == 43 && state.promotions.length == 7 &&
+      state.abandoned.length == 3
   | .error _ => false
 
 def liveActiveIntentIds : List Growth.EvolutionWorkId :=
@@ -1548,6 +1636,33 @@ theorem evidence_audit_is_promoted_but_fatal_enforcement_is_not_ready :
     (livePromotedIntentIds.contains (ew "evidence.audit-tool") &&
       completedIds.contains (ew "evidence.audit-tool") &&
       !(readyItems.map (·.id)).contains (ew "evidence.enforce-provenance")) = true := by
+  native_decide
+
+theorem partial_evidence_regeneration_is_abandoned_not_promoted :
+    (match liveEvolutionState with
+    | .error _ => false
+    | .ok state =>
+        state.abandoned.contains
+            { value := "attempt-evidence-regeneration-20260726" } &&
+        state.checks.any (fun run =>
+          run.id.value == "check-L11-repeatability-e90607f" &&
+          !run.outcome.passed?) &&
+        state.checks.any (fun run =>
+          run.id.value == "check-partial-regeneration-provenance-7c7dc0f" &&
+          !run.outcome.passed?) &&
+        !state.promotions.any (fun certificate =>
+          certificate.candidate.value ==
+            "candidate-evidence-regeneration-5ccb293")) = true := by
+  native_decide
+
+theorem diagnostic_regeneration_did_not_satisfy_promotion_dependencies :
+    (match liveEvolutionState with
+    | .error _ => false
+    | .ok state =>
+        state.attempts.any (fun attempt =>
+          attempt.id.value == "attempt-evidence-regeneration-20260726")) &&
+      !(dependencyReadyItems.map (·.id)).contains
+        (ew "evidence.regenerate") = true := by
   native_decide
 
 theorem warp_parameterization_is_promoted_and_released :

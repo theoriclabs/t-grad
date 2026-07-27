@@ -154,10 +154,12 @@ Audit the committed evidence provenance separately:
 python3 scripts/dev/evidence_provenance_audit.py
 ```
 
-It currently exits nonzero by design: 37/37 files name an absent commit,
-77/115 non-transient hashes are unresolved, 28 roll-ups disagree, and 27
-files use a host key their own gate script does not emit. The auditor becomes
-a fatal release predicate only after an owner-authorized serial regeneration.
+It currently exits nonzero by design. The partial serial regeneration at
+`7c7dc0f` produced 11 files from their current scripts at `e90607f`; 26/37
+still name an absent commit, 76/115 non-transient hashes are unresolved, 28
+roll-ups disagree, and 17 files use a host key their own gate script does not
+emit. The auditor becomes a fatal release predicate only after a complete
+serial regeneration passes.
 
 Release gates:
 
@@ -170,8 +172,10 @@ bash scripts/gate.sh
 `scripts/gate.sh` runs the historical 37-gate suite and writes evidence JSON to
 `fixtures/gate_evidence/`. Run it only serially: many scripts share fixed
 `/tmp/tgrad_*` paths and the performance cases share one GPU. The committed
-JSON is an audit snapshot, not evidence for the current tree: it names a
-commit absent from this repository and contains stale recorded hashes.
+JSON is a mixed audit snapshot, not a release certificate for the current
+tree. Eleven early gates were regenerated honestly; the remaining 26 still
+name an absent commit, and the snapshot as a whole contains stale hashes and
+roll-ups. L11 remains deliberately red and its old evidence was not replaced.
 
 ## Performance Evidence
 
@@ -187,9 +191,21 @@ L7/L11/L12/L13_F ratios are not a valid kernel/runtime comparison:
   kernels dispatched with identical geometry.
 
 Sentinels now route through the parametric generator. The next admissible
-experiment measures both runtimes in one session with symmetric boundaries,
-retains raw distributions and provenance, and reports an honest regression if
-that is the result. Timings remain serial because this machine has one GPU.
+experiment measures both runtimes live and interleaved in one session with
+symmetric boundaries, repeats complete sessions, retains paired raw samples,
+and derives any pass/fail rule from measured within-run and between-run
+variance before applying it. Timings remain serial because this machine has
+one GPU.
+
+The failed `7c7dc0f` regeneration supplied direct repeatability evidence. On
+the same `e90607f` code, same GPU, and identical `30/30` configuration,
+consecutive L11 runs missed the `ratio <= 1.5` predicate on 2/50, 25/50, and
+10/50 rows (`ratio_max` 1.655, 3.667, and 2.552). L12's generated-path
+diagnostic changed from 37/50 misses at `1/1` sampling to 0/50 at `30/30`
+without a code change. The generated route is therefore only describable
+today as roughly 1.2–1.5x the frozen baseline, noisy and occasionally worse.
+The old `0.9354` median measured the captured-kernel replay path, not Lean
+codegen. No single draw is promoted as a performance verdict.
 
 ## Regenerating Baselines
 
@@ -215,6 +231,11 @@ It writes the normal gate-compatible
 `fixtures/perf/tinygrad_baseline_<profile>_full.json` plus an audit JSONL
 with per-pass samples, selected pass, host metadata, and cooldown
 settings.
+
+These commands preserve compatibility with the historical gates; they do not
+produce an admissible parity comparison. `perf.rebaseline` must replace the
+live-versus-frozen design with paired same-session measurements before a new
+performance claim can be promoted.
 
 Then run gates with the same profile:
 

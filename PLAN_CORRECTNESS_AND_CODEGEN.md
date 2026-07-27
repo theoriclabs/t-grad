@@ -184,7 +184,7 @@ next        performance rebaseline -> evidence regeneration -> fatal audit
             (exclusive GPU, clean tree, serial)
 ```
 
-After the deletion promotion is recorded, the safe authoring frontier is
+The deletion promotion is recorded, so the safe authoring frontier is
 `perf.rebaseline`.
 That does not authorize more worktrees blindly:
 `LiveConditions.sourceTree` is tentative and must be re-probed against free
@@ -286,15 +286,25 @@ number is the serial, same-session, dispatch-boundary-matched run represented
 by `perf.rebaseline`; a regression is an acceptable result and must be
 reported rather than hidden behind the old fixture.
 
-The deletion migration produced useful but deliberately unpromoted
-diagnostics: the generated alternate-cache path was correct on 50/50 rows in
-two serial one-sample probes, while the old frozen-baseline predicate varied
-from 23/50 to 32/50 (`ratio_median` 1.6302 vs 1.3020; `ratio_max` 4.4785 vs
-3.1005). This is not the promised honest benchmark—the boundary, baseline,
-and sample count are still wrong—and its variance reinforces that point. It
-does prove the old performance predicate cannot remain entangled with the
-semantic gate. L12 now promotes correctness only; `perf.rebaseline` owns the
-performance question.
+The regeneration attempt produced stronger, direct repeatability evidence.
+On the same `e90607f` code, same GPU, frozen baseline, and `30/30`
+configuration, three consecutive L11 runs missed 2/50, 25/50, and 10/50 rows
+with `ratio_median` 1.186/1.502/1.300 and `ratio_max`
+1.655/3.667/2.552. The twelve-fold swing in misses is larger than the effect
+the fixed threshold is trying to detect. Separately, L12's generated path was
+50/50 correct while its diagnostic changed from median/max 2.38/4.24 and 37
+misses at `1/1` sampling to 1.18/1.41 and zero misses at `30/30`, without a
+code change.
+
+These are not the promised honest benchmark—the denominator remains frozen
+and the runtime boundaries remain asymmetric—but they falsify the existing
+pass/fail method empirically. L12 promotes correctness only;
+`perf.rebaseline` must measure both sides live and interleaved, retain raw
+paired distributions, estimate within-run and between-run variance, and
+predeclare any decision rule from that variance. The honest current codegen
+diagnostic is roughly 1.2–1.5x the frozen tinygrad baseline, noisy and
+occasionally worse. The historical 0.9354 median measured replayed tinygrad
+MSL and was never a generated-code result.
 
 ### `.numpy()` materialization: validated candidate, with bounded debt
 
@@ -346,12 +356,24 @@ ULP-tolerance fallback because `metal_alloc.m:134` compiles with
 
 ### Evidence provenance: observable before enforceable
 
-`bdc01b0` turns the manual provenance review into a calibrated auditor. The
-committed set reports 37/37 files naming an absent commit, 77/115 unresolved
-non-transient hashes, 28 roll-up disagreements, and 27 writer-key mismatches;
-synthetic evidence tied to HEAD passes. The audit is deliberately diagnostic.
-Making a known-red check fatal would create a blocker without repairing its
-subject.
+`bdc01b0` turns the manual provenance review into a calibrated auditor. Its
+baseline found 37/37 files naming an absent commit. The partial serial
+regeneration at `7c7dc0f` repaired two gate blockers and retained 11 files
+genuinely produced by their current scripts at `e90607f`; the current audit
+reports 26/37 absent commits, 76/115 unresolved non-transient hashes, 28
+roll-up disagreements, and 17 writer-key mismatches. Synthetic evidence tied
+to HEAD passes. The audit is deliberately diagnostic. Making a known-red
+check fatal would create a blocker without repairing its subject.
+
+The attempted sweep also falsified two assumptions about the gate harness
+itself. `L14_B_1` had never been runnable in this repository layout: its
+`Tgrad/fixtures/pipeline` path raised `FileNotFoundError` before the first
+assertion, despite committed green evidence. `a62a784` repairs the path.
+L12's anti-replay predicate then matched a Lean comment accurately describing
+the deleted `readFile` behavior. `b56bed4` strips line comments before matching
+and verifies that a real call is still rejected. The general rule is to fix a
+text predicate's semantic approximation, not make source documentation less
+accurate so the grep turns green.
 
 The checked graph therefore separates three items:
 
@@ -360,9 +382,12 @@ evidence.audit-tool [landed]
 perf.rebaseline -> evidence.regenerate -> evidence.enforce-provenance
 ```
 
-Regeneration is an owner-authorized serial GPU operation that rewrites all 37
-evidence files. Only after that succeeds does the one-line fatal integration
-become honest.
+Regeneration is an owner-authorized serial GPU operation that must produce all
+37 evidence files from one measured tree. The `7c7dc0f` tree is recorded as
+an abandoned candidate: its two gate repairs and 11 files are retained, but
+L11 stayed red and no partial snapshot was promoted. Only after the paired
+performance method is stable and complete regeneration succeeds does the
+one-line fatal integration become honest.
 
 ## 7. Risks
 

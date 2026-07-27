@@ -33,31 +33,33 @@ The measured starting position at review time was:
 - **The scheduler was `fun u => u`.**
 - **The evidence system does not certify this tree** (details in §1).
 
-The honest one-line summary: Tgrad is a working *runtime* for
-matmul, a working *rewrite engine*, and a *replay cache* sitting
-where the compiler should be. Compatibility work means connecting
-the first two and deleting the third.
+The honest one-line summary today: Tgrad is a working bounded matmul
+*runtime*, a bounded movement *rewrite engine*, and a parametric generated
+Metal path for its sentinel domain. The replay cache has been removed from
+production. Compatibility work now means generalizing those connected pieces
+into a real tensor compiler without losing their semantic differentials.
 
 ## 1. Phase 0 — make progress measurable (blocking, ~1 week)
 
-Nothing else on this plan is worth starting until the evidence system
-can tell truth from falsehood, because every later phase will be
-judged by it. The review found the current one cannot:
+Further compatibility claims should not be promoted until the evidence system
+can tell truth from falsehood. The table retains the original review defects
+and records the current direction:
 
 | Defect | Fix |
 |---|---|
-| All 37 evidence files cite commit `a06d475c…`, absent from this repo | Gate refuses to write evidence unless `git rev-parse HEAD` is clean and matches |
+| Originally all 37 evidence files cited absent commit `a06d475c…`; after `7c7dc0f`, 26 still do | Gate refuses to write evidence unless the measured tree is clean and every file in a promoted snapshot names it |
 | Every recorded hash is write-only; none is ever verified | `check_evidence_for` recomputes each hash and fails on mismatch |
-| 31/37 evidence files use a JSON key (`host_profile`) no gate emits — they were post-processed | One evidence writer in `scripts/lib/`, used by all gates. Delete the hand-edited snapshot and regenerate |
+| Writer-key audit originally found broad post-processing; 17 mismatches remain after partial regeneration | One evidence writer in `scripts/lib/`, used by all gates; regenerate one coherent snapshot |
 | Ratchet is substring-matched; 7 gates incl. the verdict gate can be silently deleted | `grep -Fx` against an array, not `grep -q` against a string |
-| `L14_B_1` cannot pass (reads `Tgrad/fixtures/`, which does not exist) | Fix path; add a CI job that runs the full ratchet |
+| `L14_B_1` could not pass because it read nonexistent `Tgrad/fixtures/` | Fixed at `a62a784`; retain a falsification and add a CI job that runs the substantive ratchet |
 | Gate greens on strings the code emits *for* the gate (`if (false) { threadgroup_barrier(...) }`, unused `tg_a[256]`) | Delete the dead emissions; assert on behaviour (does the kernel produce correct output at the expected occupancy), not on `grep` |
 | `_rendered_kernel_source()` fabricates the source that gates then grep | Delete. Have the gate call the Lean renderer and inspect real output |
 | CI proves nothing about the GPU (`TGRAD_ALLOW_METAL_RUNTIME_SKIP=1`) | Self-hosted Apple Silicon runner, or accept CI-as-lint and stop citing it as evidence |
 
-**Exit criterion**: `bash scripts/gate.sh` on a clean checkout
-reproduces every committed evidence file byte-for-byte, and flipping
-any single behavioural bit in the runtime turns some gate red.
+**Exit criterion**: a clean serial sweep produces all 37 evidence files for
+one measured tree with recomputable hashes; performance compares paired live
+runtimes with a repeatable variance-derived decision rule; and flipping any
+single behavioural bit in the runtime turns a semantic gate red.
 
 Also in Phase 0, because they are cheap and currently block users:
 fix `lakefile.lean:16`'s hardcoded Xcode SDK path (use the same
@@ -212,7 +214,11 @@ The current numbers cannot be carried forward; they compare a static
 table lookup against tinygrad's full per-call graph build and
 scheduling, with no `TinyJit` on the tinygrad side, and the L11/L12
 `ratio_min = 0.3582` is below what the identical kernel achieves in
-tinygrad's own hands. Replace with:
+tinygrad's own hands. The generated route also falsified the existing
+predicate directly: three consecutive `30/30` L11 runs on `e90607f`
+missed 2, 25, and 10 of 50 rows (`ratio_max` 1.655, 3.667, 2.552),
+while L12 changed from 37 misses at `1/1` sampling to none at `30/30`
+without a code change. Replace the method with:
 
 1. **Same measurement boundary.** Both sides: warm cache, JIT
    enabled where the framework offers one, timer around a
@@ -220,16 +226,27 @@ tinygrad's own hands. Replace with:
 2. **Report GPU time and host overhead separately.** They are
    different claims and at 64×64×64 the second is 99.9% of the
    measurement.
-3. **Both sides live, same session, same thermal state.** No frozen
-   baseline compared against a live run.
-4. **Report a distribution**, not a median against a median of a
-   different sample size, and use one statistic across all gates
-   (the current gates mix min/min and median/median and call both
-   "ratio").
-5. **Sanity-check against silicon.** Any claimed throughput above
+3. **Both sides live, paired, and interleaved.** Run them in one session
+   under the same thermal state; do not compare a live run against a frozen
+   denominator.
+4. **Report raw paired distributions and repeated sessions.** Estimate
+   within-run and between-run variance instead of comparing medians from
+   different sample sizes. Use one predeclared statistic across all gates
+   (the current gates mix min/min and median/median and call both "ratio").
+5. **Derive a decision rule from variance before applying it.** A threshold
+   is admissible only if repeated observations show that it can distinguish
+   the intended effect. Never tune the threshold after observing a red run;
+   report `indeterminate` when variance dominates.
+6. **Sanity-check against silicon.** Any claimed throughput above
    ~40% of peak bf16 for a BEAM=0 kernel, or any ratio implying the
    same kernel source running faster in Tgrad than in tinygrad, is a
    measurement bug until proven otherwise.
+
+The honest generated-code diagnostic today is roughly 1.2–1.5x the frozen
+tinygrad baseline, noisy and occasionally worse. The old 0.9354 median came
+from replaying tinygrad's captured kernel and was not a codegen result. This
+is useful directional evidence, not a promotable compatibility or performance
+claim.
 
 ## 6. Honest scope estimate
 

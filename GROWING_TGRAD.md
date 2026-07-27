@@ -194,7 +194,8 @@ codebase:
    reclamation remain separate work rather than being hidden in the success
    claim.
 
-The codegen and provenance work added three rules for verification work:
+The codegen, gate-repair, and provenance work added six rules for verification
+work:
 
 1. **Strengthen before removing.** L12 gained semantic C3 while its old
    byte-equality Layer C was still green. The later deletion retired only the
@@ -205,22 +206,33 @@ The codegen and provenance work added three rules for verification work:
    `24*K+1 -> 24*K+2` both left the build green while execution diverged for
    all 11 kernels. Structural non-aliasing and behavioural placement therefore
    remain independently required.
-3. **Auditing, repairing, and enforcing are different work.** The provenance
-   auditor now mechanically reports 37 absent-commit files, 77 unresolved
-   hashes, 28 bad roll-ups, and 27 writer mismatches without rewriting any
-   evidence. The unresolved count was 73 at `bdc01b0`; deleting four stale
-   hash targets correctly changed the observation. Regeneration is an
-   owner-authorized serial GPU operation.
-   Enforcement becomes honest only after regeneration produces a passing
-   subject; making a known-red auditor fatal earlier would add friction, not
-   integrity.
+3. **Auditing, repairing, regenerating, and enforcing are different work.**
+   The provenance auditor established a 37/37 absent-commit baseline. The
+   `7c7dc0f` attempt repaired two blockers and retained 11 files genuinely
+   produced by their scripts, moving the current observation to 26/37 absent
+   commits, 76/115 unresolved hashes, 28 bad roll-ups, and 17 writer
+   mismatches. That is meaningful progress, but not a coherent snapshot.
+   Enforcement becomes honest only after complete regeneration produces a
+   passing subject; making a known-red auditor fatal earlier would add
+   friction, not integrity.
 4. **Semantic and performance gates must not hold each other hostage.** The
-   generated-path pilots remained 50/50 correct while the old one-sample
-   frozen-baseline ratio varied from 23/50 to 32/50 passing rows. Those ratios
-   are not admissible performance evidence, but they demonstrate the
-   architectural boundary: L12 certifies generated semantics; the separately
-   scheduled `perf.rebaseline` certifies performance under symmetric
-   measurement.
+   generated route remained 50/50 correct while L12's frozen-baseline
+   diagnostic changed from 37/50 misses at `1/1` to zero at `30/30`. L12
+   certifies generated semantics; the separately scheduled `perf.rebaseline`
+   owns performance under symmetric measurement.
+5. **Code-inspection predicates must distinguish code from commentary.** L12's
+   anti-replay grep turned red because an accurate Lean comment mentioned the
+   `readFile` behavior that had been deleted. The repair strips line comments
+   before matching and still catches a real call. Rewording accurate source
+   documentation merely to placate a grep would optimize the codebase for its
+   checker rather than strengthen the checker.
+6. **Repeatability precedes thresholds.** Identical consecutive L11 `30/30`
+   runs missed 2, 25, and 10 of 50 rows, with maxima 1.655, 3.667, and 2.552.
+   The variance is larger than the effect the fixed 1.5 rule tries to detect.
+   Future performance work must pair both live systems in one run, retain raw
+   distributions, estimate within-run and between-run variance, and derive a
+   decision rule before applying it. If those observations cannot support a
+   stable rule, the result is indeterminate.
 
 ## 5. Capability, execution, observation, and evidence are different
 
@@ -431,8 +443,18 @@ The view lease was released, then `codegen.route-sentinels` landed as
 64/96/128 production-route numerical checks, and the 11-sentinel semantic
 differential. The route lease is released. The subsequent deletion removed the
 per-shape declaration table and parser, migrated semantic gates, and leaves
-`perf.rebaseline` as the next computed safe authoring frontier once its exact
-tree promotion is recorded.
+`perf.rebaseline` as the next computed safe authoring frontier. Its exact-tree
+deletion promotion is recorded separately; no codegen writer remains active.
+
+The subsequent evidence-regeneration attempt is also in the live ledger, but
+as an abandoned candidate rather than a promotion. Tree `5ccb293…` contains
+two gate repairs and 11 reproducible evidence files. Its provenance check is
+still red, and two performance-repeatability checks failed. This records an
+important state that a mutable “done” flag cannot express: useful committed
+effects survived, while the claimed all-gate regeneration did not complete.
+The owner explicitly authorized this diagnostic sweep before
+`perf.rebaseline`; that authorization allowed observation, not promotion past
+an unsatisfied dependency.
 
 The frontier is recomputed from dependencies, current progress, active
 writers, live attempt events, and declared effect sets. It is not a standing
@@ -555,7 +577,11 @@ changes.
 - promoted view tree `790d413…` has all five required obligations; stale
   `995eb7e…` and `ac393d2…` checks remain attached only to abandoned attempts;
 - the provenance auditor is load-bearing and calibrated in both directions,
-  while fatal enforcement remains explicitly bypassed until regeneration.
+  while fatal enforcement remains explicitly bypassed until regeneration;
+- performance-repeatability diagnosis is bounded and load-bearing, while
+  performance validation itself remains bypassed;
+- partial evidence tree `5ccb293…` has failed provenance/performance checks,
+  is attached to an abandoned attempt, and has no promotion certificate.
 
 ### Honest limits
 
@@ -566,6 +592,10 @@ changes.
   commits predate the attempt/candidate/check protocol;
 - path effects are declared exact scopes, not yet checked against a Git diff;
 - leases use logical epochs and are not yet bound to process liveness;
+- `applyEvent` does not yet receive roadmap progress, so it cannot distinguish
+  an ordinary dependency-ready attempt from an owner-authorized diagnostic
+  override; the checked projection records that this regeneration was not
+  dependency-ready and was not promoted;
 - observations and check artifacts are not yet persisted by a standard runner;
 - the finding registry is scoped to the active correctness/codegen/evidence
   program, not the complete deep-audit backlog;
@@ -611,20 +641,23 @@ when ordinary development commands emit its events. The next increments are:
    authorized paths before an agent edits.
 3. **Check actual effects.** Expand directory budgets, inspect `git diff`, and
    reject or request authority for out-of-budget changes.
-4. **Namespace verification.** Replace fixed `/tmp/tgrad_*` paths with one
+4. **Type dependency overrides.** Require `attemptStarted` to prove roadmap
+   readiness or carry an explicit owner authorization whose candidates cannot
+   promote until the missing dependencies pass.
+5. **Namespace verification.** Replace fixed `/tmp/tgrad_*` paths with one
    run-scoped directory and record the run ID.
-5. **Standardize check artifacts.** Record candidate tree, command, environment
+6. **Standardize check artifacts.** Record candidate tree, command, environment
    fingerprint, raw output digest, validator version, start/end, and outcome.
-6. **Build a promotion command.** It should query missing obligations, reject
+7. **Build a promotion command.** It should query missing obligations, reject
    stale trees, and emit the certificate; it must not manufacture pass results.
-7. **Project dashboards from events.** Replace hand-authored `Progress` values
+8. **Project dashboards from events.** Replace hand-authored `Progress` values
    once enough new history exists.
-8. **Broaden observation probes.** Instrument which scheduler output, renderer
+9. **Broaden observation probes.** Instrument which scheduler output, renderer
    source, route, grid, and kernel actually govern each dispatch.
-9. **Ingest the remaining audit backlog.** FFI ownership, registry/caches,
+10. **Ingest the remaining audit backlog.** FFI ownership, registry/caches,
    threading, diagnostics, gate integrity, and API safety need normalized
    findings and growth cases.
-10. **Close the codegen loop honestly.** Keep the landed differential oracle,
+11. **Close the codegen loop honestly.** Keep the landed differential oracle,
     widened generator, typed-store theorem, and semantic gate load-bearing;
     with routing and deletion complete, measure generated performance serially.
 

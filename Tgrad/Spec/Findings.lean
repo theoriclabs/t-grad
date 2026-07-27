@@ -88,16 +88,26 @@ def findings : List Finding :=
       description := "L12 relied on transcription round-trip without semantic generation evidence",
       state := .confirmed (.remediated "aa67497")
         "aa67497 added C3 before deletion; 9f2ab91 retired byte equality and made the 11/11 semantic differential authoritative" },
+    { id := "F-L14-B1-unrunnable", severity := .high,
+      component := .gateHarness,
+      description := "L14_B_1 addressed a pre-split Tgrad/fixtures path that is absent from this repository",
+      state := .confirmed (.remediated "a62a784")
+        "the old gate always raised FileNotFoundError before any assertion; the repaired path is fixtures/pipeline" },
+    { id := "F-L12-comment-grep", severity := .medium,
+      component := .gateHarness,
+      description := "L12's anti-replay grep treated an accurate Lean comment as executable readFile behavior",
+      state := .confirmed (.remediated "b56bed4")
+        "the predicate now strips Lean line comments and still rejects a real non-comment IO.FS.readFile" },
     { id := "F-performance-methodology", severity := .critical,
       component := .evidenceStore,
-      description := "published ratios compare asymmetric measurement boundaries",
+      description := "frozen-baseline ratios compare asymmetric boundaries and fail repeatability",
       state := .confirmed .open
-        "tinygrad rebuilds graph/schedule without TinyJit; Tgrad dispatches cached kernel" },
+        "on e90607f, consecutive 30/30 L11 runs on one GPU missed 2/50, 25/50, and 10/50 with ratio maxima 1.655, 3.667, and 2.552; L12 changed from 37/50 misses at 1/1 to 0/50 at 30/30 without a code change" },
     { id := "F-evidence-provenance", severity := .critical,
       component := .evidenceStore,
       description := "committed evidence names an absent commit and stale hashes",
       state := .confirmed .open
-        "bdc01b0 baseline was 37/37 absent and 73/115 unresolved; after deleting four stale hash targets the current audit reports 77/115, with 28 roll-up and 27 writer-key mismatches" },
+        "after 7c7dc0f regenerated 11 reproducible files, 26/37 still name an absent commit, 76/115 hashes are unresolved, 28 roll-ups disagree, and 17 writer keys mismatch" },
     { id := "F-division-semantics", severity := .medium,
       component := .rewriteEngine,
       description := "constant fold, Python oracle, and C renderer disagree for negatives",
@@ -127,7 +137,7 @@ def remediatedFindings : List Finding := findings.filter (fun finding =>
   | _ => false)
 
 example : openFindings.length = 2 := by native_decide
-example : remediatedFindings.length = 10 := by native_decide
+example : remediatedFindings.length = 12 := by native_decide
 example : findings.all (fun finding => finding.state.hasUpgradePath) = true := by
   native_decide
 example : findingCoverage.hasUpgradePath = true := by native_decide

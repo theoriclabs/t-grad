@@ -267,8 +267,15 @@ def workUnits : List WorkUnit :=
       .evidenceStore [.tmpNamespace, .metalGpu, .evidenceStore]
       [.scenarioCount, .dispatchCount]
       ["python/tgrad_bench.py", "scripts/gates/L7.sh", "scripts/gates/L11.sh"] .bypassed
-      "run both runtimes in one session across the same timed boundary"
-      "committed comparisons use asymmetric work boundaries and stale baselines",
+      "interleave both runtimes in one session across the same timed boundary; retain raw paired samples and derive any threshold from observed within-run and between-run variance"
+      "the current gate compares a live generated route with a frozen asymmetric baseline, so no ratio threshold is admissible",
+    implemented "verify.performance-repeatability" "performance repeatability diagnosis"
+      .verification .observe [.candidateRevision, .scenario] [.executionObservation, .findingSet]
+      .evidenceStore [.tmpNamespace, .metalGpu, .evidenceStore]
+      [.scenarioCount, .dispatchCount]
+      ["python/tgrad_bench.py", "scripts/gates/L11.sh", "scripts/gates/L12.sh"] .bounded
+      "repeat an identical benchmark configuration serially and report raw distributions, miss counts, and within-run and between-run variance without promoting a parity verdict"
+      "it can falsify a gate's repeatability, but a frozen tinygrad denominator means it cannot validate relative performance",
     implemented "verify.evidence-audit" "evidence provenance audit"
       .verification .observe [.candidateRevision, .validationEvidence] [.findingSet, .report]
       .evidenceStore [.sourceTree, .evidenceStore] [.evidenceCount]
@@ -361,6 +368,13 @@ theorem performance_and_evidence_are_not_promoted :
     (workUnitFor? (workId "verify.performance")).map
         (fun unit => unit.isState .bypassed) = some true &&
     (workUnitFor? (workId "verify.evidence-integrity")).map
+        (fun unit => unit.isState .bypassed) = some true := by
+  native_decide
+
+theorem repeatability_diagnosis_does_not_promote_performance :
+    (workUnitFor? (workId "verify.performance-repeatability")).map
+        (fun unit => unit.isState .bounded) = some true &&
+    (workUnitFor? (workId "verify.performance")).map
         (fun unit => unit.isState .bypassed) = some true := by
   native_decide
 

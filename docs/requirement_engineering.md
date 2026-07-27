@@ -579,6 +579,15 @@ The repaired definition is independently frozen at
 `9762bb722c9f76283cf62cb16e8df2f902dc92ba` and bound by the
 [V2 trial lock](../fixtures/requirements/broadcast_add_trial_lock_v2.json).
 
+The observer implementation follows the same rule. Its first draft mutated
+already-produced dimension dictionaries and was rejected: a comparator that
+fabricates its own faults has not demonstrated sensitivity to faulty behavior.
+The accepted architecture launches eight isolated child probes whose faults
+act before observation and whose literal streams, branch source,
+configuration, executable-tree identity, and replay closure are all bound.
+This instrument is still only implemented, not yet exercised against either
+subject.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

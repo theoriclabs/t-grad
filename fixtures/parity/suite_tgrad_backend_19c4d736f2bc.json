@@ -1,0 +1,28 @@
+{
+  "against": "tgrad",
+  "aggregate": {
+    "files": 1,
+    "files_collect_error": 1,
+    "files_fail": 0,
+    "files_pass": 0,
+    "files_timeout": 0,
+    "tests_errors": 1,
+    "tests_failed": 0,
+    "tests_passed": 0,
+    "tests_skipped": 0
+  },
+  "group": "backend",
+  "ran_at_utc": "2026-07-27T16:06:07Z",
+  "results": [
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/backend/test_transcendental.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    }
+  ],
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+}

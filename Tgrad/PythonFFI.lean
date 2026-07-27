@@ -3,6 +3,7 @@ import Tgrad.Runtime.MetalProgram
 import Tgrad.Runtime.Cache
 import Tgrad.Pipeline
 import Tgrad.Tensor
+import Tgrad.Renderer.Elementwise
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Codegen.Opt.Heuristic
@@ -540,5 +541,258 @@ def matmulView (aHandle bHandle : UInt64) : IO UInt64 := do
   match res with
   | .error _ => pure 0
   | .ok t    => TensorRegistry.register t
+
+-- ----------------------------------------------------------------------
+-- Graph-indexed realize.
+--
+-- Eight of this module's exports are matmul routes, and Python picks
+-- between them by inspecting shapes. That does not scale: every new op
+-- would cost another export, another C trampoline, another ctypes
+-- binding and another branch in `__matmul__`. It also puts the routing
+-- decision in Python, where it is invisible to Lean's type system.
+--
+-- These three entries replace that shape. Tensor methods build a UOp
+-- graph; `tgrad_realize` lowers whatever graph it is handed and decides
+-- the route itself. An op then costs a node constructor and a table
+-- row, with no ABI surface at all.
+-- ----------------------------------------------------------------------
+
+private def binOpOfCode : UInt8 → Option BinOp
+  | 0 => some .add
+  | 1 => some .mul
+  | 2 => some .sub
+  | _ => none
+
+/-- Compose a binary node over two graphs. -/
+@[export tgrad_tensor_binop_lean]
+def tensorBinop (opCode : UInt8) (h1 h2 : UInt64) : IO UInt64 := do
+  let some t1 ← TensorRegistry.get? h1 | return 0
+  let some t2 ← TensorRegistry.get? h2 | return 0
+  let some op := binOpOfCode opCode | return 0
+  TensorRegistry.register { uop := .binop op t1.uop t2.uop t1.dtype, dtype := t1.dtype }
+
+/-- Compose a reduction node over one graph. -/
+@[export tgrad_tensor_reduce_lean]
+def tensorReduce (opCode : UInt8) (h : UInt64) (axis : USize) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h | return 0
+  let some op := binOpOfCode opCode | return 0
+  let ax : UOp := .const .int32_ (.i (Int.ofNat axis.toNat))
+  TensorRegistry.register { uop := .reduce op t.uop [ax], dtype := t.dtype }
+
+/-- Buffer-operand matmul for shapes with no captured sentinel: the
+    parametric WMMA kernel where the generator accepts the shape, the
+    scalar fallback otherwise. Allocates its own output, so the caller
+    hands over a graph and receives a materialised tensor. -/
+private def runBufferMatmul (a b : Tgrad.Tensor) (M K N : Nat) :
+    IO (Option Tgrad.Tensor) := do
+  let outBytes := M * N * 2
+  let tcOk := (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N).isOk
+  let libPtr ← if tcOk then compileOrCacheGetTcManual M K N
+               else compileOrCacheGetSmall M K N
+  if libPtr == 0 then return none
+  let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+  if outBuf == 0 then return none
+  let d := Tgrad.Renderer.Metal.tcLaunchDims M N
+  let fnName := if tcOk then s!"matmul_tc_manual_{M}x{K}x{N}"
+                else s!"matmul_scalar_{M}x{K}x{N}"
+  let tx := if tcOk then d.grid.x * d.threadgroup.x else M
+  let ty := if tcOk then d.grid.y * d.threadgroup.y else N
+  let tz := if tcOk then d.grid.z * d.threadgroup.z else 1
+  let lx := if tcOk then d.threadgroup.x else 1
+  let ly := if tcOk then d.threadgroup.y else 1
+  let lz := if tcOk then d.threadgroup.z else 1
+  let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
+    #[outBuf, a.buffer.raw, b.buffer.raw]
+    (USize.ofNat tx) (USize.ofNat ty) (USize.ofNat tz)
+    (USize.ofNat lx) (USize.ofNat ly) (USize.ofNat lz)
+  if rc != 0 then
+    Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+    return none
+  pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes } [M, N] .bfloat16_))
+
+
+/-- Dtype of a tensor handle, as the code `dtypeOfCode` decodes.
+
+    A query, not an operation: it does not grow with the op set. It
+    exists so Python can learn a promoted result type instead of
+    reimplementing `Dtype.lub`, which would put a second copy of the
+    lattice on the other side of the FFI where nothing checks it. -/
+@[export tgrad_tensor_dtype_lean]
+def tensorDtype (h : UInt64) : IO UInt8 := do
+  let some t ← TensorRegistry.get? h | return 255
+  pure (match t.dtype with
+        | .bfloat16_ => 0
+        | .float32_  => 1
+        | .float16_  => 2
+        | .int32_    => 3
+        | _          => 255)
+
+/-- Compiled-kernel cache for pointwise ops. Keyed on the operator, the
+    output extent and a hash of BOTH rendered index expressions, so two
+    different view chains never collide on one kernel. -/
+initialize libCacheEw : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetEw (op : BinOp) (rows cols : Nat)
+    (aIdx bIdx : UOp) (aTy bTy outTy : Tgrad.Dtype) :
+    IO (Option (UInt64 × String)) := do
+  let tag := toString (String.hash (aIdx.renderIndexExpr ++ "|" ++ bIdx.renderIndexExpr))
+  match Tgrad.Renderer.Metal.elementwiseKernelDecl op rows cols aIdx bIdx
+          aTy bTy outTy tag with
+  | none => return none
+  | some decl =>
+    let key := decl.name
+    let cache ← libCacheEw.get
+    let cached := cacheLookup key cache
+    if cached != 0 then return some (cached, decl.name)
+    let msl := Tgrad.Renderer.Metal.renderKernel decl
+    if msl.isEmpty then return none
+    let lib ← Tgrad.Runtime.Metal.metalCompile msl
+    if lib == 0 then return none
+    libCacheEw.modify (fun c => (key, lib) :: c)
+    pure (some (lib, decl.name))
+
+/-- Lower a pointwise binary graph. One thread per output element; the
+    per-operand index expressions come from the `View` algebra, so an
+    operand that is a view costs nothing extra. -/
+private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
+    IO (Option Tgrad.Tensor) := do
+  let aShape := a.shape
+  let bShape := b.shape
+  if aShape != bShape then return none
+  if aShape.length != 2 then return none
+  match aShape[0]?, aShape[1]?,
+        Tgrad.Schedule.viewOfUOp a.uop, Tgrad.Schedule.viewOfUOp b.uop with
+  | some rows, some cols, some va, some vb => do
+    let vars : List UOp := [.var "gidx0" .int32_, .var "gidx1" .int32_]
+    let aIdx := Tgrad.Schedule.View.indexOf va vars
+    let bIdx := Tgrad.Schedule.View.indexOf vb vars
+    -- The promoted result type comes from the dtype lattice. `Dtype.lub`
+    -- has existed and been correct since L1 with no caller outside the
+    -- JSON table emitters; this is its first load-bearing use.
+    let outTy := Tgrad.Dtype.lub a.dtype b.dtype
+    match (← compileOrCacheGetEw op rows cols aIdx bIdx a.dtype b.dtype outTy) with
+    | none => return none
+    | some (lib, fnName) => do
+      let outBytes := rows * cols * outTy.sizeBytes
+      let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+      if outBuf == 0 then return none
+      let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName
+        #[outBuf, a.buffer.raw, b.buffer.raw]
+        (USize.ofNat rows) (USize.ofNat cols) 1 1 1 1
+      if rc != 0 then
+        Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+        return none
+      pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+                  [rows, cols] outTy))
+  | _, _, _, _ => return none
+
+
+initialize libCacheRed : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+/-- Lower a reduction over one axis of a rank-2 operand, keepdim.
+
+    Same structure as the pointwise path: the operand index comes from
+    the `View` algebra, so reducing a transposed or sliced tensor needs
+    no extra code. The loop variable is the contracted coordinate. -/
+private def runReduce (op : BinOp) (a : Tgrad.Tensor) (axis : Nat) :
+    IO (Option Tgrad.Tensor) := do
+  let aShape := a.shape
+  if aShape.length != 2 then return none
+  match aShape[0]?, aShape[1]?, Tgrad.Schedule.viewOfUOp a.uop with
+  | some rows, some cols, some va => do
+    let gid : UOp := .var "gidx0" .int32_
+    let rid : UOp := .var "ridx0" .int32_
+    -- axis 1 contracts columns: operand coordinate is (out, loop).
+    -- axis 0 contracts rows:    operand coordinate is (loop, out).
+    let vars := if axis == 1 then [gid, rid] else [rid, gid]
+    let operandIdx := Tgrad.Schedule.View.indexOf va vars
+    let outTy := a.dtype
+    let tag := toString (String.hash operandIdx.renderIndexExpr)
+    match Tgrad.Renderer.Metal.reduceKernelDecl op rows cols axis
+            operandIdx a.dtype outTy tag with
+    | none => return none
+    | some decl => do
+      let cache ← libCacheRed.get
+      let cached := cacheLookup decl.name cache
+      let lib ← if cached != 0 then pure cached else do
+        let msl := Tgrad.Renderer.Metal.renderKernel decl
+        let l ← Tgrad.Runtime.Metal.metalCompile msl
+        if l != 0 then libCacheRed.modify (fun c => (decl.name, l) :: c)
+        pure l
+      if lib == 0 then return none
+      let outLen := if axis == 1 then rows else cols
+      let outShape := if axis == 1 then [rows, 1] else [1, cols]
+      let outBytes := outLen * outTy.sizeBytes
+      let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+      if outBuf == 0 then return none
+      let rc ← Tgrad.Runtime.Metal.metalDispatch lib decl.name
+        #[outBuf, a.buffer.raw] (USize.ofNat outLen) 1 1 1 1 1
+      if rc != 0 then
+        Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+        return none
+      pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+                  outShape outTy))
+  | _, _, _ => return none
+
+/-- Materialise a graph and return a handle to the result.
+
+    The accepted shape today is the matmul marker
+    `reduce add (mul a b)`. That marker is built from existing UOp
+    constructors rather than a bespoke `.matmul` node, so the step that
+    replaces this special-case lowering with generic elementwise +
+    reduce lowering changes only the *lowering* and not the graph.
+
+    Honest limitation: the operands are not broadcast to a common shape,
+    so the `mul` node is not yet a well-typed elementwise product. Making
+    it well-typed is the generic-elementwise step's job. -/
+@[export tgrad_realize_lean]
+def realizeGraph (h : UInt64) : IO UInt64 := do
+  let some t ← TensorRegistry.get? h | return 0
+  match t.uop with
+  | .reduce .add (.binop .mul aU bU _) _ =>
+      let a : Tgrad.Tensor := { uop := aU, dtype := .bfloat16_ }
+      let b : Tgrad.Tensor := { uop := bU, dtype := .bfloat16_ }
+      let aShape := a.shape
+      let bShape := b.shape
+      let some M := aShape[0]? | return 0
+      let some K := aShape[1]? | return 0
+      let some N := bShape[1]? | return 0
+      if !a.isBufferUop || !b.isBufferUop then
+        match (← Tgrad.Pipeline.realizeView a b) with
+        | .error _ => return 0
+        | .ok out  => TensorRegistry.register out
+      else
+        match Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M K N with
+        | some s =>
+            match (← Tgrad.Pipeline.realize a b s) with
+            | .error _ => return 0
+            | .ok out  => TensorRegistry.register out
+        | none =>
+            match (← runBufferMatmul a b M K N) with
+            | none     => return 0
+            | some out => TensorRegistry.register out
+  | .reduce op bodyU axes =>
+      -- A reduction whose body is not the matmul marker. The matmul arm
+      -- above is matched first because it is the more specific pattern.
+      let a : Tgrad.Tensor := { uop := bodyU, dtype := bodyU.dtypeOf }
+      let axis := match axes with
+                  | (.const _ (.i n)) :: _ => n.toNat
+                  | _                      => 1
+      match (← runReduce op a axis) with
+      | none     => return 0
+      | some out => TensorRegistry.register out
+  | .binop op aU bU _ =>
+      -- Pointwise. Reachable for every operator `elementwiseOpStr`
+      -- accepts; the rest fail to build a kernel rather than emitting
+      -- something plausible.
+      -- Operand dtypes come from their own buffer leaves, so a mixed
+      -- pair promotes rather than being silently read as bf16.
+      let a : Tgrad.Tensor := { uop := aU, dtype := aU.dtypeOf }
+      let b : Tgrad.Tensor := { uop := bU, dtype := bU.dtypeOf }
+      match (← runElementwise op a b) with
+      | none     => return 0
+      | some out => TensorRegistry.register out
+  | _ => return 0
+
 
 end Tgrad.PythonFFI

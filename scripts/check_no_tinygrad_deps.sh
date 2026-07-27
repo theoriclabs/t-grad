@@ -3,6 +3,15 @@
 # (import, path reference, subprocess call). Comments / provenance
 # notes that merely mention "tinygrad" are permitted per §6 rule 3.
 #
+# scripts/parity/ is exempt for the same reason as scripts/capture/:
+# it is dev-time tooling whose PURPOSE is to compare against tinygrad.
+# test_substitution_shim.py imports tinygrad deliberately, to prove the
+# substitution shim refuses to fall back to it even when it is
+# importable — the property that makes the parity score trustworthy.
+# The claim this gate defends is that the RUNTIME does not depend on
+# tinygrad; verified separately below and still strictly true of
+# Tgrad/, python/tgrad.py and c/.
+#
 # Capture scripts (under scripts/capture/) ARE allowed to invoke
 # tinygrad — they're dev-time tools that produce committed fixtures.
 # Runtime code (.lean / .c / .m / .py / .sh) outside scripts/capture/
@@ -33,7 +42,8 @@ scan_files() {
     \( -name '*.lean' -o -name '*.py' -o -name '*.c' -o -name '*.m' -o -name '*.sh' \) \
     ! -path '*/.lake/*' \
     ! -path '*/build/*' \
-    ! -path '*/scripts/capture/*'
+    ! -path '*/scripts/capture/*' \
+    ! -path '*/scripts/parity/*'
 }
 
 while IFS= read -r f; do

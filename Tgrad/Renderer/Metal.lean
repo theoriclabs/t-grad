@@ -210,6 +210,11 @@ inductive Stmt where
   /-- L14.B.2.a: indexed STORE — `<buf>[<idx>] = <rhs>;` where `idx` is
       an index-arithmetic UOp rendered via `UOp.renderIndexExpr`. -/
   | storeIndexed  (buf : String) (idx : UOp) (rhs : String)
+  /-- `storeIndexed` with the destination scalar type spelled out.
+      `storeIndexed` hardcodes a `bfloat` cast, which was fine while
+      bf16 was the only dtype; a second dtype makes the cast a
+      parameter rather than a constant. -/
+  | storeIndexedAs (ty buf : String) (idx : UOp) (rhs : String)
   deriving Inhabited
 
 /-- WMMA prelude argument. Falsifiability row 6 sabotages the prelude
@@ -325,6 +330,8 @@ partial def render (indent : String) : Stmt → String
       -- `*(data0+(alu74+8)) = ((bfloat)((*(acc0+2))));`. The byte-equal
       -- check at L12.sh requires this exact spacing/parenthesization.
       s!"{indent}*({buf}+{idx.renderIndexExpr}) = ((bfloat)(({rhs})));"
+  | .storeIndexedAs ty buf idx rhs =>
+      s!"{indent}*({buf}+{idx.renderIndexExpr}) = (({ty})(({rhs})));"
   | .tcMatmulBody _M K N =>
       -- L13.F: WMMA matmul body. One simdgroup (32 threads, 1 warp) per
       -- 32M × 64N output region (4 M-tiles × 8 N-tiles = 32 8×8 outputs).

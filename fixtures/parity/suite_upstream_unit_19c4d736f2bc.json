@@ -1,0 +1,406 @@
+{
+  "against": "upstream",
+  "aggregate": {
+    "files": 43,
+    "files_collect_error": 2,
+    "files_fail": 0,
+    "files_pass": 41,
+    "files_timeout": 0,
+    "tests_errors": 1,
+    "tests_failed": 3,
+    "tests_passed": 665,
+    "tests_skipped": 65
+  },
+  "group": "unit",
+  "ran_at_utc": "2026-07-27T09:47:03Z",
+  "results": [
+    {
+      "collected": 7,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_allreduce.py",
+      "passed": 7,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 103,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_assign.py",
+      "passed": 99,
+      "skipped": 4,
+      "status": "pass"
+    },
+    {
+      "collected": 6,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_attention.py",
+      "passed": 6,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 32,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_call.py",
+      "passed": 32,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 13,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_callify.py",
+      "passed": 13,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_conv.py",
+      "passed": 13,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_cpu.py",
+      "passed": 0,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 58,
+      "errors": 0,
+      "failed": 3,
+      "file": "test/unit/test_disk_tensor.py",
+      "passed": 47,
+      "skipped": 8,
+      "status": "collect_error"
+    },
+    {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_dtype_spec.py",
+      "passed": 11,
+      "skipped": 3,
+      "status": "pass"
+    },
+    {
+      "collected": 19,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_dtype_weak.py",
+      "passed": 19,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 55,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_function.py",
+      "passed": 55,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_getitem_ops.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 1,
+      "failed": 0,
+      "file": "test/unit/test_gguf.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "collect_error"
+    },
+    {
+      "collected": 21,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_gradient.py",
+      "passed": 21,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 9,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_hashing.py",
+      "passed": 3,
+      "skipped": 6,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_hcq_graph.py",
+      "passed": 0,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_helpers.py",
+      "passed": 3,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 49,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_indexing.py",
+      "passed": 18,
+      "skipped": 31,
+      "status": "pass"
+    },
+    {
+      "collected": 23,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_invalid_tensor.py",
+      "passed": 23,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 32,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_jit.py",
+      "passed": 32,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_jit_cases.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 30,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_jit_footguns.py",
+      "passed": 30,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 12,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_linalg.py",
+      "passed": 11,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_llm_mla.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_llm_moe.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 8,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_llm_server.py",
+      "passed": 8,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_masked_tensor.py",
+      "passed": 3,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 3,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_metal_graph.py",
+      "passed": 3,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 99,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_multitensor.py",
+      "passed": 94,
+      "skipped": 5,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_objc.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 15,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_randomness.py",
+      "passed": 14,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 13,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_realize_is_realize.py",
+      "passed": 13,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 5,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_rearrange_einops.py",
+      "passed": 5,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 4,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_schedule_cache.py",
+      "passed": 4,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 12,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_setitem_schedule.py",
+      "passed": 12,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_shm_tensor.py",
+      "passed": 1,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_symbolic_tensor.py",
+      "passed": 1,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 1,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_system_pci_scan_bus.py",
+      "passed": 0,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 31,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_tar.py",
+      "passed": 31,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 12,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_tensor_data.py",
+      "passed": 11,
+      "skipped": 1,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_tensor_io.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 6,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_tinyfs.py",
+      "passed": 6,
+      "skipped": 0,
+      "status": "pass"
+    },
+    {
+      "collected": 2,
+      "errors": 0,
+      "failed": 0,
+      "file": "test/unit/test_winograd.py",
+      "passed": 2,
+      "skipped": 0,
+      "status": "pass"
+    }
+  ],
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+}

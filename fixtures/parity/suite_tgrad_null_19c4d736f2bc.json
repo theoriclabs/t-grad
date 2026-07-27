@@ -1,0 +1,28 @@
+{
+  "against": "tgrad",
+  "aggregate": {
+    "files": 1,
+    "files_collect_error": 0,
+    "files_fail": 1,
+    "files_pass": 0,
+    "files_timeout": 0,
+    "tests_errors": 0,
+    "tests_failed": 12,
+    "tests_passed": 0,
+    "tests_skipped": 0
+  },
+  "group": "null",
+  "ran_at_utc": "2026-07-27T16:05:54Z",
+  "results": [
+    {
+      "collected": 12,
+      "errors": 0,
+      "failed": 12,
+      "file": "test/null/test_rearrange_einops.py",
+      "passed": 0,
+      "skipped": 0,
+      "status": "fail"
+    }
+  ],
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+}

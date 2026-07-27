@@ -162,6 +162,18 @@ _lib.tgrad_tensor_uop_kind.restype  = ctypes.c_uint8
 # uop, Python routes here; the Lean side runs the parametric scalar
 # matmul (`Pipeline.realizeView`) with A/B load-index UOps derived
 # from the input uop chains.
+# Graph-indexed realize. Tensor methods compose a UOp graph and one
+# entry lowers it, so a new op costs a node constructor and a table row
+# rather than another export/trampoline/binding triple.
+_lib.tgrad_tensor_binop.argtypes = [ctypes.c_uint8, ctypes.c_uint64, ctypes.c_uint64]
+_lib.tgrad_tensor_binop.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_reduce.argtypes = [ctypes.c_uint8, ctypes.c_uint64, ctypes.c_size_t]
+_lib.tgrad_tensor_reduce.restype  = ctypes.c_uint64
+_lib.tgrad_realize.argtypes = [ctypes.c_uint64]
+_lib.tgrad_realize.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_dtype.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
+
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_view.restype  = ctypes.c_uint64
 
@@ -216,10 +228,44 @@ class MatmulOnNonBufferUop(TgradError):
     plumbed; the kernel-side view-aware codegen lands at L14.B.2."""
 
 
-_SUPPORTED_DTYPES = {"bf16"}
+# Op codes shared with PythonFFI.binOpOfCode.
+_BINOP_ADD = 0
+_BINOP_MUL = 1
+_BINOP_SUB = 2
+
+_SUPPORTED_DTYPES = {"bf16", "f32"}
 # Bytes per element, used to check that a materialized buffer is
 # exactly as large as its declared shape requires.
-_DTYPE_BYTES = {"bf16": 2}
+_DTYPE_BYTES = {"bf16": 2, "f32": 4}
+
+
+_DTYPE_OF_CODE = {0: "bf16", 1: "f32", 2: "f16", 3: "i32"}
+
+
+def _dtype_of_handle(h: int) -> str:
+    """Result dtype as Lean computed it. Python never recomputes the
+    promotion lattice; `Dtype.lub` stays single-sourced."""
+    code = _lib.tgrad_tensor_dtype(h)
+    name = _DTYPE_OF_CODE.get(code)
+    if name is None:
+        raise TgradError(f"tgrad_tensor_dtype returned unknown code {code}")
+    return name
+
+
+def _bytes_from_numpy(arr: np.ndarray, dtype: str) -> bytes:
+    if dtype == "bf16":
+        return _bf16_from_fp32(arr)
+    if dtype == "f32":
+        return arr.astype(np.float32).tobytes()
+    raise TgradTypeError(f"unsupported dtype {dtype!r}")
+
+
+def _numpy_from_bytes(b: bytes, shape: tuple[int, ...], dtype: str) -> np.ndarray:
+    if dtype == "bf16":
+        return _fp32_from_bf16(b, shape)
+    if dtype == "f32":
+        return np.frombuffer(b, dtype=np.float32).reshape(shape).copy()
+    raise TgradTypeError(f"unsupported dtype {dtype!r}")
 
 
 def _numel(shape: tuple[int, ...]) -> int:
@@ -372,7 +418,7 @@ class Tensor:
         if any(s < 1 for s in shape):
             raise NotInLeanScope(
                 f"shape {shape} has a non-positive dimension; refused.")
-        bytes_ = _bf16_from_fp32(arr)
+        bytes_ = _bytes_from_numpy(arr, dtype)
         size = len(bytes_)
         buf = _lib.tgrad_tensor_alloc(size)
         if buf == 0:
@@ -455,7 +501,7 @@ class Tensor:
         rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
-        return _fp32_from_bf16(bytes(out), tensor._shape)
+        return _numpy_from_bytes(bytes(out), tensor._shape, tensor._dtype)
 
     def to_bytes(self) -> bytes:
         tensor = self._materialize_for_readback("to_bytes")
@@ -556,6 +602,72 @@ class Tensor:
         2=RESHAPE, 3=EXPAND, 4=SLICE, 255=other/unregistered."""
         return _lib.tgrad_tensor_uop_kind(self._handle)
 
+    # Pointwise ops. Each is a table row: build a binop node, hand the
+    # graph to realize. No new FFI symbol, no new kernel generator, and
+    # views work for free because the index expressions come from the
+    # View algebra. Adding another operator is one line here plus one
+    # row in Renderer.Elementwise.elementwiseOpStr.
+    def _pointwise(self, other: "Tensor", op_code: int, name: str) -> "Tensor":
+        if not isinstance(other, Tensor):
+            return NotImplemented
+        for d in (self._dtype, other._dtype):
+            if d not in _SUPPORTED_DTYPES:
+                raise TgradTypeError(f"{name}: unsupported dtype {d!r}")
+        if self._shape != other._shape:
+            # Broadcasting is a View.expand away but is not wired until
+            # dtype promotion lands, so it is refused rather than guessed.
+            raise NotInLeanScope(
+                f"{name}: shapes must match (got {self._shape}, {other._shape}); "
+                f"broadcasting is not implemented")
+        h = _lib.tgrad_tensor_binop(op_code, self._handle, other._handle)
+        if h == 0:
+            raise TgradError(f"tgrad_tensor_binop({name}) returned 0")
+        out_handle = _lib.tgrad_realize(h)
+        if out_handle == 0:
+            raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
+        out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+        m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+        n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+        out_dtype = _dtype_of_handle(out_handle)
+        return Tensor(out_buf, m * n * _DTYPE_BYTES[out_dtype], (m, n), out_dtype,
+                      handle=out_handle, owns_buf=True, base=None)
+
+    def __add__(self, other: "Tensor") -> "Tensor":
+        return self._pointwise(other, _BINOP_ADD, "add")
+
+    def __sub__(self, other: "Tensor") -> "Tensor":
+        return self._pointwise(other, _BINOP_SUB, "sub")
+
+    def __mul__(self, other: "Tensor") -> "Tensor":
+        return self._pointwise(other, _BINOP_MUL, "mul")
+
+    # Reductions. Same table-row shape as the pointwise ops: the kernel
+    # is shared, only the operator and identity element differ. Keepdim
+    # is the only mode, so `sum(axis=1)` on (rows, cols) gives (rows, 1).
+    def _reduce(self, op_code: int, axis: int, name: str) -> "Tensor":
+        if axis not in (0, 1):
+            raise TgradTypeError(f"{name}: axis must be 0 or 1 (got {axis})")
+        if self._dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(f"{name}: unsupported dtype {self._dtype!r}")
+        h = _lib.tgrad_tensor_reduce(op_code, self._handle, axis)
+        if h == 0:
+            raise TgradError(f"tgrad_tensor_reduce({name}) returned 0")
+        out_handle = _lib.tgrad_realize(h)
+        if out_handle == 0:
+            raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
+        out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+        m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+        n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+        dt = _dtype_of_handle(out_handle)
+        return Tensor(out_buf, m * n * _DTYPE_BYTES[dt], (m, n), dt,
+                      handle=out_handle, owns_buf=True, base=None)
+
+    def sum(self, axis: int = 1) -> "Tensor":
+        return self._reduce(_BINOP_ADD, axis, "sum")
+
+    def prod(self, axis: int = 1) -> "Tensor":
+        return self._reduce(_BINOP_MUL, axis, "prod")
+
     def __matmul__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented
@@ -565,6 +677,35 @@ class Tensor:
         # L14.B.2.c: route view inputs through Pipeline.realizeView
         # (which runs the parametric scalar matmul with view-derived
         # index UOps). Replaces L14.B.1's MatmulOnNonBufferUop guard.
+        M, K_a = self._shape
+        K_b, N = other._shape
+        if K_a != K_b:
+            raise TgradTypeError(
+                f"matmul: contraction dim mismatch ({self._shape} @ {other._shape})")
+
+        if not _USE_ALGEBRAIC:
+            # Graph-indexed path. Build `reduce add (mul a b)` and hand it
+            # to one entry; Lean picks sentinel / TC / scalar / view. The
+            # shape inspection that used to happen here now happens where
+            # the type system can see it.
+            prod = _lib.tgrad_tensor_binop(_BINOP_MUL, self._handle, other._handle)
+            if prod == 0:
+                raise TgradError("tgrad_tensor_binop(mul) returned 0")
+            graph = _lib.tgrad_tensor_reduce(_BINOP_ADD, prod, 1)
+            if graph == 0:
+                raise TgradError("tgrad_tensor_reduce(add) returned 0")
+            out_handle = _lib.tgrad_realize(graph)
+            if out_handle == 0:
+                raise TgradError(
+                    f"tgrad_realize failed for {self._shape} @ {other._shape}")
+            out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+            out_M = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+            out_N = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+            return Tensor(out_buf, out_M * out_N * 2, (out_M, out_N), "bf16",
+                          handle=out_handle, owns_buf=True, base=None)
+
+        # Algebraic-emit route, retained so L12 can observe a distinct
+        # cache path via --use-algebraic-emit.
         a_kind = self._uop_kind_code()
         b_kind = other._uop_kind_code()
         if a_kind != 0 or b_kind != 0:

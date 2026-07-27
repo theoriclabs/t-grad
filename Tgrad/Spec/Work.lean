@@ -1986,7 +1986,108 @@ def liveEvolutionEvents : List Event :=
             "one two-pair smoke establishes adapter execution, not repeatability or performance",
             "logical sessions share process-global caches and independent complete runs remain required",
             "verify.performance remains bypassed and F-performance-methodology remains open",
-            "the candidate commit predates this promotion record" ] } ]
+            "the candidate commit predates this promotion record" ] },
+    .checkRecorded
+      { id := { value := "check-paired-observer-adversarial-review-42838f2" },
+        candidate := { value := "candidate-paired-observer-42838f2" },
+        tree := "525af6cdaf1b6cf2fcbd15235aa3a2d4feda56fa",
+        validator := rw "verify.paired-performance-observer", obligation := .semantic,
+        outcome := .failed
+          "the timed TinyJit replay was not byte-checked, JIT=0 could disable capture, and the loaded dylib was not bound to the recorded source",
+        command := "independent adversarial review plus pinned-tinygrad JIT=0 probe",
+        artifactDigest := "sha256:adversarial-review-20260727" },
+    .promotionRevoked
+      { candidate := { value := "candidate-paired-observer-42838f2" },
+        reason := "post-promotion falsification found three missing executable invariants in the measured routes and binary provenance",
+        discoveredBy := "agent-archimedes independent review" },
+    .attemptStarted
+      { id := { value := "attempt-harness-paired-performance-hardening-20260727" },
+        intent := ew "harness.paired-performance", actor := "codex-primary",
+        base :=
+          { commit := "dfaf517b4773fe13b0c1c0c7d02e476ed91c6d1c",
+            tree := "3b68f3444d1a2fb649049dbe24a7a79d932d9a66",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .modify, target := "scripts/perf/paired_runtime.py" },
+            { kind := .modify, target := "scripts/perf/README.md" },
+            { kind := .modify, target := "scripts/dev/test_paired_runtime.py" },
+            { kind := .modify, target := "Tgrad/Spec/Evolution.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" } ],
+        lease :=
+          { token := "codex-primary-paired-performance-hardening",
+            resources := [.sourceTree], validThroughEpoch := 2000 } },
+    .candidateProduced
+      { id := { value := "candidate-paired-observer-29c41e5" },
+        attempt := { value := "attempt-harness-paired-performance-hardening-20260727" },
+        tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+        observedEffects :=
+          [ { kind := .modify, target := "scripts/perf/paired_runtime.py" },
+            { kind := .modify, target := "scripts/perf/README.md" },
+            { kind := .modify, target := "scripts/dev/test_paired_runtime.py" },
+            { kind := .modify, target := "Tgrad/Spec/Evolution.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" } ],
+        summary := "verified TinyJit replay bytes and capture state, rebuilt and hashed Tgrad runtime attribution, cryptographically joined artifacts, and revocable promotion history" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-build-29c41e5" },
+        candidate := { value := "candidate-paired-observer-29c41e5" },
+        tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "clean exact 29c41e5 tree: lake build tgrad-spec and execute tgrad-spec",
+        artifactDigest := "sha256:a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-semantic-29c41e5" },
+        candidate := { value := "candidate-paired-observer-29c41e5" },
+        tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+        validator := rw "verify.paired-performance-observer", obligation := .semantic,
+        outcome := .passed,
+        command := "run twelve CPU-only tests including prepared-route mismatch, JIT control, binary override rejection, and artifact joining",
+        artifactDigest := "sha256:12-tests-pass-29c41e5" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-live-29c41e5" },
+        candidate := { value := "candidate-paired-observer-29c41e5" },
+        tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+        validator := rw "verify.paired-performance-observer", obligation := .performance,
+        outcome := .passed,
+        command := "serial exact-tree 64x64x64 smoke; one session, verified capture replay, one warmup pair, two measured pairs; no performance conclusion",
+        artifactDigest := "sha256:87d8fa08cc987e313695c191bf4332843055f3bab8c98de7eecab8ab5d0486e0" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-provenance-29c41e5" },
+        candidate := { value := "candidate-paired-observer-29c41e5" },
+        tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+        validator := rw "verify.paired-performance-observer", obligation := .provenance,
+        outcome := .passed,
+        command := "require rebuilt dylib hash 16c156e6 tied to clean 29c41e5/a1ad0bd, pinned upstream tree, JIT=1, captured replay bytes, and exact output hash",
+        artifactDigest := "sha256:9eafd107f9661510652d1f2eed65b9916362bd08fbae66bd3e24fff7a5fd405a" },
+    .checkRecorded
+      { id := { value := "check-paired-observer-artifact-set-29c41e5" },
+        candidate := { value := "candidate-paired-observer-29c41e5" },
+        tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+        validator := rw "verify.paired-performance-observer", obligation := .resourceIsolation,
+        outcome := .passed,
+        command := "completion marker written last joins raw and summary hashes; artifact_set_id 3a2e1dc2; no marker means incomplete evidence",
+        artifactDigest := "sha256:3a2e1dc2a10a832e29f87a0dc48d10f4e24219b621e0500dd005caebf9eae028" },
+    .promoted
+      { growthCase := "G-symmetric-performance-observer-hardening",
+        candidate := { value := "candidate-paired-observer-29c41e5" },
+        checkRuns :=
+          [ { value := "check-paired-observer-build-29c41e5" },
+            { value := "check-paired-observer-semantic-29c41e5" },
+            { value := "check-paired-observer-live-29c41e5" },
+            { value := "check-paired-observer-provenance-29c41e5" },
+            { value := "check-paired-observer-artifact-set-29c41e5" } ],
+        requiredObligations :=
+          [.build, .semantic, .performance, .provenance, .resourceIsolation],
+        acceptedBy := ["harsh", "codex-primary", "agent-archimedes-review"],
+        target :=
+          { commit := "29c41e523e8c19a876f3156a13ecf853b4f9b8c7",
+            tree := "a1ad0bd17abf8510e9587acf58e4f2e5d4908fc3",
+            dirty := false },
+        residualRisks :=
+          [ "the available operational boundary remains asymmetric and is not a kernel comparison",
+            "one two-pair smoke validates machinery, not performance or repeatability",
+            "verify.performance remains bypassed and F-performance-methodology remains open",
+            "the candidate commit predates this corrective promotion record" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
   replay itemIds liveEvolutionEvents
@@ -1994,9 +2095,9 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 0 && state.candidates.length == 15 &&
-      state.checks.length == 60 && state.promotions.length == 11 &&
-      state.abandoned.length == 7
+      state.activeAttempts.length == 0 && state.candidates.length == 16 &&
+      state.checks.length == 66 && state.promotions.length == 12 &&
+      state.revokedPromotions.length == 1 && state.abandoned.length == 7
   | .error _ => false
 
 def liveActiveIntentIds : List Growth.EvolutionWorkId :=
@@ -2282,6 +2383,18 @@ theorem paired_observer_is_promoted_without_promoting_performance :
         (fun unit => unit.isState .bounded) = some true &&
       (Runtime.workUnitFor? (rw "verify.performance")).map
         (fun unit => unit.isState .bypassed) = some true) := by
+  native_decide
+
+theorem falsified_observer_promotion_is_revoked_and_superseded :
+    (match liveEvolutionState with
+     | .error _ => false
+     | .ok state =>
+         state.revokedPromotions.any (fun revocation =>
+           revocation.candidate.value == "candidate-paired-observer-42838f2") &&
+         state.activePromotions.any (fun certificate =>
+           certificate.candidate.value == "candidate-paired-observer-29c41e5") &&
+         !state.activePromotions.any (fun certificate =>
+           certificate.candidate.value == "candidate-paired-observer-42838f2")) = true := by
   native_decide
 
 theorem generated_sentinels_case_matches_runtime_and_finding_state :

@@ -101,7 +101,8 @@ def SuiteCalibrationComparison.canPromote
   comparison.second.files.all fun observation => observation.status == .pass
 
 theorem empty_comparison_cannot_promote :
-    SuiteCalibrationComparison.canPromote {} = false := by
+    SuiteCalibrationComparison.canPromote
+      { first := default, second := default } = false := by
   native_decide
 
 end Tgrad.Spec.Parity

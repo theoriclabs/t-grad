@@ -64,7 +64,15 @@ def Contract.coverageCounts (contract : Contract) : CoverageCounts :=
     | some .conformant => { counts with conformant := counts.conformant + 1 }
     | some .drifted => { counts with drifted := counts.drifted + 1 }
     | some .blockedByHardware =>
-        { counts with blockedByHardware := counts.blockedByHardware + 1 }) {}
+        { counts with blockedByHardware := counts.blockedByHardware + 1 })
+    { total := 0,
+      unknown := 0,
+      absent := 0,
+      scaffold := 0,
+      bounded := 0,
+      conformant := 0,
+      drifted := 0,
+      blockedByHardware := 0 }
 
 def CoverageCounts.accountedFor (counts : CoverageCounts) : Bool :=
   counts.total ==
@@ -168,7 +176,11 @@ def atomicCoverageWellFormed
 theorem no_observation_cannot_become_a_pass
     (obligations : List CoverageObligation) :
     deriveCoverageState obligations [] != .pass := by
-  cases obligations <;> simp [deriveCoverageState]
+  have result_is_unobserved :
+      deriveCoverageState obligations [] = .unobserved := by
+    cases obligations <;> simp [deriveCoverageState]
+  rw [result_is_unobserved]
+  decide
 
 /-- Claim readiness strengthens `Contract.complete` with a total denominator.
 The only top-level result is a boolean universal claim; exact state counts are
@@ -182,17 +194,22 @@ def targetSkeletonFor (subjectTree : String) (profile : Profile) : Contract :=
 theorem generated_skeleton_is_an_exact_coverage_matrix
     (subjectTree : String) (profile : Profile) :
     (targetSkeletonFor subjectTree profile).hasTotalCoverageMatrix = true := by
+  simp only [targetSkeletonFor, contractSkeleton,
+    Contract.hasTotalCoverageMatrix, Contract.requirementIds, Contract.cellIds]
   native_decide
 
 theorem generated_skeleton_counts_every_requirement
     (subjectTree : String) (profile : Profile) :
     (targetSkeletonFor subjectTree profile).coverageCounts.total =
       reviewedRequirementCount := by
+  simp only [targetSkeletonFor, contractSkeleton, Contract.coverageCounts]
   native_decide
 
 theorem generated_skeleton_counts_are_accounted_for
     (subjectTree : String) (profile : Profile) :
     (targetSkeletonFor subjectTree profile).coverageCounts.accountedFor = true := by
+  simp only [targetSkeletonFor, contractSkeleton, Contract.coverageCounts,
+    CoverageCounts.accountedFor]
   native_decide
 
 theorem importing_the_denominator_does_not_create_a_public_api_claim :
@@ -258,7 +275,7 @@ theorem an_excluded_cell_cannot_be_observed_as_passing
         observation := .pass,
         sourceArtifactHash := some artifactHash,
         rationale }) = false := by
-  rfl
+  simp [DiagnosticCoverageCell.wellFormed]
 
 structure SuiteProjectionCounts where
   total : Nat

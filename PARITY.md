@@ -264,6 +264,16 @@ manifest, raw diagnostics, relation registry, or validator calibration.
 identities `unknown`; `scripts/parity/project_suite_coverage.py` materializes
 the 590 ordered diagnostic cells without inventing them.
 
+An orchestrator-reported rerun at product commit `031352f`, after graph-indexed
+realization plus elementwise, dtype, and reduction breadth landed, remained
+`0/34`: 29 files still failed during collection because the strict shim does
+not provide `tinygrad.helpers`. This is not yet promotable evidence because no
+attributable result bundle accompanies the report, but it is a useful stage
+diagnosis. The public-suite numerator is currently gated by compatibility
+module surface before most operation semantics execute; unchanged file counts
+therefore do not imply that the four operation packets made no semantic
+progress.
+
 ## 9. The system that grows Tgrad
 
 The roadmap is not a list of features. It is a feedback system with two

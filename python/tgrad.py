@@ -420,37 +420,56 @@ class Tensor:
 
     _VIEW_KIND_NAMES = {1: "permute", 2: "reshape", 3: "expand", 4: "slice"}
 
-    def _reject_view_readback(self, method: str) -> None:
-        """Readback copies the underlying buffer verbatim; it does not
-        apply the view. Reading a view would therefore return the
-        parent's data laid out in the parent's order, wearing the
-        view's shape — silently wrong numbers rather than an error.
+    def _materialize_for_readback(self, method: str) -> "Tensor":
+        """Return a contiguous Tensor suitable for host readback.
 
-        Materializing a view needs an indexed copy kernel driven by
-        `Schedule.View`; until that exists, refuse. Note `a.T @ b` is
-        unaffected: matmul goes through `Pipeline.realizeView`, which
-        does apply the view."""
+        BUFFER tensors already are contiguous. Movement views are realized by
+        Lean's indexed-copy kernel. The existing two-handle view trampoline
+        reserves a zero second handle for this unary operation, avoiding a new
+        C ABI entry while still keeping rendering, allocation, and dispatch in
+        Lean.
+
+        The temporary output owns its fresh buffer and is freed after the
+        caller copies the bytes to Python."""
         kind = self._uop_kind_code()
-        name = self._VIEW_KIND_NAMES.get(kind)
-        if name is not None:
+        if kind == 0:
+            return self
+        name = self._VIEW_KIND_NAMES.get(kind, f"uop-kind-{kind}")
+        out_handle = _lib.tgrad_matmul_view(self._handle, 0)
+        if out_handle == 0:
             raise NotInLeanScope(
-                f"Tensor.{method}() on a {name} view is not supported: the "
-                f"buffer holds the pre-view data, so the result would be "
-                f"silently wrong. Materialize via a matmul, or read back "
-                f"the base tensor.")
+                f"Tensor.{method}() could not materialize {name} view with "
+                f"shape {self._shape}; the movement chain may be invalid, "
+                f"unsupported, or empty")
+        out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+        if out_buf == 0:
+            raise TgradError(
+                f"Tensor.{method}(): materialized handle {out_handle} has no buffer")
+        out_rank = _lib.tgrad_tensor_rank(out_handle)
+        out_shape = tuple(
+            int(_lib.tgrad_tensor_shape_dim(out_handle, i))
+            for i in range(out_rank))
+        out_size = _numel(out_shape) * _DTYPE_BYTES[self._dtype]
+        if out_shape != self._shape:
+            _lib.tgrad_tensor_free(out_buf, out_size)
+            raise TgradError(
+                f"Tensor.{method}(): materialized shape {out_shape} disagrees "
+                f"with Python view shape {self._shape}")
+        return Tensor(out_buf, out_size, out_shape, self._dtype,
+                      handle=out_handle, owns_buf=True)
 
     def numpy(self) -> np.ndarray:
-        self._reject_view_readback("numpy")
-        out = (ctypes.c_uint8 * self._size)()
-        rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
+        tensor = self._materialize_for_readback("numpy")
+        out = (ctypes.c_uint8 * tensor._size)()
+        rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
-        return _fp32_from_bf16(bytes(out), self._shape)
+        return _fp32_from_bf16(bytes(out), tensor._shape)
 
     def to_bytes(self) -> bytes:
-        self._reject_view_readback("to_bytes")
-        out = (ctypes.c_uint8 * self._size)()
-        rc = _lib.tgrad_tensor_read_bytes(self._buf, out, self._size)
+        tensor = self._materialize_for_readback("to_bytes")
+        out = (ctypes.c_uint8 * tensor._size)()
+        rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
             raise TgradError(f"tgrad_tensor_read_bytes returned rc={rc}")
         return bytes(out)

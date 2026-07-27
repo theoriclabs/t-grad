@@ -518,22 +518,30 @@ def tensorUopKind (h : UInt64) : IO UInt8 := do
     | _              => 255)
 
 -- ----------------------------------------------------------------------
--- L14.B.2.c: view-aware matmul. Replaces the L14.B.1 typed-error
+-- L14.B.2.c: view-aware matmul and unary view materialization.
+-- Replaces the L14.B.1 typed-error
 -- guard (`MatmulOnNonBufferUop`) — when either input has a non-BUFFER
 -- uop, Python routes through this entry which calls
 -- `Pipeline.realizeView` (parametric scalar matmul with index UOps
 -- derived from the input uop chains). Returns the new opaque tensor
 -- handle for the output (with BUFFER root); 0 on error.
+--
+-- The existing C trampoline has two UInt64 handle arguments. A second handle
+-- of 0 is otherwise invalid and is reserved for unary view materialization;
+-- this keeps the materializer within the existing stable C ABI.
 -- ----------------------------------------------------------------------
 
 @[export tgrad_matmul_view_lean]
 def matmulView (aHandle bHandle : UInt64) : IO UInt64 := do
   let some a ← TensorRegistry.get? aHandle | pure 0
-  let some b ← TensorRegistry.get? bHandle | pure 0
-  let res ← Tgrad.Pipeline.realizeView a b
+  let res ← if bHandle == 0 then
+    Tgrad.Pipeline.materializeView a
+  else do
+    let some b ← TensorRegistry.get? bHandle | pure (.error
+      (.notInLeanScope s!"matmulView: handle {bHandle} not registered"))
+    Tgrad.Pipeline.realizeView a b
   match res with
   | .error _ => pure 0
   | .ok t    => TensorRegistry.register t
 
 end Tgrad.PythonFFI
-

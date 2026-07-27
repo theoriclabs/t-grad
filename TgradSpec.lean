@@ -25,6 +25,9 @@ import Tgrad.Growth.PilotState
 import Tgrad.Growth.Work
 import Tgrad.Growth.BroadcastAddManifest
 import Tgrad.Growth.BroadcastAddManifestGenerated
+import Tgrad.Growth.BroadcastAddManifestV2Generated
+import Tgrad.Growth.BroadcastAddManifestV2
+import Tgrad.Growth.BroadcastAddPacketV2
 import Tgrad.Growth.BroadcastAddPacket
 import Tgrad.Growth.PilotReport
 

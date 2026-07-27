@@ -567,6 +567,15 @@ executed trial. The next admissible transition is observer implementation and
 mutation calibration; product authoring remains forbidden until a baseline
 observation has been recorded against this lock.
 
+The first frozen definition was in fact rejected before observation. Two
+mutants were specified to prevent result construction while also preserving
+the observed dtype of that result, an impossible validator obligation. No
+observer workaround was accepted and no product probe was used to fit the
+repair. The V2 amendment preserves V1 and records the sole correction: dtype
+may be unobserved for those two result-preventing mutants. This is evidence
+that definition review can stop invalid work before product authoring; it is
+not evidence about Tgrad behavior or about requirement adequacy.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

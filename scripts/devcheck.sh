@@ -79,6 +79,8 @@ cheap_preflight() {
     --check || return 1
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/check_broadcast_add_trial_lock.py" \
     || return 1
+  run_cmd "$PY" "$TGRAD_DIR/scripts/spec/generate_broadcast_add_amendment_v2.py" \
+    --check || return 1
 
   if [[ -f "$TGRAD_DIR/c/Makefile" ]]; then
     make -C "$TGRAD_DIR/c" >/tmp/tgrad_devcheck_make.log 2>&1 || {

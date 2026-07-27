@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V2",
+  "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V2",
+  "baseline_revision": "9ab1fcbaecc963d35016eb2cdb36d0c344526129",
+  "base_manifest_path": "fixtures/requirements/broadcast_add_prospective_v1.json",
+  "base_manifest_sha256": "a0485899ccae42c6378bb96f1fafec802c73c31aa34d956fda9b7f7deb9ec2e9",
+  "supersedes_trial_lock_path": "fixtures/requirements/broadcast_add_trial_lock_v1.json",
+  "supersedes_trial_lock_sha256": "77c698ac2ac1e077a6c32ceeb8189a58fa8e9e85a12e28496c6b4a00575b9c8f",
+  "v1_disposition": "definition_refuted_before_observation",
+  "finding": "A mutant that prevents result construction cannot preserve an observed result dtype; V1 made all-eight calibration impossible.",
+  "amendments": [
+    {
+      "mutation_id": "MUT-ADD-WRONG-RIGHT-ALIGNMENT",
+      "dimension": "dtype",
+      "from": "must_not_change",
+      "to": "may_be_unobserved"
+    },
+    {
+      "mutation_id": "MUT-ADD-NO-SINGLETON-EXPANSION",
+      "dimension": "dtype",
+      "from": "must_not_change",
+      "to": "may_be_unobserved"
+    }
+  ],
+  "all_other_definition_fields_inherited_unchanged": true,
+  "frozen_before_observer_implementation": true,
+  "frozen_before_product_candidate": true
+}

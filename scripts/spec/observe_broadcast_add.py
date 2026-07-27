@@ -375,6 +375,7 @@ def validate_v4_definition(
             "rev-parse", f"{EXPECTED_V4_DEFINITION_REVISION}^{{tree}}"
         ),
         "upstream_revision": v3_lock["upstream_revision"],
+        "execution_boundary": copy.deepcopy(v3_lock["execution_boundary"]),
         "semantic_lock_sha256": EXPECTED_V3_LOCK_SHA256,
     }
     return active, {"v3": v3_amendment, "v4": v4}, manifest

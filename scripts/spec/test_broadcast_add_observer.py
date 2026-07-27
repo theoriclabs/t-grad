@@ -248,6 +248,7 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual(2, len(amendment["v3"]["trace_footprint_amendments"]))
         self.assertEqual("frozen_git_object_at_v3_definition_revision",
                          amendment["v4"]["tooling_amendment"]["to"])
+        self.assertEqual("METAL", lock["execution_boundary"]["backend"])
         mutations = {item["id"]: item for item in manifest["mutations"]}
         for mutation_id in observer.EXPECTED_MUTATION_IDS[1:3]:
             self.assertNotIn("dtype", mutations[mutation_id]["must_not_change"])

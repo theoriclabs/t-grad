@@ -107,7 +107,7 @@ structure Observation where
   outcome : ObservationOutcome
   blocker : String
   artifactHash : String
-  observedAt : String
+  runId : String
   deriving DecidableEq, BEq, Repr, Inhabited
 
 def Observation.wellFormed (observation : Observation) : Bool :=
@@ -120,10 +120,34 @@ def Observation.wellFormed (observation : Observation) : Bool :=
   !observation.validatorId.trimAscii.isEmpty &&
   !observation.dimensions.isEmpty &&
   (if observation.outcome == .blocked
-   then !observation.blocker.trimAscii.isEmpty
+  then !observation.blocker.trimAscii.isEmpty
    else observation.blocker.trimAscii.isEmpty) &&
   !observation.artifactHash.trimAscii.isEmpty &&
-  !observation.observedAt.trimAscii.isEmpty
+  !observation.runId.trimAscii.isEmpty
+
+/-- A current prerequisite failure can block observation of another
+requirement without claiming that the blocked requirement itself failed. -/
+structure Blockage where
+  id : String
+  blocks : List RequirementId
+  targetRevision : String
+  subjectTree : TreeRef
+  boundary : BoundaryIdentity
+  sourceObservationId : String
+  reason : String
+  artifactHash : String
+  deriving DecidableEq, BEq, Repr, Inhabited
+
+def Blockage.wellFormed (blockage : Blockage) : Bool :=
+  !blockage.id.trimAscii.isEmpty &&
+  !blockage.blocks.isEmpty &&
+  blockage.blocks.all RequirementId.valid &&
+  !blockage.targetRevision.trimAscii.isEmpty &&
+  blockage.subjectTree.wellFormed &&
+  blockage.boundary.wellFormed &&
+  !blockage.sourceObservationId.trimAscii.isEmpty &&
+  !blockage.reason.trimAscii.isEmpty &&
+  !blockage.artifactHash.trimAscii.isEmpty
 
 structure PromotionContext where
   target : TargetRef
@@ -140,6 +164,17 @@ def Observation.currentIn
       observation.subjectTree == context.subjectTree &&
       !observation.subjectTree.dirty &&
       observation.boundary == boundary
+
+def Blockage.currentIn
+    (blockage : Blockage) (context : PromotionContext) : Bool :=
+  match context.boundary with
+  | none => false
+  | some boundary =>
+      blockage.wellFormed &&
+      blockage.targetRevision == context.target.revision &&
+      blockage.subjectTree == context.subjectTree &&
+      !blockage.subjectTree.dirty &&
+      blockage.boundary == boundary
 
 def Observation.covers
     (observation : Observation) (requirement : Requirement) : Bool :=

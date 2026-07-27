@@ -82,15 +82,20 @@ def deriveImplementation
 
 def deriveObservation
     (context : PromotionContext) (requirement : Requirement)
-    (validators : List ValidatorRef) (observations : List Observation) :
+    (validators : List ValidatorRef) (observations : List Observation)
+    (blockages : List Blockage) :
     ObservationState :=
   let relevant := observations.filter (fun observation =>
     observation.requirement == requirement.id)
-  if relevant.isEmpty then .unobserved
+  let current := relevant.filter (fun observation => observation.currentIn context)
+  let currentlyBlocked := blockages.any (fun blockage =>
+    blockage.blocks.contains requirement.id && blockage.currentIn context)
+  if current.isEmpty then
+    if currentlyBlocked then .blocked
+    else if relevant.isEmpty then .unobserved
+    else .stale
   else
-    let current := relevant.filter (fun observation => observation.currentIn context)
-    if current.isEmpty then .stale
-    else if current.any (fun observation => observation.outcome == .failed) then .failed
+    if current.any (fun observation => observation.outcome == .failed) then .failed
     else if current.any (fun observation => observation.outcome == .verifierError) then .verifierError
     else if current.any (fun observation => observation.outcome == .blocked) then .blocked
     else if current.any (fun observation =>
@@ -109,13 +114,13 @@ def deriveRequirementState
     (context : PromotionContext) (requirement : Requirement)
     (specification : BoundarySpec) (adequacyClaim : AdequacyClaim)
     (candidates : List CandidateMapping) (validators : List ValidatorRef)
-    (observations : List Observation) : RequirementState :=
+    (observations : List Observation) (blockages : List Blockage) : RequirementState :=
   let specificationState :=
     if specification.structurallyCovers requirement
     then SpecificationState.structurallySpecified
     else SpecificationState.missing
   let adequacy := deriveAdequacy adequacyClaim
-  let observation := deriveObservation context requirement validators observations
+  let observation := deriveObservation context requirement validators observations blockages
   { requirement := requirement.id
     inventory := .interpreted
     specification := specificationState
@@ -132,6 +137,7 @@ inductive GapKind where
   | observation
   | validator
   | failedBehavior
+  | prerequisite
   | environment
   deriving DecidableEq, BEq, Repr, Inhabited
 
@@ -175,8 +181,8 @@ def gapsFor (state : RequirementState) : List Gap :=
            kind := .observation,
            description := "No current observation covers the requirement." }]
     | .blocked =>
-        [{ id := s!"GAP-ENVIRONMENT-{reqPrefix}", requirement := some state.requirement,
-           kind := .environment,
+        [{ id := s!"GAP-PREREQUISITE-{reqPrefix}", requirement := some state.requirement,
+           kind := .prerequisite,
            description := "A prerequisite or environment condition blocks observation." }]
     | .failed =>
         [{ id := s!"GAP-BEHAVIOR-{reqPrefix}", requirement := some state.requirement,

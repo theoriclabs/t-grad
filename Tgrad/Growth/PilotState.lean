@@ -1,4 +1,5 @@
 import Tgrad.Growth.Derived
+import Tgrad.Evidence.PilotGenerated
 
 /-! # Tgrad.Growth.PilotState — the first derived requirements snapshot
 
@@ -26,40 +27,46 @@ def target : TargetRef :=
     disposition := .extractedCandidate }
 
 def productBaseline : TreeRef :=
-  { revision := "c465f89999adf0c5fa91d771d3485428d26a2c61"
-    contentHash := "c259d0beaa09807c05071608646caa783b021c28"
-    dirty := false }
+  Tgrad.Evidence.PilotGenerated.subjectTree
 
-/-- No boundary identity is supplied until an observer records its verifier,
-adapter, environment, and scenario hashes. -/
+/-- The generated observer binds verifier, adapter, environment, and scenario
+identities to the current observation. -/
 def context : PromotionContext :=
   { target
     subjectTree := productBaseline
-    boundary := none }
+    boundary := some Tgrad.Evidence.PilotGenerated.boundary }
 
 def helpersState : RequirementState :=
   deriveRequirementState context importHelpers helpersBoundary helpersAdequacy
-    pilotCandidates [] []
+    pilotCandidates Tgrad.Evidence.PilotGenerated.validators
+    Tgrad.Evidence.PilotGenerated.observations
+    Tgrad.Evidence.PilotGenerated.blockages
 
 def addState : RequirementState :=
   deriveRequirementState context broadcastAdd addBoundary addAdequacy
-    pilotCandidates [] []
+    pilotCandidates Tgrad.Evidence.PilotGenerated.validators
+    Tgrad.Evidence.PilotGenerated.observations
+    Tgrad.Evidence.PilotGenerated.blockages
 
 def viewState : RequirementState :=
   deriveRequirementState context viewReadbackLifetime viewBoundary viewAdequacy
-    pilotCandidates [] []
+    pilotCandidates Tgrad.Evidence.PilotGenerated.validators
+    Tgrad.Evidence.PilotGenerated.observations
+    Tgrad.Evidence.PilotGenerated.blockages
 
 def states : List RequirementState := [helpersState, addState, viewState]
 
 def gaps : List Gap := (states.flatMap gapsFor).eraseDups
 
-theorem current_snapshot_is_honestly_unobserved :
+theorem current_snapshot_localizes_the_observed_prerequisite_failure :
     helpersState.implementation = .noCandidate ∧
     addState.implementation = .candidateMapped ∧
     viewState.implementation = .candidateMapped ∧
+    helpersState.observation = .failed ∧
+    addState.observation = .blocked ∧
+    viewState.observation = .blocked ∧
     states.all (fun state =>
       state.adequacy == .open &&
-      state.observation == .unobserved &&
       state.promotion == .targetUnpromoted) = true := by
   native_decide
 
@@ -123,7 +130,7 @@ private def addObservation (outcome : ObservationOutcome) : Observation :=
     outcome
     blocker := if outcome == .blocked then "python substitution prerequisite" else ""
     artifactHash := "artifact-add-pilot"
-    observedAt := "2026-07-27T00:00:00Z" }
+    runId := "deterministic-model-mutation-add-v1" }
 
 private def acceptedAddAdequacy : AdequacyClaim :=
   { addAdequacy with
@@ -132,7 +139,7 @@ private def acceptedAddAdequacy : AdequacyClaim :=
 private def stateWith
     (observation : Observation) (validators : List ValidatorRef) : RequirementState :=
   deriveRequirementState observedContext broadcastAdd addBoundary acceptedAddAdequacy
-    pilotCandidates validators [observation]
+    pilotCandidates validators [observation] []
 
 theorem failed_observation_is_not_hidden_by_a_candidate_mapping :
     (stateWith (addObservation .failed) [calibratedAddValidator]).observation = .failed := by
@@ -199,6 +206,7 @@ private def gapKindToken : GapKind → String
   | .observation => "observation"
   | .validator => "validator"
   | .failedBehavior => "failed_behavior"
+  | .prerequisite => "prerequisite"
   | .environment => "environment"
 
 private def quote (value : String) : String :=
@@ -231,7 +239,12 @@ def statusJson : String :=
   s!"  \"target_revision\": {quote target.revision},\n" ++
   "  \"target_disposition\": \"extracted_candidate\",\n" ++
   s!"  \"product_revision\": {quote productBaseline.revision},\n" ++
-  "  \"observer_identity\": null,\n" ++
+  "  \"observer_identity\": {\n" ++
+  s!"    \"verifier_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.verifierTree.contentHash},\n" ++
+  s!"    \"adapter_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.adapterHash},\n" ++
+  s!"    \"environment_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.environmentHash},\n" ++
+  s!"    \"scenario_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.scenarioManifestHash}\n" ++
+  "  },\n" ++
   "  \"states\": [\n" ++
   String.intercalate ",\n" (states.map stateJson) ++ "\n  ],\n" ++
   "  \"gaps\": [\n" ++

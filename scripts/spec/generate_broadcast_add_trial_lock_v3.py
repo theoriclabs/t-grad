@@ -14,6 +14,7 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = REPO / "fixtures/requirements/broadcast_add_trial_lock_v3.json"
 AMENDMENT = REPO / "fixtures/requirements/broadcast_add_prospective_v3_amendment.json"
 V2_LOCK = REPO / "fixtures/requirements/broadcast_add_trial_lock_v2.json"
+V4_AMENDMENT = REPO / "fixtures/requirements/broadcast_add_prospective_v4_tooling_amendment.json"
 BASELINE = "aac178ff1eebf299075f0adce593328380dfa02a"
 DEFINITION = "fbb13c585da75f3e9fa00cf5d87aa72f0ff38ab4"
 DEFINITION_FILES = (
@@ -109,8 +110,18 @@ def verify(document: dict, require_current: bool = True) -> None:
     if document != expected:
         raise RuntimeError("V3 trial lock differs from frozen Git facts")
     if require_current:
+        v4 = json.loads(V4_AMENDMENT.read_text(encoding="utf-8"))
+        authorized = v4.get("v3_generator_path")
+        if v4.get("tooling_amendment") != {
+            "binding": "v2_observer_sha256",
+            "from": "current_worktree_file",
+            "to": "frozen_git_object_at_v3_definition_revision",
+        }:
+            raise RuntimeError("V4 does not authorize V3 generator evolution")
         for relative, expected_hash in document["definition_files"].items():
             current = REPO / relative
+            if relative == authorized:
+                continue
             if not current.is_file() or digest(current.read_bytes()) != expected_hash:
                 raise RuntimeError(f"current V3 definition drifted: {relative}")
 

@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -26,6 +27,7 @@ EXPECTED = (
         ("observe_shape_if_constructed",),
     ),
 )
+V3_DEFINITION_REVISION = "fbb13c585da75f3e9fa00cf5d87aa72f0ff38ab4"
 
 
 def canonical(value: object) -> bytes:
@@ -36,20 +38,34 @@ def digest(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def frozen_file(revision: str, relative: str) -> bytes:
+    completed = subprocess.run(
+        ["git", "show", f"{revision}:{relative}"], cwd=REPO,
+        capture_output=True, check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.decode(errors="replace").strip())
+    return completed.stdout
+
+
 def parse(path: Path) -> tuple[dict, str, str]:
     raw = path.read_bytes()
     document = json.loads(raw)
     if document.get("schema_version") != 1:
         raise RuntimeError("unsupported V3 amendment schema")
-    bindings = (
+    current_bindings = (
         ("base_v2_amendment_path", "base_v2_amendment_sha256"),
         ("base_v2_lock_path", "base_v2_lock_sha256"),
-        ("v2_observer_path", "v2_observer_sha256"),
     )
-    for path_key, hash_key in bindings:
+    for path_key, hash_key in current_bindings:
         bound = REPO / document.get(path_key, "")
         if not bound.is_file() or digest(bound.read_bytes()) != document.get(hash_key):
             raise RuntimeError(f"V3 amendment does not bind exact {path_key}")
+    observer_path = document.get("v2_observer_path", "")
+    if digest(frozen_file(V3_DEFINITION_REVISION, observer_path)) != document.get(
+        "v2_observer_sha256"
+    ):
+        raise RuntimeError("V3 amendment does not bind the frozen V2 observer")
     diagnostic = (
         REPO / "fixtures/requirements/observations" /
         document.get("refuting_evidence_id", "") / "diagnostic.json"

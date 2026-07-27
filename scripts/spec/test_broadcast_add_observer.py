@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CPU-only adversarial tests for the V2 broadcast-add observer.
+"""CPU-only adversarial tests for the V4 broadcast-add observer.
 
 No test imports tinygrad/Tgrad, loads a dylib, or invokes the child runner.
 Synthetic child protocols test the parent relation; compilation and AST/source
@@ -18,7 +18,7 @@ from scripts.spec import promote_broadcast_add_diagnostic as promoter
 
 
 def definition() -> tuple[dict, dict, dict]:
-    return observer.validate_v2_definition()
+    return observer.validate_v4_definition()
 
 
 def ownership(mode: str) -> dict:
@@ -92,24 +92,23 @@ def baseline_scenarios(manifest: dict) -> list[dict]:
             trace = [
                 {"stage": "construct_left", "status": "completed"},
                 {"stage": "construct_right", "status": "completed"},
-                {"stage": "invoke_add", "status": "raised",
+                {"stage": "invoke_add", "status": "completed"},
+                {"stage": "observe_shape_if_constructed", "status": "raised",
                  "exception_class": "ValueError",
                  "exception_message": "incompatible shapes"},
-                {"stage": "observe_shape_if_constructed", "status": "skipped",
-                 "reason": "prior_stage_raised"},
                 {"stage": "record_terminal_stage_class_message",
                  "status": "completed"},
             ]
             dimensions = {
                 "construction": observer.observed({"left": True, "right": True}),
                 "shape": observer.unobserved("result_shape_not_available"),
-                "exception_stage": observer.observed("invoke_add"),
+                "exception_stage": observer.observed("observe_shape_if_constructed"),
                 "exception_class": observer.observed("ValueError"),
                 "exception_message": observer.observed("incompatible shapes"),
                 "terminal_outcome": observer.observed("raised"),
             }
             terminal = {"outcome": "raised", "exception": {
-                "stage": "invoke_add", "class": "ValueError",
+                "stage": "observe_shape_if_constructed", "class": "ValueError",
                 "message": "incompatible shapes",
             }}
         else:
@@ -157,20 +156,22 @@ def child_protocol(manifest: dict, declaration: dict, config: dict) -> dict:
         "MUT-ADD-WRONG-RIGHT-ALIGNMENT",
         "MUT-ADD-NO-SINGLETON-EXPANSION",
     }:
-        failure = "wrong alignment" if "ALIGNMENT" in mutation_id else "singleton rejected"
+        wrong_alignment = mutation_id == "MUT-ADD-WRONG-RIGHT-ALIGNMENT"
+        failure = "wrong alignment" if wrong_alignment else "singleton rejected"
+        failure_stage = "observe_shape" if wrong_alignment else "invoke_add"
         for name in (
             "shape", "dtype", "value", "realize_identity",
             "repeated_readback", "inputs_unchanged",
         ):
             set_dimension(result, name, observer.unobserved("prior_stage_raised"))
-        set_dimension(result, "exception_stage", observer.observed("invoke_add"))
+        set_dimension(result, "exception_stage", observer.observed(failure_stage))
         set_dimension(result, "exception_class", observer.observed("ValueError"))
         set_dimension(result, "exception_message", observer.observed(failure))
         set_dimension(result, "terminal_outcome", observer.observed("raised"))
         for event in result["trace"]:
-            if event["stage"] == "invoke_add":
+            if event["stage"] == failure_stage:
                 event.clear()
-                event.update({"stage": "invoke_add", "status": "raised",
+                event.update({"stage": failure_stage, "status": "raised",
                               "exception_class": "ValueError",
                               "exception_message": failure})
             elif event["stage"] in observer.MUTATION_TRACE_FOOTPRINTS[mutation_id]:
@@ -181,7 +182,7 @@ def child_protocol(manifest: dict, declaration: dict, config: dict) -> dict:
         for event, stage in zip(result["trace"], manifest["profile"]["legal_trace"]):
             event["stage"] = stage
         result["terminal"] = {"outcome": "raised", "exception": {
-            "stage": "invoke_add", "class": "ValueError", "message": failure,
+            "stage": failure_stage, "class": "ValueError", "message": failure,
         }}
     elif mutation_id == "MUT-ADD-WRONG-PROMOTION":
         changed = value_payload("wrong-promotion", result["dimensions"]["shape"]["value"],
@@ -198,7 +199,6 @@ def child_protocol(manifest: dict, declaration: dict, config: dict) -> dict:
         set_dimension(result, "exception_class", observer.observed(None))
         set_dimension(result, "exception_message", observer.observed(None))
         set_dimension(result, "terminal_outcome", observer.observed("returned"))
-        result["trace"][2] = {"stage": "invoke_add", "status": "completed"}
         result["trace"][3] = {"stage": "observe_shape_if_constructed",
                               "status": "completed"}
         result["terminal"] = {"outcome": "returned", "exception": None}
@@ -242,26 +242,27 @@ def probe_payloads(probe: dict) -> tuple[dict, dict[str, bytes]]:
 
 
 class DefinitionTests(unittest.TestCase):
-    def test_v2_definition_and_impossible_dtype_amendment(self) -> None:
+    def test_v4_inherits_v2_behavior_and_v3_trace_contract(self) -> None:
         lock, amendment, manifest = definition()
-        self.assertEqual(observer.EXPECTED_TRIAL, lock["trial_id"])
-        self.assertEqual("definition_refuted_before_observation",
-                         amendment["v1_disposition"])
+        self.assertEqual(observer.EXPECTED_V4_TRIAL, lock["trial_id"])
+        self.assertEqual(2, len(amendment["v3"]["trace_footprint_amendments"]))
+        self.assertEqual("frozen_git_object_at_v3_definition_revision",
+                         amendment["v4"]["tooling_amendment"]["to"])
         mutations = {item["id"]: item for item in manifest["mutations"]}
         for mutation_id in observer.EXPECTED_MUTATION_IDS[1:3]:
             self.assertNotIn("dtype", mutations[mutation_id]["must_not_change"])
             self.assertIn("dtype", mutations[mutation_id]["may_be_unobserved"])
 
-    def test_v1_and_tampered_v2_locks_are_refused(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "non-V2 or tampered"):
-            observer.validate_v2_definition(observer.V1_LOCK)
+    def test_v3_lock_and_tampered_v4_definition_are_refused(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "non-V4 or tampered"):
+            observer.validate_v4_definition(observer.V3_LOCK)
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "lock.json"
-            doc = json.loads(observer.V2_LOCK.read_text())
+            doc = json.loads(observer.V4_AMENDMENT.read_text())
             doc["trial_id"] = "tampered"
             path.write_text(json.dumps(doc), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "tampered"):
-                observer.validate_v2_definition(path)
+                observer.validate_v4_definition(path)
 
     def test_python_launcher_identity_is_not_collapsed_to_target(self) -> None:
         launcher = observer.DEFAULT_PYTHON.expanduser().absolute()

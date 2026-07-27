@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prospective V2 broadcast-add observer.
+"""Prospective V4 broadcast-add observer.
 
 This observer is deliberately an evidence instrument, not a conformance gate.
 It executes one fixed probe against either the pinned upstream tinygrad tree or
@@ -8,7 +8,7 @@ calibrates every declared observation dimension with observer-owned mutants.
 
 The protocol is prospective and fail-closed:
 
-* the exact V2 lock hash is checked before subject code can run;
+* the V3 semantic lock and V4 chronology amendment are checked before subject code can run;
 * the definition commit and every frozen file are revalidated with git;
 * V1 is rejected rather than interpreted;
 * a Tgrad run requires a replayable upstream evidence artifact first;
@@ -38,10 +38,17 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 V2_LOCK = REPO / "fixtures/requirements/broadcast_add_trial_lock_v2.json"
+V3_LOCK = REPO / "fixtures/requirements/broadcast_add_trial_lock_v3.json"
 V1_LOCK = REPO / "fixtures/requirements/broadcast_add_trial_lock_v1.json"
 V1_MANIFEST = REPO / "fixtures/requirements/broadcast_add_prospective_v1.json"
 V2_AMENDMENT = (
     REPO / "fixtures/requirements/broadcast_add_prospective_v2_amendment.json"
+)
+V3_AMENDMENT = (
+    REPO / "fixtures/requirements/broadcast_add_prospective_v3_amendment.json"
+)
+V4_AMENDMENT = (
+    REPO / "fixtures/requirements/broadcast_add_prospective_v4_tooling_amendment.json"
 )
 SHIM_ROOT = REPO / "scripts/parity/shim"
 PRODUCT_PYTHON = REPO / "python"
@@ -58,6 +65,21 @@ EXPECTED_TRIAL = "TRIAL-BROADCAST-ADD-PROSPECTIVE-V2"
 EXPECTED_DEFINITION_REVISION = "9762bb722c9f76283cf62cb16e8df2f902dc92ba"
 EXPECTED_EFFECTIVE_MANIFEST_SHA256 = (
     "0a8cc4f19fdd1177e93e44f93115c6149ea124132380de45eb9c43f64ac57795"
+)
+EXPECTED_V3_LOCK_SHA256 = (
+    "975820bfd46b1eaa3a5826f7c8357e5560d380cd5a6da1c88b1afc278ccb2b2a"
+)
+EXPECTED_V3_DEFINITION_REVISION = "fbb13c585da75f3e9fa00cf5d87aa72f0ff38ab4"
+EXPECTED_V3_CONTRACT_SHA256 = (
+    "92ae7cca5e6be6751b242439e600766d75a71c6aab1a3f9dcd838791f634539d"
+)
+EXPECTED_V4_AMENDMENT_SHA256 = (
+    "b5cbcf16482c418875aecc9b1f7eb59b4de1800f49b3ba8c331954072f1cb6b5"
+)
+EXPECTED_V4_DEFINITION_REVISION = "35ce40fdbf474b3f449452f738e3bf517da6ce7d"
+EXPECTED_V4_TRIAL = "TRIAL-BROADCAST-ADD-PROSPECTIVE-V4"
+EXPECTED_V4_EFFECTIVE_SHA256 = (
+    "02229c32937df15704714282ee28754b8fed3938b9b4f33d1aba254b206b4c1e"
 )
 EXPECTED_SCENARIO_IDS = (
     "ADD-SAME-SHAPE-F32",
@@ -265,6 +287,97 @@ def validate_v2_definition(
             raise RuntimeError("V2 does not permit the prevented-result dtype gap")
     effective["effective_manifest_sha256"] = effective_hash
     return lock, amendment, effective
+
+
+def validate_v4_definition(
+    lock_path: Path = V4_AMENDMENT,
+    *,
+    require_current: bool = True,
+) -> tuple[dict, dict, dict]:
+    """Compose V2 behavior, V3 trace semantics, and V4 chronology tooling."""
+    lock_path = lock_path.resolve()
+    v4_raw = lock_path.read_bytes()
+    if digest(v4_raw) != EXPECTED_V4_AMENDMENT_SHA256:
+        raise RuntimeError("refusing non-V4 or tampered active definition")
+    v4 = json.loads(v4_raw)
+    if v4.get("trial_id") != EXPECTED_V4_TRIAL:
+        raise RuntimeError("V4 trial id changed")
+    if digest(git_bytes(
+        "show", f"{EXPECTED_V4_DEFINITION_REVISION}:"
+        "fixtures/requirements/broadcast_add_prospective_v4_tooling_amendment.json"
+    )) != EXPECTED_V4_AMENDMENT_SHA256:
+        raise RuntimeError("V4 amendment was not frozen before implementation")
+    required_v4 = (
+        "v3_trace_footprint_amendment_inherited_unchanged",
+        "v3_behavioral_manifest_inherited_unchanged",
+        "frozen_before_v4_tooling_implementation",
+        "frozen_before_v4_observer_implementation",
+        "frozen_before_product_candidate",
+    )
+    if any(v4.get(key) is not True for key in required_v4):
+        raise RuntimeError("V4 weakens chronology or inheritance")
+    if v4.get("tooling_amendment") != {
+        "binding": "v2_observer_sha256",
+        "from": "current_worktree_file",
+        "to": "frozen_git_object_at_v3_definition_revision",
+    }:
+        raise RuntimeError("V4 tooling correction changed")
+
+    v3_raw = V3_LOCK.read_bytes()
+    if digest(v3_raw) != EXPECTED_V3_LOCK_SHA256:
+        raise RuntimeError("V3 semantic lock changed")
+    v3_lock = json.loads(v3_raw)
+    if v3_lock.get("definition_revision") != EXPECTED_V3_DEFINITION_REVISION:
+        raise RuntimeError("V3 definition revision changed")
+    definition_files = v3_lock.get("definition_files", {})
+    authorized_generator = v4["v3_generator_path"]
+    for relative, expected in sorted(definition_files.items()):
+        if digest(git_bytes(
+            "show", f"{EXPECTED_V3_DEFINITION_REVISION}:{relative}"
+        )) != expected:
+            raise RuntimeError(f"frozen V3 definition mismatch: {relative}")
+        if require_current and relative != authorized_generator:
+            current = REPO / relative
+            if not current.is_file() or file_hash(current) != expected:
+                raise RuntimeError(f"unauthorized V3 definition drift: {relative}")
+    if v4.get("v3_generator_sha256") != definition_files.get(authorized_generator):
+        raise RuntimeError("V4 does not authorize the exact refuted generator")
+
+    _, _, manifest = validate_v2_definition(require_current=require_current)
+    v3_amendment_raw = V3_AMENDMENT.read_bytes()
+    v3_amendment = json.loads(v3_amendment_raw)
+    if digest(v3_amendment_raw) != v4.get("v3_amendment_sha256"):
+        raise RuntimeError("V4 does not inherit the exact V3 trace amendment")
+    v3_contract_hash = digest(canonical({
+        "base_v2_amendment_sha256": v3_amendment["base_v2_amendment_sha256"],
+        "base_v2_lock_sha256": v3_amendment["base_v2_lock_sha256"],
+        "v2_observer_sha256": v3_amendment["v2_observer_sha256"],
+        "v3_amendment_sha256": digest(v3_amendment_raw),
+    }))
+    if v3_contract_hash != EXPECTED_V3_CONTRACT_SHA256:
+        raise RuntimeError("V3 trace-contract identity changed")
+    effective_hash = digest(canonical({
+        "v3_contract_sha256": v3_contract_hash,
+        "v4_amendment_sha256": digest(v4_raw),
+    }))
+    if effective_hash != EXPECTED_V4_EFFECTIVE_SHA256:
+        raise RuntimeError("V4 effective definition identity changed")
+    manifest = copy.deepcopy(manifest)
+    manifest["trial_id"] = EXPECTED_V4_TRIAL
+    manifest["packet_id"] = v4["packet_id"]
+    manifest["baseline_revision"] = v4["baseline_revision"]
+    manifest["effective_manifest_sha256"] = effective_hash
+    active = {
+        "trial_id": EXPECTED_V4_TRIAL,
+        "sha256": EXPECTED_V4_AMENDMENT_SHA256,
+        "definition_revision": EXPECTED_V4_DEFINITION_REVISION,
+        "definition_tree": git_text(
+            "rev-parse", f"{EXPECTED_V4_DEFINITION_REVISION}^{{tree}}"
+        ),
+        "upstream_revision": v3_lock["upstream_revision"],
+        "semantic_lock_sha256": EXPECTED_V3_LOCK_SHA256,
+    }
+    return active, {"v3": v3_amendment, "v4": v4}, manifest
 
 
 # This one source string is used for both subjects.  Subject-specific behavior
@@ -714,7 +827,7 @@ def protocol_token(manifest: dict, mutation: dict | None = None) -> str:
     return digest(canonical({
         "probe_sha256": digest(PROBE_SOURCE.encode()),
         "effective_manifest_sha256": manifest["effective_manifest_sha256"],
-        "lock_sha256": EXPECTED_LOCK_SHA256,
+        "lock_sha256": EXPECTED_V4_AMENDMENT_SHA256,
         "mutation_configuration_sha256": (
             mutation.get("configuration_sha256") if mutation else None
         ),
@@ -909,7 +1022,7 @@ MUTATION_DIMENSION_FOOTPRINTS: dict[str, frozenset[str]] = {
     "MUT-ADD-MUTATES-LEFT": frozenset({"inputs_unchanged"}),
 }
 
-MUTATION_TRACE_FOOTPRINTS: dict[str, frozenset[str]] = {
+V2_MUTATION_TRACE_FOOTPRINTS: dict[str, frozenset[str]] = {
     "MUT-ADD-SUBTRACT": frozenset(),
     "MUT-ADD-WRONG-RIGHT-ALIGNMENT": frozenset({
         "invoke_add", "capture_result_identity", "observe_shape", "observe_dtype",
@@ -929,6 +1042,20 @@ MUTATION_TRACE_FOOTPRINTS: dict[str, frozenset[str]] = {
     "MUT-REALIZE-SECOND-READBACK": frozenset(),
     "MUT-ADD-MUTATES-LEFT": frozenset(),
 }
+
+
+def mutation_trace_footprints() -> dict[str, frozenset[str]]:
+    result = dict(V2_MUTATION_TRACE_FOOTPRINTS)
+    amendment = json.loads(V3_AMENDMENT.read_text(encoding="utf-8"))
+    for item in amendment["trace_footprint_amendments"]:
+        mutation_id = item["mutation_id"]
+        if result.get(mutation_id) != frozenset(item["from"]):
+            raise RuntimeError(f"V3 trace amendment source drifted: {mutation_id}")
+        result[mutation_id] = frozenset(item["to"])
+    return result
+
+
+MUTATION_TRACE_FOOTPRINTS = mutation_trace_footprints()
 
 
 def changed_dimensions(before: dict, after: dict) -> frozenset[str]:
@@ -1532,7 +1659,7 @@ def validate_upstream_baseline(
     if raw != expected_bytes:
         raise RuntimeError("upstream baseline JSON is not deterministic canonical output")
     if set(document) != {
-        "schema_version", "against", "identity", "observation",
+        "schema_version", "result_kind", "against", "identity", "observation",
         "calibrations", "upstream_comparison", "inference_policy",
         "artifacts", "evidence_id",
     }:
@@ -1554,8 +1681,8 @@ def validate_upstream_baseline(
     }:
         raise RuntimeError("upstream baseline attempted an unauthorized inference")
     identity = document.get("identity", {})
-    if identity.get("lock", {}).get("sha256") != EXPECTED_LOCK_SHA256:
-        raise RuntimeError("upstream baseline is not bound to V2")
+    if identity.get("lock", {}).get("sha256") != EXPECTED_V4_AMENDMENT_SHA256:
+        raise RuntimeError("upstream baseline is not bound to V4")
     if identity.get("manifest", {}).get("effective_sha256") != manifest[
         "effective_manifest_sha256"
     ]:
@@ -1633,14 +1760,16 @@ def build_identity(lock: dict, amendment: dict, manifest: dict, mode: str,
         }
     return {
         "lock": {
-            "trial_id": lock["trial_id"], "sha256": EXPECTED_LOCK_SHA256,
+            "trial_id": lock["trial_id"], "sha256": EXPECTED_V4_AMENDMENT_SHA256,
             "definition_revision": lock["definition_revision"],
             "definition_tree": lock["definition_tree"],
+            "semantic_lock_sha256": lock["semantic_lock_sha256"],
         },
         "manifest": {
-            "packet_id": amendment["packet_id"],
-            "base_sha256": amendment["base_manifest_sha256"],
-            "amendment_sha256": file_hash(V2_AMENDMENT),
+            "packet_id": amendment["v4"]["packet_id"],
+            "base_v2_amendment_sha256": amendment["v3"]["base_v2_amendment_sha256"],
+            "v3_amendment_sha256": file_hash(V3_AMENDMENT),
+            "v4_amendment_sha256": file_hash(V4_AMENDMENT),
             "effective_sha256": manifest["effective_manifest_sha256"],
         },
         "source": source,
@@ -1686,7 +1815,7 @@ def persist(output: Path, document: dict, payloads: dict[str, bytes]) -> None:
 
 
 def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
-    lock, amendment, manifest = validate_v2_definition(args.lock)
+    lock, amendment, manifest = validate_v4_definition(args.lock)
     enforce_baseline_first(args.against, args.upstream_baseline)
     # Preserve the launcher spelling. Environment facts bind the venv launcher
     # and its resolved target separately; resolving here collapses those two
@@ -1826,7 +1955,7 @@ def main() -> int:
     parser.add_argument("--against", choices=("upstream", "tgrad"), required=True)
     parser.add_argument("--upstream-checkout", type=Path, required=True)
     parser.add_argument("--upstream-baseline", type=Path)
-    parser.add_argument("--lock", type=Path, default=V2_LOCK)
+    parser.add_argument("--lock", type=Path, default=V4_AMENDMENT)
     parser.add_argument("--python", type=Path, default=DEFAULT_PYTHON)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(

@@ -459,6 +459,9 @@ class ArtifactAndPolicyTests(unittest.TestCase):
         second = {"a": [1], "b": 2}
         self.assertEqual(observer.canonical(first), observer.canonical(second))
 
+    def test_diagnostic_blocker_is_not_an_observation_kind(self) -> None:
+        self.assertNotEqual("observation", "diagnostic_blocker")
+
     def test_normalization_handles_macos_path_aliases(self) -> None:
         with tempfile.TemporaryDirectory() as one, tempfile.TemporaryDirectory() as two:
             left, right = Path(one), Path(two)

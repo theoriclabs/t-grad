@@ -1539,6 +1539,8 @@ def validate_upstream_baseline(
         raise RuntimeError("upstream baseline document shape changed")
     if document.get("schema_version") != SCHEMA_VERSION:
         raise RuntimeError("unsupported upstream baseline schema")
+    if document.get("result_kind") != "observation":
+        raise RuntimeError("diagnostic artifact is not an upstream baseline")
     if document.get("against") != "upstream":
         raise RuntimeError("baseline is not an upstream observation")
     if document.get("evidence_id") != computed_evidence_id(document):
@@ -1764,6 +1766,7 @@ def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
             }
         document = {
             "schema_version": SCHEMA_VERSION,
+            "result_kind": "observation",
             "against": args.against,
             "identity": identity,
             "observation": probe_record,
@@ -1776,7 +1779,6 @@ def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
             },
             "artifacts": refs_for_payloads(payloads),
         }
-        document["evidence_id"] = computed_evidence_id(document)
         if args.against == "upstream":
             rejected = [
                 {
@@ -1802,15 +1804,20 @@ def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
                 if item["outcome"] != "validator_rejected_mutant"
             ]
             if rejected:
-                raise RuntimeError(
-                    "mutant calibration failed; refusing evidence: " +
-                    canonical(rejected).decode("ascii")
-                )
+                if not args.allow_diagnostic:
+                    raise RuntimeError(
+                        "mutant calibration failed; refusing evidence: " +
+                        canonical(rejected).decode("ascii")
+                    )
+                document["result_kind"] = "diagnostic_blocker"
+                document["calibration_rejections"] = rejected
+                document["inference_policy"]["baseline_eligible"] = False
         if args.against == "tgrad":
             # The observer is read-only.  Rechecking the product source after
             # execution catches accidental or concurrent mutation of its inputs.
             if product_source_identity() != source:
                 raise RuntimeError("product source changed during observation")
+        document["evidence_id"] = computed_evidence_id(document)
         return document, payloads
 
 
@@ -1822,6 +1829,10 @@ def main() -> int:
     parser.add_argument("--lock", type=Path, default=V2_LOCK)
     parser.add_argument("--python", type=Path, default=DEFAULT_PYTHON)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--allow-diagnostic", action="store_true",
+        help="persist a fail-closed upstream calibration blocker; never baseline-eligible",
+    )
     args = parser.parse_args()
     try:
         document, payloads = observe(args)
@@ -1833,6 +1844,7 @@ def main() -> int:
         "against": document["against"],
         "evidence_id": document["evidence_id"],
         "inference": "none",
+        "result_kind": document["result_kind"],
         "output": str(args.output),
     }, sort_keys=True))
     return 0

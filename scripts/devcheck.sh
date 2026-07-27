@@ -85,10 +85,13 @@ cheap_preflight() {
     || return 1
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/generate_broadcast_add_amendment_v2.py" \
     --check || return 1
+  run_cmd "$PY" "$TGRAD_DIR/scripts/spec/generate_broadcast_add_amendment_v3.py" \
+    --check || return 1
   run_cmd "$PY" -m unittest \
     scripts.spec.test_broadcast_add_observer \
     scripts.spec.test_broadcast_add_trial_lock \
     scripts.spec.test_broadcast_add_amendment_v2 \
+    scripts.spec.test_broadcast_add_amendment_v3 \
     scripts.spec.test_broadcast_add_manifest || return 1
 
   if [[ -f "$TGRAD_DIR/c/Makefile" ]]; then

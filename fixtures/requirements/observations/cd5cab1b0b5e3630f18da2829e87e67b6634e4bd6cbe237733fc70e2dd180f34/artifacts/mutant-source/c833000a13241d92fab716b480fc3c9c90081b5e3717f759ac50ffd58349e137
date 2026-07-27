@@ -1,0 +1,12 @@
+def mut_second_readback(payload):
+    changed = dict(payload)
+    raw = bytearray.fromhex(changed["storage_hex"])
+    if not raw:
+        raise RuntimeError("second-readback mutant requires nonempty output")
+    raw[0] ^= 1
+    changed["storage_hex"] = bytes(raw).hex()
+    changed["values"] = list(changed["values"])
+    changed["values"][0] = "observer-mutant-second-readback"
+    changed.pop("sha256", None)
+    changed["sha256"] = digest(canonical(changed))
+    return changed

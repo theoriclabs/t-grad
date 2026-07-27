@@ -594,6 +594,24 @@ It is a diagnostic blocker with `baseline_eligible=false`; it is not silently
 accepted as calibration, an observation pass, or evidence about Tgrad. This
 correctly stops the baseline-first protocol before a TGrad run.
 
+A controlled host probe subsequently falsified the original environmental
+diagnosis. In the managed execution sandbox, `MTLCreateSystemDefaultDevice()`
+returns nil; outside that sandbox, the same pinned tinygrad tree, CPython
+launcher, macOS host, and M4 return `Apple M4`. The downstream `UTF8String`
+exception was therefore a secondary symptom of a hidden execution-context
+boundary, not evidence that the upstream revision was defective. The target
+and semantic definition remain unchanged.
+
+The first unsandboxed V2 observation then produced a second replayable
+diagnostic, `cd5cab1b0b5e3630f18da2829e87e67b6634e4bd6cbe237733fc70e2dd180f34`.
+Six of eight mutants calibrated. The other two were detected in every required
+semantic dimension with the exact declared dimension footprint, but V2 also
+required trace records for completed stages such as `invoke_add` to differ.
+They correctly did not differ. V3 therefore amends only those two expected
+trace footprints and moves them into a frozen verifier contract. It changes no
+requirement, scenario, semantic dimension, mutant implementation, target, or
+product file. The V2 diagnostic remains ineligible as a baseline.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

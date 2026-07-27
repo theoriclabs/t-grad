@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V3",
+  "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V3",
+  "baseline_revision": "aac178ff1eebf299075f0adce593328380dfa02a",
+  "base_v2_amendment_path": "fixtures/requirements/broadcast_add_prospective_v2_amendment.json",
+  "base_v2_amendment_sha256": "3cd3b5f4534092c008c22c8ef79c481d1c9753831ada848b06b7a82a0362303f",
+  "base_v2_lock_path": "fixtures/requirements/broadcast_add_trial_lock_v2.json",
+  "base_v2_lock_sha256": "c52fbd1523fb2a57b613181ac68dcdd183af477ed2737848ba6dce41aeb898ef",
+  "v2_observer_path": "scripts/spec/observe_broadcast_add.py",
+  "v2_observer_sha256": "dd9e74669a6ca010dff427399cb7b064da614892033386aab48883548a561ee1",
+  "refuting_evidence_id": "cd5cab1b0b5e3630f18da2829e87e67b6634e4bd6cbe237733fc70e2dd180f34",
+  "refuting_diagnostic_sha256": "ab5259533ecf6bcc6ba2aa6b8c713878bbe2d86e1d5e867b085d6f25cab65392",
+  "v2_disposition": "calibration_contract_refuted_by_pinned_upstream_observation",
+  "finding": "V2 correctly detected both remaining faults and their exact semantic dimension footprints, but required completed trace stages to differ even when their stage records were identical.",
+  "trace_footprint_amendments": [
+    {
+      "mutation_id": "MUT-ADD-WRONG-RIGHT-ALIGNMENT",
+      "from": ["invoke_add", "capture_result_identity", "observe_shape", "observe_dtype", "realize_1", "readback_1", "realize_2", "readback_2", "snapshot_inputs_after"],
+      "to": ["observe_shape", "observe_dtype", "realize_1", "readback_1", "realize_2", "readback_2", "snapshot_inputs_after"]
+    },
+    {
+      "mutation_id": "MUT-ADD-ACCEPT-INCOMPATIBLE",
+      "from": ["invoke_add", "observe_shape_if_constructed"],
+      "to": ["observe_shape_if_constructed"]
+    }
+  ],
+  "all_requirements_scenarios_dimensions_mutants_and_other_footprints_inherited_unchanged": true,
+  "frozen_before_v3_observer_implementation": true,
+  "frozen_before_product_candidate": true,
+  "diagnostic_is_not_baseline_evidence": true
+}

@@ -168,7 +168,14 @@ echo "  ✓ semantic differential: 11/11 source-different kernels are bit-identi
 BENCH_JSONL="$WORK_DIR/generated_bench.jsonl"
 BENCH_LOG="$WORK_DIR/bench.log"
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-full \
-    --use-algebraic-emit --output "$BENCH_JSONL" --warmup 1 --measured 1) \
+    # A ratio predicate evaluated from ONE sample is not a measurement.
+    # At --warmup 1 --measured 1 this sweep reported ratio_median 2.38 /
+    # ratio_max 4.24 with 37/50 pairs missing ratio<=1.5; the identical
+    # code at --warmup 30 --measured 30 reports 1.18 / 1.41 with 0
+    # misses. Same predicate, opposite verdict, from sampling alone.
+    # 30/30 matches L11.sh:116 and is the same order as the tinygrad
+    # baseline being divided by (n_warmup 10, n_measured 30).
+    --use-algebraic-emit --output "$BENCH_JSONL" --warmup 30 --measured 30) \
     >"$BENCH_LOG" 2>&1 || {
   echo "  ✗ generated-emitter bench-full failed"
   tail -30 "$BENCH_LOG" | sed 's/^/      /'

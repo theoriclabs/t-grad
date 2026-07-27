@@ -24,6 +24,12 @@ class BroadcastAddTrialLockTests(unittest.TestCase):
     def test_committed_lock_verifies_current_tree(self) -> None:
         lock.verify(lock.DEFAULT_LOCK, require_current=True)
 
+    def test_v2_lock_verifies_current_tree(self) -> None:
+        lock.verify(
+            lock.REPO / "fixtures/requirements/broadcast_add_trial_lock_v2.json",
+            require_current=True,
+        )
+
     def test_tampered_frozen_hash_is_rejected(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "frozen file hash mismatch"):
             self.verify_mutation(lambda doc: doc["definition_files"].__setitem__(

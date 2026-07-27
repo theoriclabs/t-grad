@@ -78,6 +78,10 @@ cheap_preflight() {
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/generate_broadcast_add_manifest.py" \
     --check || return 1
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/check_broadcast_add_trial_lock.py" \
+    --lock "$TGRAD_DIR/fixtures/requirements/broadcast_add_trial_lock_v1.json" \
+    || return 1
+  run_cmd "$PY" "$TGRAD_DIR/scripts/spec/check_broadcast_add_trial_lock.py" \
+    --lock "$TGRAD_DIR/fixtures/requirements/broadcast_add_trial_lock_v2.json" \
     || return 1
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/generate_broadcast_add_amendment_v2.py" \
     --check || return 1

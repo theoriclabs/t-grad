@@ -575,6 +575,9 @@ repair. The V2 amendment preserves V1 and records the sole correction: dtype
 may be unobserved for those two result-preventing mutants. This is evidence
 that definition review can stop invalid work before product authoring; it is
 not evidence about Tgrad behavior or about requirement adequacy.
+The repaired definition is independently frozen at
+`9762bb722c9f76283cf62cb16e8df2f902dc92ba` and bound by the
+[V2 trial lock](../fixtures/requirements/broadcast_add_trial_lock_v2.json).
 
 ## How to know whether the method is working
 

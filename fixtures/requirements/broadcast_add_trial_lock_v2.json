@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V2",
+  "status": "definition_frozen_observer_unimplemented",
+  "baseline_revision": "9ab1fcbaecc963d35016eb2cdb36d0c344526129",
+  "definition_revision": "9762bb722c9f76283cf62cb16e8df2f902dc92ba",
+  "definition_tree": "9e4e728be320076014d832f03d57e179f32fbd70",
+  "upstream_revision": "19c4d736f2bc8e26d21f08b28ffd6298408da00f",
+  "supersedes_trial_lock_sha256": "77c698ac2ac1e077a6c32ceeb8189a58fa8e9e85a12e28496c6b4a00575b9c8f",
+  "definition_change_set": [
+    "Tgrad/Growth/BroadcastAddManifestV2.lean",
+    "Tgrad/Growth/BroadcastAddManifestV2Generated.lean",
+    "Tgrad/Growth/BroadcastAddPacketV2.lean",
+    "TgradSpec.lean",
+    "docs/plan_2026-07-27.md",
+    "docs/requirement_engineering.md",
+    "fixtures/requirements/broadcast_add_prospective_v2_amendment.json",
+    "scripts/devcheck.sh",
+    "scripts/spec/generate_broadcast_add_amendment_v2.py",
+    "scripts/spec/test_broadcast_add_amendment_v2.py"
+  ],
+  "definition_files": {
+    "Tgrad/Growth/BroadcastAddManifestV2.lean": "cc15704aa6376794c8b017f36c71b3574533998aea6d6527b32d50adb2d9bf5d",
+    "Tgrad/Growth/BroadcastAddManifestV2Generated.lean": "1034af4bb888fed925c7c6e3a1b1571efe80049a2b307a6f0814bcd55d25125b",
+    "Tgrad/Growth/BroadcastAddPacketV2.lean": "af610f5e2fb52e025234b01248b3910489c0080a0c6c050a86fb442ee98c9507",
+    "fixtures/requirements/broadcast_add_prospective_v2_amendment.json": "3cd3b5f4534092c008c22c8ef79c481d1c9753831ada848b06b7a82a0362303f",
+    "scripts/spec/generate_broadcast_add_amendment_v2.py": "15cee01f2d0083482bd1e18736e42db0a310d9761381ae02896d216564b570d0",
+    "scripts/spec/test_broadcast_add_amendment_v2.py": "60ff36dea34a895c5fdaa4ae25953f6db5daaff0afbcc134e9d41c3741f505de"
+  },
+  "execution_boundary": {
+    "backend": "METAL",
+    "hardware_identity_sha256": "7826b350b1d111a9b52cfba16bad783a331c23f6c0c425a01d3f0b4d7c22359c",
+    "python_environment_facts_sha256": "67d64a99683d3444685c4e6db1e2d20970dbaf4d2072b4dc6d47478dabb45af2",
+    "strict_no_upstream_fallback": true,
+    "serial_gpu_verification": true
+  },
+  "pending_artifacts": {
+    "observer": "scripts/spec/observe_broadcast_add.py",
+    "mutant_implementations": "missing; eight immutable mutant trees must be recorded after implementation",
+    "upstream_observation": "missing",
+    "tgrad_observation": "missing",
+    "derived_state": "missing"
+  },
+  "promotion_policy": {
+    "definition_drift_invalidates_trial": true,
+    "observer_must_bind_this_lock_sha256": true,
+    "product_candidate_forbidden_before_baseline_observation": true,
+    "adequacy_remains_open": true,
+    "legacy_requirement_remains_historical": true
+  }
+}

@@ -1,0 +1,5 @@
+def mut_wrong_right_alignment(state, scenario, Tensor, dtypes):
+    # Deliberately left-align the rank-one right operand as (N, 1), which is
+    # incompatible with the scenario's (M, N) left operand.
+    wrong = state["right"].reshape((scenario["right"]["shape"][0], 1))
+    return state["left"] + wrong

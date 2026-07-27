@@ -1,0 +1,2 @@
+def mut_no_singleton_expansion(state, scenario, Tensor, dtypes):
+    raise ValueError("observer mutant rejects singleton-axis expansion")

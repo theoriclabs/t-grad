@@ -1,0 +1,5 @@
+def mut_mutate_left(state, scenario, Tensor, dtypes):
+    one_spec = dict(scenario["left"])
+    one_spec["values"] = [1 for _ in one_spec["values"]]
+    delta = construct(one_spec, Tensor, dtypes)
+    state["left"].assign(state["left"] + delta).realize()

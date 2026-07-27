@@ -1,0 +1,2 @@
+def mut_wrong_promotion(state, scenario, Tensor, dtypes):
+    return (state["left"] + state["right"]).cast(dtypes.int32)

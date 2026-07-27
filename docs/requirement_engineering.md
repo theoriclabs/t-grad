@@ -619,6 +619,15 @@ V4 records the sole tooling correction prospectively: verify the old observer
 against the Git object at the V3 definition revision. V3's trace correction,
 all behavioral semantics, and the empty product write set remain inherited.
 
+The committed V4 observer then produced the first admissible upstream baseline,
+`84a58222575eab06ecc72889e1dbbe2a2084849356673a8d299c21ad2e41a844`.
+All six scenarios reached their declared terminal behavior and all eight
+isolated mutants were rejected. The artifact binds the pinned upstream tree,
+V4 effective contract, V3 semantic lock, observer/probe Git identity,
+environment, raw streams, normalized streams, protocols, and mutant branches.
+It remains observation-only: adequacy is open and no conformance or parity
+claim follows from an upstream baseline.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

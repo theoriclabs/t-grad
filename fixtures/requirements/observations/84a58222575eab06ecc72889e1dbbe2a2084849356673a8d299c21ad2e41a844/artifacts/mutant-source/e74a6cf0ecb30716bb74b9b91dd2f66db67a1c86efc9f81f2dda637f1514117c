@@ -1,0 +1,2 @@
+def mut_add_subtract(state, scenario, Tensor, dtypes):
+    return state["left"] - state["right"]

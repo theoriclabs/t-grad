@@ -2,8 +2,12 @@
 # Gate L14 umbrella — verifies L14.A + L14.B + L14.C; rolls up
 # sha256s into L14.json.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
 echo "[L14] umbrella — matmul through movement-op views"

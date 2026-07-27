@@ -32,9 +32,17 @@
 #              not hardcoded
 #   - Layer E : evidence to fixtures/gate_evidence/L14_B_2_c.json
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L14B2C_DYLIB="$(tgrad_run_path L14B2c_dylib.log)"
+L14B2C_SMOKE_PY="$(tgrad_run_path L14B2c_smoke.py)"
+L14B2C_SMOKE_LOG="$(tgrad_run_path L14B2c_smoke.txt)"
+L14B2C_TRACE="$(tgrad_run_prepare_rangeify_trace)"
 
 echo "[L14_B_2_c] Schedule.Rangeify wired + smoke view + guard removed"
 
@@ -116,17 +124,17 @@ fi
 echo "  ✓ Pipeline.realize body doesn't pattern-match on movement-op uops (D2)"
 
 # ─── LAYER C1+C2: smoke view ──────────────────────────────────────────
-ensure_dylib /tmp/tgrad_L14B2c_dylib.log || exit 1
+ensure_dylib "$L14B2C_DYLIB" || exit 1
 
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 
-SMOKE_PY="$(mktemp -t tgrad_L14B2c_smoke.XXXXXX.py)"
+SMOKE_PY="$L14B2C_SMOKE_PY"
 cat >"$SMOKE_PY" <<'PYEOF'
 import sys, os, json, hashlib
 sys.path.insert(0, os.path.join(os.environ.get("REPO_ROOT", "."), "Tgrad", "python"))
 os.environ["TGRAD_RANGEIFY_TRACE"] = "1"
-TRACE_PATH = "/tmp/tgrad_rangeify_trace.jsonl"
+TRACE_PATH = os.environ["TGRAD_RANGEIFY_TRACE_PATH"]
 open(TRACE_PATH, "w").close()  # reset
 
 import numpy as np
@@ -186,8 +194,8 @@ print(json.dumps({
 }))
 PYEOF
 
-SMOKE_LOG="/tmp/tgrad_L14B2c_smoke.txt"
-if ! "$PY" "$SMOKE_PY" >"$SMOKE_LOG" 2>&1; then
+SMOKE_LOG="$L14B2C_SMOKE_LOG"
+if ! TGRAD_RANGEIFY_TRACE_PATH="$L14B2C_TRACE" "$PY" "$SMOKE_PY" >"$SMOKE_LOG" 2>&1; then
   echo "  ✗ Layer C1+C2 smoke failed:"
   sed 's/^/      /' "$SMOKE_LOG"
   rm -f "$SMOKE_PY"
@@ -248,7 +256,7 @@ pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1
 ffi_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/PythonFFI.lean" | awk '{print $1}')"
 rangeify_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Schedule/Rangeify.lean" | awk '{print $1}')"
 scalar_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulScalar.lean" | awk '{print $1}')"
-trace_hash="$(shasum -a 256 /tmp/tgrad_rangeify_trace.jsonl 2>/dev/null | awk '{print $1}')"
+trace_hash="$(shasum -a 256 "$L14B2C_TRACE" 2>/dev/null | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 "$PY" -c "
 import json, sys

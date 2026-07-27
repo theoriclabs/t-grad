@@ -12,8 +12,20 @@
 # contain the theorems; the runner cross-checks them against fixtures
 # captured from tinygrad.
 set -euo pipefail
-: "${REPO_ROOT:?}"; : "${TGRAD_DIR:?}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L1_LUB="$(tgrad_run_path L1_lub.json)"
+L1_CAST="$(tgrad_run_path L1_cast.json)"
+L1_SHAPE="$(tgrad_run_path L1_shape.json)"
+L1_MV="$(tgrad_run_path L1_mv.json)"
+L1_SYM="$(tgrad_run_path L1_sym.json)"
+L1_NEG_LEAN="$(tgrad_run_path L1_negative_test.lean)"
+L1_NEG_LOG="$(tgrad_run_path L1_negative_test.log)"
 
 echo "[L1] types & graph-rewrite engine"
 run_preflight
@@ -87,40 +99,40 @@ echo "  ✓ all 6 required fixtures present in fixtures/"
 
 # Sub-predicate 4a: lub table — Tgrad recomputes the 14×14 lub table,
 # emits as JSON; diff against the captured table.
-./.lake/build/bin/tgrad-cli emit-lub-table >/tmp/tgrad_L1_lub.json 2>&1 || {
-  echo "  ✗ tgrad-cli emit-lub-table failed"; cat /tmp/tgrad_L1_lub.json; exit 1
+./.lake/build/bin/tgrad-cli emit-lub-table >"$L1_LUB" 2>&1 || {
+  echo "  ✗ tgrad-cli emit-lub-table failed"; cat "$L1_LUB"; exit 1
 }
-if ! diff -q /tmp/tgrad_L1_lub.json "$TGRAD_DIR/fixtures/dtype/lub_table.json" >/dev/null; then
+if ! diff -q "$L1_LUB" "$TGRAD_DIR/fixtures/dtype/lub_table.json" >/dev/null; then
   echo "  ✗ Tgrad.Dtype.lub disagrees with captured lub table"
-  diff /tmp/tgrad_L1_lub.json "$TGRAD_DIR/fixtures/dtype/lub_table.json" | head -20
+  diff "$L1_LUB" "$TGRAD_DIR/fixtures/dtype/lub_table.json" | head -20
   exit 1
 fi
 echo "  ✓ Tgrad.Dtype.lub matches captured 14×14 lub table"
 
 # Sub-predicate 4b: cast table.
-./.lake/build/bin/tgrad-cli emit-cast-table >/tmp/tgrad_L1_cast.json 2>&1 || {
-  echo "  ✗ tgrad-cli emit-cast-table failed"; cat /tmp/tgrad_L1_cast.json; exit 1
+./.lake/build/bin/tgrad-cli emit-cast-table >"$L1_CAST" 2>&1 || {
+  echo "  ✗ tgrad-cli emit-cast-table failed"; cat "$L1_CAST"; exit 1
 }
-if ! diff -q /tmp/tgrad_L1_cast.json "$TGRAD_DIR/fixtures/dtype/can_lossless_cast_table.json" >/dev/null; then
+if ! diff -q "$L1_CAST" "$TGRAD_DIR/fixtures/dtype/can_lossless_cast_table.json" >/dev/null; then
   echo "  ✗ Tgrad.Dtype.canLosslessCast disagrees with captured table"
   exit 1
 fi
 echo "  ✓ Tgrad.Dtype.canLosslessCast matches captured 14×14 cast table"
 
 # Sub-predicate 4c: shape ops.
-./.lake/build/bin/tgrad-cli emit-shape-table >/tmp/tgrad_L1_shape.json 2>&1 || {
-  echo "  ✗ tgrad-cli emit-shape-table failed"; cat /tmp/tgrad_L1_shape.json; exit 1
+./.lake/build/bin/tgrad-cli emit-shape-table >"$L1_SHAPE" 2>&1 || {
+  echo "  ✗ tgrad-cli emit-shape-table failed"; cat "$L1_SHAPE"; exit 1
 }
-if ! diff -q /tmp/tgrad_L1_shape.json "$TGRAD_DIR/fixtures/shape/shape_table.json" >/dev/null; then
+if ! diff -q "$L1_SHAPE" "$TGRAD_DIR/fixtures/shape/shape_table.json" >/dev/null; then
   echo "  ✗ Tgrad.Shape disagrees with captured shape table"
   exit 1
 fi
 echo "  ✓ Tgrad.Shape (numel/align/broadcast) matches captured table"
 
-./.lake/build/bin/tgrad-cli emit-movement-table >/tmp/tgrad_L1_mv.json 2>&1 || {
-  echo "  ✗ tgrad-cli emit-movement-table failed"; cat /tmp/tgrad_L1_mv.json; exit 1
+./.lake/build/bin/tgrad-cli emit-movement-table >"$L1_MV" 2>&1 || {
+  echo "  ✗ tgrad-cli emit-movement-table failed"; cat "$L1_MV"; exit 1
 }
-if ! diff -q /tmp/tgrad_L1_mv.json "$TGRAD_DIR/fixtures/shape/movement_table.json" >/dev/null; then
+if ! diff -q "$L1_MV" "$TGRAD_DIR/fixtures/shape/movement_table.json" >/dev/null; then
   echo "  ✗ Tgrad.Shape movement ops disagree with captured table"
   exit 1
 fi
@@ -129,10 +141,10 @@ echo "  ✓ Tgrad.Shape.{reshape,permute,expand} matches captured 15 cases"
 # Sub-predicate 4d: symbolic reduction on phase 03's 47-node DAG.
 ./.lake/build/bin/tgrad-cli reduce-symbolic-dag \
     "$TGRAD_DIR/fixtures/symbolic/dag_in.json" \
-    >/tmp/tgrad_L1_sym.json 2>&1 || {
-  echo "  ✗ tgrad-cli reduce-symbolic-dag failed"; cat /tmp/tgrad_L1_sym.json; exit 1
+    >"$L1_SYM" 2>&1 || {
+  echo "  ✗ tgrad-cli reduce-symbolic-dag failed"; cat "$L1_SYM"; exit 1
 }
-if ! diff -q /tmp/tgrad_L1_sym.json "$TGRAD_DIR/fixtures/symbolic/dag_out_expected.json" >/dev/null; then
+if ! diff -q "$L1_SYM" "$TGRAD_DIR/fixtures/symbolic/dag_out_expected.json" >/dev/null; then
   echo "  ✗ Tgrad.GraphRewrite.run + Tgrad.Rules.Symbolic 16-rule subset disagrees with captured output"
   exit 1
 fi
@@ -144,14 +156,14 @@ echo "  ✓ Tgrad.GraphRewrite reduces phase 03's 47-node DAG to captured output
 # Anti-shortcut: prove the type system actually rejects what it should.
 # -----------------------------------------------------------------------
 # Try compiling a deliberately broken UOp construction; expect failure.
-cat >/tmp/tgrad_negative_test.lean <<'EOF'
+cat >"$L1_NEG_LEAN" <<'EOF'
 -- Deliberately broken: indexing should require a UOp buffer + UOp offset.
 -- A stringly-typed call should not typecheck.
 import Tgrad
 open Tgrad
 def badUOp : UOp := .index "this is not a UOp" "neither is this"
 EOF
-if (cd "$TGRAD_DIR" && lake env lean /tmp/tgrad_negative_test.lean) >/tmp/tgrad_neg.log 2>&1; then
+if (cd "$TGRAD_DIR" && lake env lean "$L1_NEG_LEAN") >"$L1_NEG_LOG" 2>&1; then
   echo "  ✗ negative test compiled — type system isn't rejecting bad UOp"
   exit 1
 fi
@@ -163,11 +175,11 @@ echo "  ✓ negative test correctly rejected by typechecker"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-lub_hash="$(shasum -a 256 /tmp/tgrad_L1_lub.json | awk '{print $1}')"
-cast_hash="$(shasum -a 256 /tmp/tgrad_L1_cast.json | awk '{print $1}')"
-shape_hash="$(shasum -a 256 /tmp/tgrad_L1_shape.json | awk '{print $1}')"
-mv_hash="$(shasum -a 256 /tmp/tgrad_L1_mv.json | awk '{print $1}')"
-sym_hash="$(shasum -a 256 /tmp/tgrad_L1_sym.json | awk '{print $1}')"
+lub_hash="$(shasum -a 256 "$L1_LUB" | awk '{print $1}')"
+cast_hash="$(shasum -a 256 "$L1_CAST" | awk '{print $1}')"
+shape_hash="$(shasum -a 256 "$L1_SHAPE" | awk '{print $1}')"
+mv_hash="$(shasum -a 256 "$L1_MV" | awk '{print $1}')"
+sym_hash="$(shasum -a 256 "$L1_SYM" | awk '{print $1}')"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L1.json" <<EOF
 {
   "gate": "L1",

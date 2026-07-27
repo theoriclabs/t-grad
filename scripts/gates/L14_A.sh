@@ -34,9 +34,16 @@
 #             (sabotage row 7+8 catches removing the regression calls)
 #   - Layer E : evidence to fixtures/gate_evidence/L14_A.json
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L14A_DYLIB="$(tgrad_run_path L14A_dylib.log)"
+L14A_SMOKE_PY="$(tgrad_run_path L14A_smoke.py)"
+L14A_SMOKE_LOG="$(tgrad_run_path L14A_smoke.txt)"
 
 echo "[L14_A] Tensor.uop refactor (BUFFER-only; L11+L13+L13_F bit-identical)"
 
@@ -137,7 +144,7 @@ echo "  ✓ Tensor.shape body pattern-matches t.uop (real projection, not stub)"
 # ─── LAYER D4: tgrad_tensor_from_buffer round-trip smoke ──────────────
 # Build the dylib if stale, then verify the new FFI entries work
 # end-to-end from Python.
-ensure_dylib /tmp/tgrad_L14A_dylib.log || exit 1
+ensure_dylib "$L14A_DYLIB" || exit 1
 
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
@@ -145,7 +152,7 @@ PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 # Write the smoke-test python to a tempfile to keep the heredoc + `||`
 # parsing simple. The smoke binds the new L14.A FFI entries and
 # verifies alloc → from_buffer → rank/shape_dim/raw_buffer round-trip.
-SMOKE_PY="$(mktemp -t tgrad_L14A_smoke.XXXXXX.py)"
+SMOKE_PY="$L14A_SMOKE_PY"
 cat >"$SMOKE_PY" <<'PYEOF'
 import sys, os, ctypes
 sys.path.insert(0, os.path.join(os.environ.get("REPO_ROOT", "."), "Tgrad", "python"))
@@ -176,16 +183,16 @@ assert raw == buf, f"raw_buffer {raw} != alloc {buf}"
 tgrad._lib.tgrad_tensor_free(buf, 64 * 128 * 2)
 print("ok")
 PYEOF
-if ! "$PY" "$SMOKE_PY" >/tmp/tgrad_L14A_smoke.txt 2>&1; then
+if ! "$PY" "$SMOKE_PY" >"$L14A_SMOKE_LOG" 2>&1; then
   echo "  ✗ tgrad_tensor_from_buffer round-trip smoke failed:"
-  sed 's/^/      /' /tmp/tgrad_L14A_smoke.txt
+  sed 's/^/      /' "$L14A_SMOKE_LOG"
   rm -f "$SMOKE_PY"
   exit 1
 fi
 rm -f "$SMOKE_PY"
-if ! grep -q '^ok$' /tmp/tgrad_L14A_smoke.txt; then
+if ! grep -q '^ok$' "$L14A_SMOKE_LOG"; then
   echo "  ✗ tgrad_tensor_from_buffer round-trip smoke did not report ok"
-  sed 's/^/      /' /tmp/tgrad_L14A_smoke.txt
+  sed 's/^/      /' "$L14A_SMOKE_LOG"
   exit 1
 fi
 echo "  ✓ tgrad_tensor_from_buffer round-trip works (alloc + register + rank + raw_buffer)"

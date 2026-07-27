@@ -24,9 +24,16 @@
 #               JSON path with nonzero exit
 #   - Layer E : evidence file
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L9_BASE="$(tgrad_run_path L9_base.json)"
+L9_NEW="$(tgrad_run_path L9_new.json)"
+L9_NEG="$(tgrad_run_path L9_negative.txt)"
 
 echo "[L9] extended symbolic_simple (L1.a 16 + L9.a 6 = 22 rules)"
 
@@ -56,13 +63,13 @@ echo "  ✓ all ${#required_fixtures[@]} required fixtures present"
 # ─── LAYER C1: L1 regression ──────────────────────────────────────────
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" \
     reduce-symbolic-dag fixtures/symbolic/dag_in.json) \
-    >/tmp/tgrad_L9_l1.json 2>&1 || {
+    >"$L9_BASE" 2>&1 || {
   echo "  ✗ reduce-symbolic-dag on L1 47-node fixture failed"
-  cat /tmp/tgrad_L9_l1.json; exit 1
+  cat "$L9_BASE"; exit 1
 }
-if ! diff -q /tmp/tgrad_L9_l1.json "$TGRAD_DIR/fixtures/symbolic/dag_out_expected.json" >/dev/null; then
+if ! diff -q "$L9_BASE" "$TGRAD_DIR/fixtures/symbolic/dag_out_expected.json" >/dev/null; then
   echo "  ✗ L1 47-node DAG reduces DIFFERENTLY after L9 rule additions (regression)"
-  diff /tmp/tgrad_L9_l1.json "$TGRAD_DIR/fixtures/symbolic/dag_out_expected.json" | head -20
+  diff "$L9_BASE" "$TGRAD_DIR/fixtures/symbolic/dag_out_expected.json" | head -20
   exit 1
 fi
 echo "  ✓ L1 47-node DAG still reduces byte-equally (no regression from new rules)"
@@ -70,13 +77,13 @@ echo "  ✓ L1 47-node DAG still reduces byte-equally (no regression from new ru
 # ─── LAYER C2: L9 new-rule fixture ────────────────────────────────────
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" \
     reduce-symbolic-dag fixtures/symbolic/dag_in_l9.json) \
-    >/tmp/tgrad_L9_new.json 2>&1 || {
+    >"$L9_NEW" 2>&1 || {
   echo "  ✗ reduce-symbolic-dag on L9 fixture failed"
-  cat /tmp/tgrad_L9_new.json; exit 1
+  cat "$L9_NEW"; exit 1
 }
-if ! diff -q /tmp/tgrad_L9_new.json "$TGRAD_DIR/fixtures/symbolic/dag_out_l9_expected.json" >/dev/null; then
+if ! diff -q "$L9_NEW" "$TGRAD_DIR/fixtures/symbolic/dag_out_l9_expected.json" >/dev/null; then
   echo "  ✗ L9 fixture does NOT reduce to expected (the 6 new rules' chain)"
-  diff /tmp/tgrad_L9_new.json "$TGRAD_DIR/fixtures/symbolic/dag_out_l9_expected.json" | head -20
+  diff "$L9_NEW" "$TGRAD_DIR/fixtures/symbolic/dag_out_l9_expected.json" | head -20
   exit 1
 fi
 echo "  ✓ L9 fixture (6 new rules: 0+x, 1*x, x-x, x-0, x|0, x|x) reduces correctly"
@@ -84,7 +91,7 @@ echo "  ✓ L9 fixture (6 new rules: 0+x, 1*x, x-x, x-0, x|0, x|x) reduces corre
 # ─── LAYER D: negative test — bogus path ──────────────────────────────
 set +e
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" \
-    reduce-symbolic-dag /nonexistent/path.json) >/tmp/tgrad_L9_neg.txt 2>&1
+    reduce-symbolic-dag /nonexistent/path.json) >"$L9_NEG" 2>&1
 neg_rc=$?
 set -e
 if [[ "$neg_rc" -eq 0 ]]; then
@@ -97,8 +104,8 @@ echo "  ✓ negative test correctly rejected (bogus path → nonzero exit)"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-l1_hash="$(shasum -a 256 /tmp/tgrad_L9_l1.json | awk '{print $1}')"
-l9_hash="$(shasum -a 256 /tmp/tgrad_L9_new.json | awk '{print $1}')"
+l1_hash="$(shasum -a 256 "$L9_BASE" | awk '{print $1}')"
+l9_hash="$(shasum -a 256 "$L9_NEW" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L9.json" <<EOF
 {

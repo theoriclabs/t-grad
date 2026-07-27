@@ -5,9 +5,17 @@
 # Tgrad's unified namespace. L3 stays at capture-and-replay for the
 # matmul MSL (algebraic emit is L8 per the brief).
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L3_LIN="$(tgrad_run_path L3_linearize.json)"
+L3_TC="$(tgrad_run_path L3_tc.txt)"
+L3_TC_NEG="$(tgrad_run_path L3_tc_negative.txt)"
+L3_MSL="$(tgrad_run_path L3_matmul.msl)"
 
 echo "[L3] codegen + renderer"
 
@@ -63,12 +71,12 @@ echo "  ✓ all ${#required_fixtures[@]} required fixtures present"
 # Sub-predicate 4a: linearize — DFS post-order toposort on phase-07's
 # 8-UOp sub-DAG.
 ./.lake/build/bin/tgrad-cli linearize "$TGRAD_DIR/fixtures/codegen/linearize_in.json" \
-    >/tmp/tgrad_L3_lin.json 2>&1 || {
-  echo "  ✗ tgrad-cli linearize failed"; cat /tmp/tgrad_L3_lin.json; exit 1
+    >"$L3_LIN" 2>&1 || {
+  echo "  ✗ tgrad-cli linearize failed"; cat "$L3_LIN"; exit 1
 }
-if ! diff -q /tmp/tgrad_L3_lin.json "$TGRAD_DIR/fixtures/codegen/linearize_expected.json" >/dev/null; then
+if ! diff -q "$L3_LIN" "$TGRAD_DIR/fixtures/codegen/linearize_expected.json" >/dev/null; then
   echo "  ✗ Tgrad.Codegen.Linearize disagrees with captured output"
-  diff /tmp/tgrad_L3_lin.json "$TGRAD_DIR/fixtures/codegen/linearize_expected.json" | head -20
+  diff "$L3_LIN" "$TGRAD_DIR/fixtures/codegen/linearize_expected.json" | head -20
   exit 1
 fi
 echo "  ✓ Tgrad.Codegen.Linearize matches captured post-order"
@@ -77,35 +85,35 @@ echo "  ✓ Tgrad.Codegen.Linearize matches captured post-order"
 # pinned sha (0x820a2f5e) for the bf16 64x64 sentinel; `null` for any
 # other input.
 ./.lake/build/bin/tgrad-cli apply-opt-tc bf16_64x64 \
-    >/tmp/tgrad_L3_tc.txt 2>&1 || {
-  echo "  ✗ tgrad-cli apply-opt-tc bf16_64x64 failed"; cat /tmp/tgrad_L3_tc.txt; exit 1
+    >"$L3_TC" 2>&1 || {
+  echo "  ✗ tgrad-cli apply-opt-tc bf16_64x64 failed"; cat "$L3_TC"; exit 1
 }
 expected_tc="0x820a2f5e"
-if ! grep -q "$expected_tc" /tmp/tgrad_L3_tc.txt; then
+if ! grep -q "$expected_tc" "$L3_TC"; then
   echo "  ✗ apply-opt-tc bf16_64x64 didn't return expected sha $expected_tc"
-  cat /tmp/tgrad_L3_tc.txt; exit 1
+  cat "$L3_TC"; exit 1
 fi
 echo "  ✓ Tgrad.Codegen.Opt.Apply returns captured sha for bf16 64x64"
 
 ./.lake/build/bin/tgrad-cli apply-opt-tc fp32_4x4 \
-    >/tmp/tgrad_L3_tc_neg.txt 2>&1 || {
-  echo "  ✗ tgrad-cli apply-opt-tc fp32_4x4 failed"; cat /tmp/tgrad_L3_tc_neg.txt; exit 1
+    >"$L3_TC_NEG" 2>&1 || {
+  echo "  ✗ tgrad-cli apply-opt-tc fp32_4x4 failed"; cat "$L3_TC_NEG"; exit 1
 }
-if ! grep -q "null" /tmp/tgrad_L3_tc_neg.txt; then
+if ! grep -q "null" "$L3_TC_NEG"; then
   echo "  ✗ apply-opt-tc fp32_4x4 should return null (unsupported shape/dtype)"
-  cat /tmp/tgrad_L3_tc_neg.txt; exit 1
+  cat "$L3_TC_NEG"; exit 1
 fi
 echo "  ✓ Tgrad.Codegen.Opt.Apply returns null for non-captured input"
 
 # Sub-predicate 4c: render-metal — capture lookup for bf16 64×64.
 # renderMetal resolves fixture paths from REPO_ROOT, so cd there.
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" render-metal bf16_64x64) \
-    >/tmp/tgrad_L3_msl.msl 2>&1 || {
-  echo "  ✗ tgrad-cli render-metal failed"; cat /tmp/tgrad_L3_msl.msl; exit 1
+    >"$L3_MSL" 2>&1 || {
+  echo "  ✗ tgrad-cli render-metal failed"; cat "$L3_MSL"; exit 1
 }
-if ! diff -q /tmp/tgrad_L3_msl.msl "$TGRAD_DIR/fixtures/codegen/matmul_64x64.msl" >/dev/null; then
+if ! diff -q "$L3_MSL" "$TGRAD_DIR/fixtures/codegen/matmul_64x64.msl" >/dev/null; then
   echo "  ✗ Tgrad.Renderer.Metal output disagrees with captured 64×64 MSL"
-  diff /tmp/tgrad_L3_msl.msl "$TGRAD_DIR/fixtures/codegen/matmul_64x64.msl" | head -20
+  diff "$L3_MSL" "$TGRAD_DIR/fixtures/codegen/matmul_64x64.msl" | head -20
   exit 1
 fi
 echo "  ✓ Tgrad.Renderer.Metal returns captured 64×64 MSL byte-equal"
@@ -123,9 +131,9 @@ echo "  ✓ negative test correctly rejected (render-metal exits nonzero for unk
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-lin_hash="$(shasum -a 256 /tmp/tgrad_L3_lin.json | awk '{print $1}')"
-tc_hash="$(shasum -a 256 /tmp/tgrad_L3_tc.txt | awk '{print $1}')"
-msl_hash="$(shasum -a 256 /tmp/tgrad_L3_msl.msl | awk '{print $1}')"
+lin_hash="$(shasum -a 256 "$L3_LIN" | awk '{print $1}')"
+tc_hash="$(shasum -a 256 "$L3_TC" | awk '{print $1}')"
+msl_hash="$(shasum -a 256 "$L3_MSL" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L3.json" <<EOF
 {

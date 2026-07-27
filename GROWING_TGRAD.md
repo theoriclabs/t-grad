@@ -467,14 +467,15 @@ instruction to spawn three worktrees.
 
 ### Verification
 
-Verification is serial on this repository and machine:
+Verification is scheduled by resource on this repository and machine:
 
-- 141 distinct fixed `/tmp/tgrad_*` paths make concurrent gate/devcheck runs
-  clobber one another;
-- the Lean build tree is shared;
-- the machine has one Metal GPU;
+- gate and devcheck artifacts live under an owned run root inherited by nested
+  scripts; Lean rangeify tracing requires an explicit run-scoped path;
+- build-independent CPU checks with disjoint outputs may run concurrently;
+- the Lean build tree is shared, so builds that write it remain serial;
+- the machine has one Metal GPU, so Metal work remains serial in practice;
 - timing experiments interfere even across separate processes;
-- evidence generation writes shared committed fixtures.
+- evidence generation writes shared committed fixtures and has one integrator.
 
 Separate processes avoid the process-global Metal state race, but they do not
 make one GPU suitable for concurrent timing. Threads in one runtime remain
@@ -489,8 +490,8 @@ The resulting operating model is unusual but clear:
 
 ```text
 parallelize investigation and disjoint authoring
+parallelize build-independent CPU checks with disjoint run roots
 serialize builds that share artifacts
-serialize all gate/devcheck execution until temp paths are namespaced
 serialize all GPU performance work
 use one integrator to record candidate checks and promotion
 ```

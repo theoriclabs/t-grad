@@ -2,8 +2,12 @@
 # Gate L14.B umbrella — verifies L14.B.1 + L14.B.2 + L14.B.3 evidence
 # is intact; rolls up sha256s into L14_B.json.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
 echo "[L14_B] umbrella — view methods + index-UOp codegen + 16 pinned views"

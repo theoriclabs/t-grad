@@ -27,9 +27,17 @@
 #           the per-shape matmul path)
 #   - Layer E : evidence
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L13A_BUILD="$(tgrad_run_path L13A_build.log)"
+L13A_DYLIB="$(tgrad_run_path L13A_dylib.log)"
+L13A_L11="$(tgrad_run_path L13A_L11.log)"
+L13A_L12="$(tgrad_run_path L13A_L12.log)"
 
 echo "[L13_A] pickDispatchPlan exhaustive (11 sentinels) + decide-proved cross-check"
 
@@ -141,9 +149,9 @@ echo "  ✓ no sorry in Heuristic.lean — theorem fully proved"
 # ─── LAYER C: build succeeds (theorem decided at build time) ─────────
 # The theorem is `decide`-proved; if any sentinel mismatches, the
 # build would have failed. We rebuild here as a fresh check.
-(cd "$TGRAD_DIR" && lake build) >/tmp/tgrad_L13A_build.log 2>&1 || {
+(cd "$TGRAD_DIR" && lake build) >"$L13A_BUILD" 2>&1 || {
   echo "  ✗ lake build failed — theorem fails decide?"
-  tail -30 /tmp/tgrad_L13A_build.log | sed 's/^/      /'
+  tail -30 "$L13A_BUILD" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ lake build succeeds (pickDispatchPlan_matches_capture passes decide)"
@@ -155,14 +163,14 @@ TGRAD_PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 export TGRAD_PY
 # Need to rebuild dylib since the Lean code changed (Pipeline.realize's
 # delegating dispatchDimsFor flows through libtgrad_Tgrad.dylib).
-ensure_dylib /tmp/tgrad_L13A_dylib.log || exit 1
+ensure_dylib "$L13A_DYLIB" || exit 1
 
 # L11 — full benchmark sweep (50 pairs)
 echo "  [D4] re-running L11.sh inline (~3 min) ..."
 (cd "$REPO_ROOT" && bash "$TGRAD_DIR/scripts/gates/L11.sh") \
-    >/tmp/tgrad_L13A_L11.log 2>&1 || {
+    >"$L13A_L11" 2>&1 || {
   echo "  ✗ L11 broken by L13.A refactor"
-  tail -20 /tmp/tgrad_L13A_L11.log | sed 's/^/      /'
+  tail -20 "$L13A_L11" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L11 still green after L13.A refactor"
@@ -170,9 +178,9 @@ echo "  ✓ L11 still green after L13.A refactor"
 # L12 — algebraic emit sweep
 echo "  [D4] re-running L12.sh inline (~3 min) ..."
 (cd "$REPO_ROOT" && bash "$TGRAD_DIR/scripts/gates/L12.sh") \
-    >/tmp/tgrad_L13A_L12.log 2>&1 || {
+    >"$L13A_L12" 2>&1 || {
   echo "  ✗ L12 broken by L13.A refactor"
-  tail -20 /tmp/tgrad_L13A_L12.log | sed 's/^/      /'
+  tail -20 "$L13A_L12" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L12 still green after L13.A refactor"

@@ -19,9 +19,16 @@
 #   - Layer D2: negative test — unsupported shape raises NotInLeanScope
 #   - Layer E : evidence file
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L6_DYLIB="$(tgrad_run_path L6_dylib.log)"
+L6_BENCH="$(tgrad_run_path L6_bench.txt)"
+L6_NEG="$(tgrad_run_path L6_negative.txt)"
 
 echo "[L6] Python authoring layer (real FFI)"
 
@@ -40,7 +47,7 @@ done
 echo "  ✓ all ${#required_modules[@]} required modules present"
 
 # The dylib must be buildable from the current source.
-ensure_dylib /tmp/tgrad_L6_dylib.log || exit 1
+ensure_dylib "$L6_DYLIB" || exit 1
 DYLIB="$TGRAD_DIR/.lake/build/lib/libtgrad.dylib"
 [[ -f "$DYLIB" ]] || { echo "  ✗ libtgrad.dylib not produced at $DYLIB"; exit 1; }
 echo "  ✓ libtgrad.dylib built ($(stat -f%z "$DYLIB" 2>/dev/null || stat -c%s "$DYLIB") bytes)"
@@ -103,17 +110,17 @@ PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench --shape 64x64x64 --dtype bf16) \
-    >/tmp/tgrad_L6_bench.txt 2>&1 || {
+    >"$L6_BENCH" 2>&1 || {
   echo "  ✗ python3 python/tgrad.py bench failed"
-  cat /tmp/tgrad_L6_bench.txt; exit 1
+  cat "$L6_BENCH"; exit 1
 }
-grep -q "py_byte_match: true"   /tmp/tgrad_L6_bench.txt || {
+grep -q "py_byte_match: true"   "$L6_BENCH" || {
   echo "  ✗ Python bench did NOT byte-match the captured tinygrad output"
-  cat /tmp/tgrad_L6_bench.txt; exit 1
+  cat "$L6_BENCH"; exit 1
 }
-grep -q "py_pipeline_ok: true"  /tmp/tgrad_L6_bench.txt || {
+grep -q "py_pipeline_ok: true"  "$L6_BENCH" || {
   echo "  ✗ Python bench missing py_pipeline_ok: true"
-  cat /tmp/tgrad_L6_bench.txt; exit 1
+  cat "$L6_BENCH"; exit 1
 }
 echo "  ✓ Python bench byte-matches captured tinygrad output (8192 bytes via ctypes)"
 
@@ -137,16 +144,16 @@ echo "  ✓ no subprocess usage in python/tgrad.py (anti-subprocess hard check)"
 # ─── LAYER D2: negative test — out-of-scope shape rejected cleanly ────
 set +e
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench --shape 7x9x11 --dtype bf16) \
-    >/tmp/tgrad_L6_neg.txt 2>&1
+    >"$L6_NEG" 2>&1
 neg_rc=$?
 set -e
 if [[ "$neg_rc" -eq 0 ]]; then
   echo "  ✗ bench --shape 7x9x11 returned 0 — should reject as NotInLeanScope"
-  cat /tmp/tgrad_L6_neg.txt; exit 1
+  cat "$L6_NEG"; exit 1
 fi
-grep -q "NotInLeanScope" /tmp/tgrad_L6_neg.txt || {
+grep -q "NotInLeanScope" "$L6_NEG" || {
   echo "  ✗ bench --shape 7x9x11 did not raise NotInLeanScope"
-  cat /tmp/tgrad_L6_neg.txt; exit 1
+  cat "$L6_NEG"; exit 1
 }
 echo "  ✓ negative test correctly rejected (out-of-scope shape → NotInLeanScope)"
 
@@ -154,7 +161,7 @@ echo "  ✓ negative test correctly rejected (out-of-scope shape → NotInLeanSc
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L6_bench.txt | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L6_BENCH" | awk '{print $1}')"
 dylib_hash="$(shasum -a 256 "$DYLIB" | awk '{print $1}')"
 expected_sha="$(shasum -a 256 "$TGRAD_DIR/fixtures/pipeline/matmul_64x64_bf16_seed42_expected.bin" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"

@@ -6,8 +6,12 @@
 # gate; do not remove any (the strong-done framework — README §11 —
 # depends on all five layers).
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
 GATE_NAME="L<n>"     # TODO: replace with actual gate name
@@ -50,16 +54,17 @@ done
 echo "  ✓ all ${#required_fixtures[@]} required fixtures present"
 
 # ─── LAYER C: behavioural cross-validation ────────────────────────────
-# Each predicate: tgrad-cli emit-X > tmp; diff tmp against captured.
+# Each predicate: tgrad-cli emit-X > a run artifact; diff it against captured.
 # Agent cannot fake — captured fixtures came from tinygrad.
 #
 # Pattern (repeat per predicate):
-#   ./.lake/build/bin/tgrad-cli <subcommand> [args] >/tmp/tgrad_${GATE_NAME}_X.json 2>&1 || {
-#     echo "  ✗ tgrad-cli <subcommand> failed"; cat /tmp/tgrad_${GATE_NAME}_X.json; exit 1
+#   gate_output="$(tgrad_run_path "${GATE_NAME}_output.json")"
+#   ./.lake/build/bin/tgrad-cli <subcommand> [args] >"$gate_output" 2>&1 || {
+#     echo "  ✗ tgrad-cli <subcommand> failed"; cat "$gate_output"; exit 1
 #   }
-#   if ! diff -q /tmp/tgrad_${GATE_NAME}_X.json "$TGRAD_DIR/fixtures/<path>.json" >/dev/null; then
+#   if ! diff -q "$gate_output" "$TGRAD_DIR/fixtures/<path>.json" >/dev/null; then
 #     echo "  ✗ <name> disagrees with captured fixture"
-#     diff /tmp/tgrad_${GATE_NAME}_X.json "$TGRAD_DIR/fixtures/<path>.json" | head -20
+#     diff "$gate_output" "$TGRAD_DIR/fixtures/<path>.json" | head -20
 #     exit 1
 #   fi
 #   echo "  ✓ <name> matches captured fixture"
@@ -68,16 +73,18 @@ echo "  ✓ all ${#required_fixtures[@]} required fixtures present"
 
 # ─── LAYER D: negative tests ──────────────────────────────────────────
 # Type system must reject deliberately-broken code. Write a small
-# .lean snippet to /tmp/, try to compile, expect failure.
+# .lean snippet to the run root, try to compile, expect failure.
 #
 # Pattern:
-#   cat >/tmp/tgrad_neg_${GATE_NAME}.lean <<'EOF'
+#   negative_lean="$(tgrad_run_path "${GATE_NAME}_negative.lean")"
+#   negative_log="$(tgrad_run_path "${GATE_NAME}_negative.log")"
+#   cat >"$negative_lean" <<'EOF'
 #   import Tgrad
 #   open Tgrad
 #   -- deliberately broken construction
 #   def bad := ...
 #   EOF
-#   if (cd "$TGRAD_DIR" && lake env lean /tmp/tgrad_neg_${GATE_NAME}.lean) >/tmp/neg.log 2>&1; then
+#   if (cd "$TGRAD_DIR" && lake env lean "$negative_lean") >"$negative_log" 2>&1; then
 #     echo "  ✗ negative test compiled — type system isn't rejecting bad input"
 #     exit 1
 #   fi
@@ -93,7 +100,7 @@ host="$(hostname)"; plat="$(uname -srm)"
 
 # TODO: replace with one shasum per behavioural-predicate output.
 # Example:
-#   x_hash="$(shasum -a 256 /tmp/tgrad_${GATE_NAME}_X.json | awk '{print $1}')"
+#   x_hash="$(shasum -a 256 "$gate_output" | awk '{print $1}')"
 
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/${GATE_NAME}.json" <<EOF

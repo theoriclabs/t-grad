@@ -25,9 +25,16 @@
 #           `_lib.tgrad_matmul_small` (not the sentinel path)
 #   - Layer E : evidence
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L13B_DYLIB="$(tgrad_run_path L13B_dylib.log)"
+L13B_BENCH="$(tgrad_run_path L13B_bench.jsonl)"
+L13B_LOG="$(tgrad_run_path L13B_bench.txt)"
 
 echo "[L13_B] scalar matmul for below-TC-tile (5 shapes)"
 
@@ -86,7 +93,7 @@ print(sum(1 for p in d if p.get("bucket")=="below_tc_tile"))' \
 echo "  ✓ manifest has exactly 5 below_tc_tile entries"
 
 # Rebuild dylib (capturing the L13.B Lean changes).
-ensure_dylib /tmp/tgrad_L13B_dylib.log || exit 1
+ensure_dylib "$L13B_DYLIB" || exit 1
 DYLIB="$TGRAD_DIR/.lake/build/lib/libtgrad.dylib"
 for sym in _tgrad_matmul _tgrad_matmul_alg _tgrad_matmul_small; do
   if ! nm -gU "$DYLIB" 2>/dev/null | awk '{print $3}' | grep -qx "$sym"; then
@@ -133,21 +140,21 @@ echo "  ✓ tgrad.py wires _SMALL_TRIPLE_SET → _lib.tgrad_matmul_small"
 
 # ─── LAYER C: bench-small sweep over the 5 below-TC-tile shapes ──────
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-small \
-    --output /tmp/tgrad_L13B_bench.jsonl) \
-    >/tmp/tgrad_L13B_bench.txt 2>&1 || {
+    --output "$L13B_BENCH") \
+    >"$L13B_LOG" 2>&1 || {
   echo "  ✗ python bench-small failed"
-  tail -20 /tmp/tgrad_L13B_bench.txt | sed 's/^/      /'
+  tail -20 "$L13B_LOG" | sed 's/^/      /'
   exit 1
 }
-n_rows="$(wc -l < /tmp/tgrad_L13B_bench.jsonl | awk '{print $1}')"
+n_rows="$(wc -l < "$L13B_BENCH" | awk '{print $1}')"
 [[ "$n_rows" -eq 5 ]] || {
   echo "  ✗ bench-small produced $n_rows rows (need 5)"; exit 1
 }
 echo "  ✓ bench-small JSONL has exactly 5 rows"
 
-STATS_JSON="$("$PY" - <<'PYSTATS'
-import json
-rows = [json.loads(l) for l in open("/tmp/tgrad_L13B_bench.jsonl")]
+STATS_JSON="$("$PY" - "$L13B_BENCH" <<'PYSTATS'
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])]
 n_correct = sum(1 for r in rows if r["correct"])
 print(json.dumps({
     "n_correct": n_correct,
@@ -169,7 +176,7 @@ echo "  ✓ all 5 below-TC-tile shapes pass correctness"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L13B_bench.jsonl | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L13B_BENCH" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/general_shape_manifest.json" | awk '{print $1}')"
 scalar_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulScalar.lean" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"

@@ -16,9 +16,16 @@
 #               line; reject any tinygrad import in bench harness
 #   - Layer E : evidence
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L11_DYLIB="$(tgrad_run_path L11_dylib.log)"
+L11_BENCH="$(tgrad_run_path L11_bench.jsonl)"
+L11_LOG="$(tgrad_run_path L11_bench.txt)"
 
 echo "[L11] full benchmark parity (50 shape×dist pairs)"
 
@@ -82,7 +89,7 @@ fi
 echo "  ✓ @[export tgrad_matmul_lean] declaration present"
 
 # Rebuild dylib (other gates' preflight may have wiped it).
-ensure_dylib /tmp/tgrad_L11_dylib.log || exit 1
+ensure_dylib "$L11_DYLIB" || exit 1
 DYLIB="$TGRAD_DIR/.lake/build/lib/libtgrad.dylib"
 if ! nm -gU "$DYLIB" 2>/dev/null | awk '{print $3}' | grep -qx "_tgrad_matmul"; then
   echo "  ✗ libtgrad.dylib missing _tgrad_matmul symbol (general entry)"; exit 1
@@ -113,21 +120,21 @@ echo "  ✓ tgrad_bench.py is tinygrad-free (runtime independence preserved)"
 # ─── LAYER C: behavioural — run the 50-pair sweep ─────────────────────
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-full \
     --baseline "$BASELINE_FULL" \
-    --output /tmp/tgrad_L11_bench.jsonl --warmup 30 --measured 30) \
-    >/tmp/tgrad_L11_bench.txt 2>&1 || {
+    --output "$L11_BENCH" --warmup 30 --measured 30) \
+    >"$L11_LOG" 2>&1 || {
   echo "  ✗ python bench-full failed"
-  tail -30 /tmp/tgrad_L11_bench.txt | sed 's/^/      /'
+  tail -30 "$L11_LOG" | sed 's/^/      /'
   exit 1
 }
 
-n_rows="$(wc -l < /tmp/tgrad_L11_bench.jsonl | awk '{print $1}')"
+n_rows="$(wc -l < "$L11_BENCH" | awk '{print $1}')"
 [[ "$n_rows" -eq 50 ]] || { echo "  ✗ bench-full produced $n_rows rows (need 50)"; exit 1; }
 echo "  ✓ bench-full JSONL has exactly 50 rows"
 
 # Compute stats + assert all 50 correct + ratio.
-STATS_JSON="$("$PY" - <<'PYSTATS'
-import json
-rows = [json.loads(l) for l in open("/tmp/tgrad_L11_bench.jsonl")]
+STATS_JSON="$("$PY" - "$L11_BENCH" <<'PYSTATS'
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])]
 n_correct  = sum(1 for r in rows if r["correct"])
 n_ratio_ok = sum(1 for r in rows if r["ratio"] <= 1.5 and r["lean_ms_min"] > 0)
 ratios = sorted(r["ratio"] for r in rows)
@@ -164,7 +171,7 @@ echo "  ✓ all 50 pairs: correct=50/50, ratio_ok=50/50 (predicate: ≤ 1.5)"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$PROFILE"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L11_bench.jsonl | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L11_BENCH" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/pair_manifest.json" | awk '{print $1}')"
 tol_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/dist_tolerances.json" | awk '{print $1}')"
 baseline_hash="$(shasum -a 256 "$BASELINE_FULL" | awk '{print $1}')"

@@ -21,6 +21,11 @@ if [[ -z "${TGRAD_DIR:-}" ]]; then
 fi
 cd "$REPO_ROOT"
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+STRICT_A_EMIT="$(tgrad_run_path L13F_STRICT_A_synthetic_tg_kernel.msl)"
+STRICT_A_RENDER_ERR="$(tgrad_run_path L13F_STRICT_A_render.err)"
+STRICT_A_COMPILE="$(tgrad_run_path L13F_STRICT_A_compile.txt)"
+STRICT_A_L13F="$(tgrad_run_path L13F_STRICT_A_L13_F.log)"
+STRICT_A_L12="$(tgrad_run_path L13F_STRICT_A_L12.log)"
 
 echo "[L13_F_STRICT_A] Stmt grammar for tg memory + manual WMMA loads"
 
@@ -84,10 +89,10 @@ fi
 echo "  ✓ synthetic_tg_kernel exercises all 5 new ctors exactly once"
 
 # ─── LAYER C: render + byte-equal + compile smoke ─────────────────────
-EMIT_OUT="/tmp/tgrad_L13F_STRICT_A_synthetic_tg_kernel.msl"
-"$TGRAD_CLI" render-metal-algebraic synthetic_tg_kernel >"$EMIT_OUT" 2>/tmp/tgrad_L13F_STRICT_A_render.err || {
+EMIT_OUT="$STRICT_A_EMIT"
+"$TGRAD_CLI" render-metal-algebraic synthetic_tg_kernel >"$EMIT_OUT" 2>"$STRICT_A_RENDER_ERR" || {
   echo "  ✗ render-metal-algebraic synthetic_tg_kernel failed"
-  cat /tmp/tgrad_L13F_STRICT_A_render.err
+  cat "$STRICT_A_RENDER_ERR"
   exit 1
 }
 if ! cmp -s "$EMIT_OUT" "$FIXTURE"; then
@@ -97,7 +102,7 @@ if ! cmp -s "$EMIT_OUT" "$FIXTURE"; then
 fi
 echo "  ✓ synthetic_tg_kernel render byte-equals fixture"
 
-COMPILE_OUT="/tmp/tgrad_L13F_STRICT_A_compile.txt"
+COMPILE_OUT="$STRICT_A_COMPILE"
 "$TGRAD_CLI" ffi-compile-smoke "$EMIT_OUT" >"$COMPILE_OUT" 2>&1 || {
   echo "  ✗ ffi-compile-smoke rejected synthetic_tg_kernel"
   cat "$COMPILE_OUT"
@@ -112,16 +117,16 @@ fi
 echo "  ✓ synthetic-tg-kernel: fn_count: 1 (ffi-compile-smoke)"
 
 # ─── LAYER C2: regression checks ──────────────────────────────────────
-bash "$TGRAD_DIR/scripts/gates/L13_F.sh" >/tmp/tgrad_L13F_STRICT_A_L13_F.log 2>&1 || {
+bash "$TGRAD_DIR/scripts/gates/L13_F.sh" >"$STRICT_A_L13F" 2>&1 || {
   echo "  ✗ L13_F regression failed"
-  tail -40 /tmp/tgrad_L13F_STRICT_A_L13_F.log | sed 's/^/      /'
+  tail -40 "$STRICT_A_L13F" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F regression gate still green under §1.RELAX"
 
-bash "$TGRAD_DIR/scripts/gates/L12.sh" >/tmp/tgrad_L13F_STRICT_A_L12.log 2>&1 || {
+bash "$TGRAD_DIR/scripts/gates/L12.sh" >"$STRICT_A_L12" 2>&1 || {
   echo "  ✗ L12 regression failed"
-  tail -40 /tmp/tgrad_L13F_STRICT_A_L12.log | sed 's/^/      /'
+  tail -40 "$STRICT_A_L12" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L12 regression gate still green"

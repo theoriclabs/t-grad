@@ -17,6 +17,11 @@ if [[ -z "${TGRAD_DIR:-}" ]]; then
 fi
 cd "$REPO_ROOT"
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+STRICT_C_L13F="$(tgrad_run_path L13F_STRICT_C_L13_F.log)"
+STRICT_C_A="$(tgrad_run_path L13F_STRICT_C_A.log)"
+STRICT_C_B="$(tgrad_run_path L13F_STRICT_C_B.log)"
+STRICT_C_EMIT="$(tgrad_run_path L13F_STRICT_C_manual_prod.msl)"
+STRICT_C_RENDER_ERR="$(tgrad_run_path L13F_STRICT_C_render.err)"
 
 echo "[L13_F_STRICT_C] perf parity flip"
 
@@ -63,9 +68,9 @@ fi
 echo "  ✓ tinygrad TC-general baseline capture synchronizes measured work"
 
 # ─── LAYER C: strict behavioural gate ─────────────────────────────────
-bash "$L13F_GATE" >/tmp/tgrad_L13F_STRICT_C_L13_F.log 2>&1 || {
+bash "$L13F_GATE" >"$STRICT_C_L13F" 2>&1 || {
   echo "  ✗ strict L13_F regression failed"
-  tail -60 /tmp/tgrad_L13F_STRICT_C_L13_F.log | sed 's/^/      /'
+  tail -60 "$STRICT_C_L13F" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F strict gate passes"
@@ -86,16 +91,16 @@ PY
 echo "  ✓ L13_F evidence records strict perf + manual production"
 
 # ─── LAYER C2: focused regressions ────────────────────────────────────
-bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >/tmp/tgrad_L13F_STRICT_C_A.log 2>&1 || {
+bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >"$STRICT_C_A" 2>&1 || {
   echo "  ✗ L13_F_STRICT_A regression failed"
-  tail -40 /tmp/tgrad_L13F_STRICT_C_A.log | sed 's/^/      /'
+  tail -40 "$STRICT_C_A" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F_STRICT_A regression gate still green"
 
-bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_B.sh" >/tmp/tgrad_L13F_STRICT_C_B.log 2>&1 || {
+bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_B.sh" >"$STRICT_C_B" 2>&1 || {
   echo "  ✗ L13_F_STRICT_B regression failed"
-  tail -60 /tmp/tgrad_L13F_STRICT_C_B.log | sed 's/^/      /'
+  tail -60 "$STRICT_C_B" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F_STRICT_B regression gate still green"
@@ -117,10 +122,10 @@ grep -qF 'SEED="${HEAD_SHA:0:16}"' "$L13F_GATE" || {
 echo "  ✓ strict threshold and random recheck are structurally pinned"
 
 [[ -x "$TGRAD_CLI" ]] || { echo "  ✗ missing executable tgrad-cli at $TGRAD_CLI"; exit 1; }
-EMIT="/tmp/tgrad_L13F_STRICT_C_manual_prod.msl"
-"$TGRAD_CLI" render-metal-algebraic matmul_tc_manual_1024x1024x3072 >"$EMIT" 2>/tmp/tgrad_L13F_STRICT_C_render.err || {
+EMIT="$STRICT_C_EMIT"
+"$TGRAD_CLI" render-metal-algebraic matmul_tc_manual_1024x1024x3072 >"$EMIT" 2>"$STRICT_C_RENDER_ERR" || {
   echo "  ✗ render-metal-algebraic failed for production manual TC kernel"
-  cat /tmp/tgrad_L13F_STRICT_C_render.err | sed 's/^/      /'
+  sed 's/^/      /' "$STRICT_C_RENDER_ERR"
   exit 1
 }
 grep -qF 'threadgroup_barrier(mem_flags::mem_threadgroup);' "$EMIT" || {

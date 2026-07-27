@@ -2,9 +2,15 @@
 # Gate L15.C — experiment-closure verdict + EXPERIMENT_RESULT.md authoring.
 # Per `Tgrad/GOAL_L15_C.md` + `GOAL_L15.md §3 criteria 7-8` + §6 memo shape.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L15C_AUDIT="$(tgrad_run_path L15C_audit.json)"
+L15C_AUDIT_ERR="$(tgrad_run_path L15C_audit.err)"
 
 echo "[L15_C] experiment closure — verdict + EXPERIMENT_RESULT.md"
 
@@ -30,11 +36,11 @@ echo "  ✓ EXPERIMENT_RESULT.md has all 8 required sections"
 [[ -f "$TGRAD_DIR/scripts/dev/l15_c_audit.py" ]] || { echo "  ✗ l15_c_audit.py missing"; exit 1; }
 
 # Layer C — run the audit; capture JSON.
-AUDIT_OUT=/tmp/tgrad_L15_C_audit.json
-"$PY" "$TGRAD_DIR/scripts/dev/l15_c_audit.py" >"$AUDIT_OUT" 2>/tmp/tgrad_L15_C_audit.err
+AUDIT_OUT="$L15C_AUDIT"
+"$PY" "$TGRAD_DIR/scripts/dev/l15_c_audit.py" >"$AUDIT_OUT" 2>"$L15C_AUDIT_ERR"
 if [[ ! -s "$AUDIT_OUT" ]]; then
   echo "  ✗ audit produced no output"
-  cat /tmp/tgrad_L15_C_audit.err; exit 1
+  cat "$L15C_AUDIT_ERR"; exit 1
 fi
 
 N_PASS="$("$PY" -c '

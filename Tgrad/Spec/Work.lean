@@ -371,14 +371,16 @@ def workItems : List WorkItem :=
         "scripts/gate.sh", "scripts/devcheck.sh",
         "scripts/runtime_independence.sh", "scripts/differential_codegen.sh",
         "scripts/dev/l15_a_audit.py", "scripts/dev/test_run_context.sh",
-        "scripts/gates"],
+        "scripts/gates", "Tgrad/Pipeline.lean",
+        "Tgrad/Spec/LiveConditions.lean", "Tgrad/Spec/RuntimeWork.lean",
+        "PARITY.md", "GROWING_TGRAD.md"],
       authoringResources := [.sourceTree],
       verificationResources := [.leanBuildTree, .tmpNamespace],
       cost := 4, goalDistance := 0,
       validation := plannedValidation
-        "zero fixed /tmp/tgrad_* paths and one owned run root inherited by every nested gate"
-        "bash -n every changed shell script; run two representative non-GPU scenarios concurrently; inspect distinct artifacts and cleanup/keep behavior; do not run the gate sweep while authoring"
-        "concurrent runs cannot clobber; direct and nested entry points initialize safely; only the root owner cleans; invalid child paths reject; rg /tmp/tgrad_ scripts is empty"
+        "zero fixed gate/devcheck /tmp paths; one owned root inherited by nested gates; Lean trace emission requires an explicit run-scoped path"
+        "run two concurrent contexts with distinct artifacts and trace paths; bash -n every shell script; exercise missing and explicit Lean trace paths; run a focused build-independent entry point"
+        "no collision, broad cleanup, or global symlink; direct and nested entry points initialize safely; only the root owner cleans; shared build/GPU/evidence resources remain serial"
         [.build, .semantic, .safety, .resourceIsolation],
       recovery := "retain serial verification and revert the affected script batch if any direct or nested entry point loses its artifacts",
       progress := .inProgress "agent-carver" },
@@ -2079,7 +2081,7 @@ def printReport : IO Unit := do
   IO.println s!"growth loops: {currentGrowthMetrics.growthCases} total, {currentGrowthMetrics.promotedCases} promoted, {currentGrowthMetrics.openFindingsCovered}/{currentGrowthMetrics.openFindingsTotal} open findings covered"
   IO.println s!"durable evolution ledger: {liveEvolutionEvents.length} live event(s); historical events remain unknown"
   IO.println s!"parallel evolution frontier: {commaSeparated frontierIds}"
-  IO.println "verification policy: serial (shared Lean build, fixed /tmp namespace, one Metal GPU)"
+  IO.println "verification policy: run-scoped CPU artifacts may parallelize; shared Lean builds, Metal work, timing, and evidence integration serialize"
 
 end Evolution
 end Tgrad.Spec

@@ -6,6 +6,11 @@
 #
 # Sourced by scripts/gates/L<n>.sh. Do not run directly.
 
+_TGRAD_CHECKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_TGRAD_CHECKS_DIR/run_context.sh"
+tgrad_run_context_init
+unset _TGRAD_CHECKS_DIR
+
 # -----------------------------------------------------------------------
 # check_no_sorry — fail if any Tgrad module contains `sorry`.
 #
@@ -65,16 +70,16 @@ check_no_unsafe() {
 # check_warnings — fail if `lake build`'s stderr contains warning lines
 # that are not in scripts/lib/warning_allowlist.txt.
 #
-# Reads /tmp/tgrad_clean_rebuild.log produced by check_clean_rebuild.
+# Reads the run-scoped clean rebuild log produced by check_clean_rebuild.
 # Call check_clean_rebuild first.
 # -----------------------------------------------------------------------
 check_warnings() {
-  local log="/tmp/tgrad_clean_rebuild.log"
+  local log="$(tgrad_run_path clean_rebuild.log)"
   local allowlist="$TGRAD_DIR/scripts/lib/warning_allowlist.txt"
   [[ -f "$log" ]] || return 0   # if no log, check_clean_rebuild handles it
   [[ -f "$allowlist" ]] || { echo "  ✗ check_warnings: warning_allowlist.txt missing"; return 1; }
   # Strip comments + blanks from allowlist to produce the regex list.
-  local tmp_re="$(mktemp)"
+  local tmp_re="$(tgrad_run_path warning_allowlist.regex)"
   grep -vE '^[[:space:]]*(#|$)' "$allowlist" > "$tmp_re"
   # Find warning lines that don't match any allowlisted pattern.
   local stray
@@ -104,14 +109,16 @@ check_warnings() {
 check_clean_rebuild() {
   cd "$TGRAD_DIR"
   rm -rf .lake/build/lib .lake/build/ir .lake/build/bin 2>/dev/null
-  : >/tmp/tgrad_clean_rebuild.log  # truncate the shared log
+  local rebuild_log
+  rebuild_log="$(tgrad_run_path clean_rebuild.log)"
+  : >"$rebuild_log"
   # If a C bridge is present (L4+), build the .o files before lake.
   # The Tgrad lakefile.lean links them into tgrad-cli + tgrad-tests
   # via moreLinkArgs; missing .o files would surface as link errors.
   if [[ -f c/Makefile ]]; then
-    make -C c >>/tmp/tgrad_clean_rebuild.log 2>&1 || {
+    make -C c >>"$rebuild_log" 2>&1 || {
       echo "  ✗ check_clean_rebuild: C bridge build (make -C c) failed"
-      sed 's/^/      /' /tmp/tgrad_clean_rebuild.log
+      sed 's/^/      /' "$rebuild_log"
       return 1
     }
   fi
@@ -119,9 +126,9 @@ check_clean_rebuild() {
   # may invoke. The Python-facing dylib target relinks against
   # libtgrad_Tgrad.dylib, so the clean rebuild must produce Tgrad:shared
   # before any gate calls ensure_dylib.
-  lake build Tgrad:shared tgrad-cli tgrad-tests >>/tmp/tgrad_clean_rebuild.log 2>&1 || {
+  lake build Tgrad:shared tgrad-cli tgrad-tests >>"$rebuild_log" 2>&1 || {
     echo "  ✗ check_clean_rebuild: build failed after rm -rf .lake/build/{lib,ir,bin}"
-    sed 's/^/      /' /tmp/tgrad_clean_rebuild.log
+    sed 's/^/      /' "$rebuild_log"
     return 1
   }
 }
@@ -134,7 +141,7 @@ check_clean_rebuild() {
 # verification or when debugging stale native artifacts.
 # -----------------------------------------------------------------------
 ensure_dylib() {
-  local log="${1:-/tmp/tgrad_dylib.log}"
+  local log="${1:-$(tgrad_run_path dylib.log)}"
   local make_args=(dylib)
   if [[ "${TGRAD_FORCE_REBUILD:-0}" == "1" ]]; then
     make_args=(-B dylib)

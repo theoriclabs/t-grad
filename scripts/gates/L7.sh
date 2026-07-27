@@ -19,9 +19,16 @@
 #   - Layer D : negative test — bench-timing on out-of-scope shape rejects
 #   - Layer E : evidence file (with measured ratio + raw lean_ms)
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L7_DYLIB="$(tgrad_run_path L7_dylib.log)"
+L7_TIMING="$(tgrad_run_path L7_timing.txt)"
+L7_NEG="$(tgrad_run_path L7_negative.txt)"
 
 echo "[L7] perf parity (single-shape; lean_ms / tinygrad_ms ≤ 1.5)"
 
@@ -51,18 +58,18 @@ PYCHECK
 echo "  ✓ pinned tinygrad baseline present + schema-valid ($(basename "$BASELINE"))"
 
 # Ensure libtgrad.dylib is current (L7 reuses L6's FFI surface).
-ensure_dylib /tmp/tgrad_L7_dylib.log || exit 1
+ensure_dylib "$L7_DYLIB" || exit 1
 echo "  ✓ libtgrad.dylib current (rebuilt if needed)"
 
 # ─── LAYER C: measure + ratio ─────────────────────────────────────────
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-timing \
     --shape 64x64x64 --dtype bf16 --warmup 200 --measured 500) \
-    >/tmp/tgrad_L7_timing.txt 2>&1 || {
-  echo "  ✗ python bench-timing failed"; cat /tmp/tgrad_L7_timing.txt; exit 1
+    >"$L7_TIMING" 2>&1 || {
+  echo "  ✗ python bench-timing failed"; cat "$L7_TIMING"; exit 1
 }
-LEAN_MS_MEDIAN="$(awk -F': ' '/py_lean_ms_median/ {print $2}' /tmp/tgrad_L7_timing.txt)"
+LEAN_MS_MEDIAN="$(awk -F': ' '/py_lean_ms_median/ {print $2}' "$L7_TIMING")"
 TINY_MS_MEDIAN="$("$PY" -c "import json; print(json.load(open('$BASELINE'))['tinygrad_ms']['median'])")"
-[[ -n "$LEAN_MS_MEDIAN" ]] || { echo "  ✗ couldn't parse py_lean_ms_median"; cat /tmp/tgrad_L7_timing.txt; exit 1; }
+[[ -n "$LEAN_MS_MEDIAN" ]] || { echo "  ✗ couldn't parse py_lean_ms_median"; cat "$L7_TIMING"; exit 1; }
 
 # Compute ratio + 1.5× check in Python (bash floats are awkward).
 RATIO_AND_CHECK="$("$PY" - "$LEAN_MS_MEDIAN" "$TINY_MS_MEDIAN" <<'PYRATIO'
@@ -95,16 +102,16 @@ echo "  ✓ Tgrad bf16 64×64 matmul within 1.5× of pinned tinygrad baseline"
 # ─── LAYER D: negative — out-of-scope shape rejects ───────────────────
 set +e
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-timing \
-    --shape 7x9x11 --dtype bf16) >/tmp/tgrad_L7_neg.txt 2>&1
+    --shape 7x9x11 --dtype bf16) >"$L7_NEG" 2>&1
 neg_rc=$?
 set -e
 if [[ "$neg_rc" -eq 0 ]]; then
   echo "  ✗ bench-timing --shape 7x9x11 returned 0 — should reject"
-  cat /tmp/tgrad_L7_neg.txt; exit 1
+  cat "$L7_NEG"; exit 1
 fi
-grep -q "NotInLeanScope" /tmp/tgrad_L7_neg.txt || {
+grep -q "NotInLeanScope" "$L7_NEG" || {
   echo "  ✗ bench-timing --shape 7x9x11 did not raise NotInLeanScope"
-  cat /tmp/tgrad_L7_neg.txt; exit 1
+  cat "$L7_NEG"; exit 1
 }
 echo "  ✓ negative test correctly rejected (out-of-scope shape → NotInLeanScope)"
 
@@ -112,7 +119,7 @@ echo "  ✓ negative test correctly rejected (out-of-scope shape → NotInLeanSc
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$PROFILE"; plat="$(uname -srm)"
-timing_hash="$(shasum -a 256 /tmp/tgrad_L7_timing.txt | awk '{print $1}')"
+timing_hash="$(shasum -a 256 "$L7_TIMING" | awk '{print $1}')"
 baseline_hash="$(shasum -a 256 "$BASELINE" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L7.json" <<EOF

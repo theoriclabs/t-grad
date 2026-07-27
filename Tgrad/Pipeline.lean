@@ -56,8 +56,8 @@ namespace Pipeline
 -/
 
 /-- L14.B.2.c: one row per `Pipeline.realize` call when
-    `TGRAD_RANGEIFY_TRACE=1` is set; emitted as JSONL to
-    `/tmp/tgrad_rangeify_trace.jsonl`. -/
+    `TGRAD_RANGEIFY_TRACE=1` is set; emitted as JSONL to the explicit
+    `TGRAD_RANGEIFY_TRACE_PATH`. -/
 structure RangeifyTraceRow where
   input_uop_kind          : String
   output_uop_kind         : String
@@ -66,12 +66,17 @@ structure RangeifyTraceRow where
   root_indexed_ops_count  : Nat
   deriving Repr, Inhabited
 
-/-- L14.B.2.c: write a trace row to `/tmp/tgrad_rangeify_trace.jsonl`
-    when the `TGRAD_RANGEIFY_TRACE` env var is set. No-op otherwise —
-    L11/L13/L13_F sweeps don't set the env var and stay hot-path-free. -/
+/-- L14.B.2.c: write a trace row to `TGRAD_RANGEIFY_TRACE_PATH` when
+    `TGRAD_RANGEIFY_TRACE` is set. No-op otherwise — L11/L13/L13_F sweeps
+    don't set the env var and stay hot-path-free. A trace request without an
+    explicit path is rejected instead of falling back to shared global state. -/
 def RangeifyTrace.maybeEmit (row : RangeifyTraceRow) : IO Unit := do
   let some _ ← IO.getEnv "TGRAD_RANGEIFY_TRACE" | pure ()
-  let path := "/tmp/tgrad_rangeify_trace.jsonl"
+  let some path ← IO.getEnv "TGRAD_RANGEIFY_TRACE_PATH" |
+    throw <| IO.userError
+      "TGRAD_RANGEIFY_TRACE requires an explicit TGRAD_RANGEIFY_TRACE_PATH"
+  if path.isEmpty then
+    throw <| IO.userError "TGRAD_RANGEIFY_TRACE_PATH must not be empty"
   let line :=
     s!"\{\"input_uop_kind\":\"{row.input_uop_kind}\","
       ++ s!"\"output_uop_kind\":\"{row.output_uop_kind}\","

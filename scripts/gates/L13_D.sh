@@ -8,9 +8,16 @@
 # since HEAD changes per commit. Each sample is one matmul with
 # `gauss` distribution; correctness checked via `np.allclose`.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L13D_DYLIB="$(tgrad_run_path L13D_dylib.log)"
+L13D_BENCH="$(tgrad_run_path L13D_bench.jsonl)"
+L13D_LOG="$(tgrad_run_path L13D_bench.txt)"
 
 echo "[L13_D] random shape sweep (30 shapes, HEAD-derived seed)"
 
@@ -36,7 +43,7 @@ fi
 echo "  ✓ bench-random-shapes subcommand present"
 
 # Rebuild dylib.
-ensure_dylib /tmp/tgrad_L13D_dylib.log || exit 1
+ensure_dylib "$L13D_DYLIB" || exit 1
 
 # ─── LAYER D2: canonical numpy reference line ────────────────────────
 if ! grep -qF 'ref = np.matmul(a_bf16_as_f32, b_bf16_as_f32)' \
@@ -54,13 +61,13 @@ echo "  HEAD-derived seed: $SEED"
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-shapes \
-    --seed "$SEED" --count 30 --output /tmp/tgrad_L13D_bench.jsonl) \
-    >/tmp/tgrad_L13D_bench.txt 2>&1 || {
+    --seed "$SEED" --count 30 --output "$L13D_BENCH") \
+    >"$L13D_LOG" 2>&1 || {
   echo "  ✗ python bench-random-shapes failed"
-  tail -30 /tmp/tgrad_L13D_bench.txt | sed 's/^/      /'
+  tail -30 "$L13D_LOG" | sed 's/^/      /'
   exit 1
 }
-n_rows="$(wc -l < /tmp/tgrad_L13D_bench.jsonl | awk '{print $1}')"
+n_rows="$(wc -l < "$L13D_BENCH" | awk '{print $1}')"
 [[ "$n_rows" -eq 30 ]] || {
   echo "  ✗ bench-random-shapes produced $n_rows rows (need 30)"; exit 1
 }
@@ -70,7 +77,7 @@ N_CORRECT="$("$PY" -c '
 import json,sys
 rows=[json.loads(l) for l in open(sys.argv[1])]
 print(sum(1 for r in rows if r["correct"]))
-' /tmp/tgrad_L13D_bench.jsonl)"
+' "$L13D_BENCH")"
 echo "  random sweep: correct=$N_CORRECT/30"
 if [[ "$N_CORRECT" -ne 30 ]]; then
   echo "  ✗ L13.D RED: only $N_CORRECT/30 random shapes correct"
@@ -80,7 +87,7 @@ rows=[json.loads(l) for l in open(sys.argv[1])]
 for r in rows:
     if not r["correct"]:
         print(f"  FAIL idx={r.get(\"random_idx\",\"?\")} {r[\"shape\"]} max_diff={r[\"max_abs_diff\"]}")
-' /tmp/tgrad_L13D_bench.jsonl | head -10 | sed 's/^/      /'
+' "$L13D_BENCH" | head -10 | sed 's/^/      /'
   exit 1
 fi
 echo "  ✓ all 30 random shapes pass correctness"
@@ -89,7 +96,7 @@ echo "  ✓ all 30 random shapes pass correctness"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$HEAD_SHA"
 host="$(hostname)"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L13D_bench.jsonl | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L13D_BENCH" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_D.json" <<EOF
 {

@@ -4,9 +4,14 @@
 # Done when: the lakefile, three module stubs (Dtype, Shape, UOp), and
 # the two executables build and run cleanly. No correctness claims yet.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L0_TEST_LOG="$(tgrad_run_path L0_tests.log)"
 
 echo "[L0] scaffold"
 
@@ -14,13 +19,13 @@ echo "[L0] scaffold"
 run_preflight
 
 # Lake build + the Lean test exe.
-./.lake/build/bin/tgrad-tests >/tmp/tgrad_L0_tests.log 2>&1 || {
-  echo "  ✗ tgrad-tests exited nonzero"; cat /tmp/tgrad_L0_tests.log; exit 1
+./.lake/build/bin/tgrad-tests >"$L0_TEST_LOG" 2>&1 || {
+  echo "  ✗ tgrad-tests exited nonzero"; cat "$L0_TEST_LOG"; exit 1
 }
 
 # Specific predicate: scaffold layer prints its OK line.
-grep -qF 'scaffold layer ✓' /tmp/tgrad_L0_tests.log || {
-  echo "  ✗ tgrad-tests did not print the scaffold OK line"; cat /tmp/tgrad_L0_tests.log; exit 1
+grep -qF 'scaffold layer ✓' "$L0_TEST_LOG" || {
+  echo "  ✗ tgrad-tests did not print the scaffold OK line"; cat "$L0_TEST_LOG"; exit 1
 }
 
 # Write evidence.

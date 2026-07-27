@@ -41,12 +41,26 @@ reducing what the audit detects.
 """
 from __future__ import annotations
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def run_artifact(name: str) -> Path:
+    """Return one validated direct child of the shell-managed run root."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+        raise RuntimeError(f"invalid run artifact name: {name!r}")
+    raw_root = os.environ.get("TGRAD_RUN_DIR")
+    if not raw_root:
+        raise RuntimeError("TGRAD_RUN_DIR is required")
+    root = Path(raw_root)
+    if not root.is_absolute() or not root.is_dir():
+        raise RuntimeError(f"invalid TGRAD_RUN_DIR: {raw_root!r}")
+    return root / name
 
 
 def _count_matches(path: Path, pattern: str) -> int:
@@ -109,7 +123,7 @@ def check_symbolic_graph() -> dict:
     matmul_msl_files = list((REPO / "fixtures" / "codegen").glob("matmul_*.msl"))
     wmma_present = any("simdgroup_multiply_accumulate" in f.read_text() for f in matmul_msl_files)
     # Rangeify trace nontrivial rows.
-    trace = Path("/tmp/tgrad_rangeify_trace.jsonl")
+    trace = run_artifact("rangeify_trace.jsonl")
     nontrivial = 0
     rows_total = 0
     if trace.exists():
@@ -127,7 +141,7 @@ def check_symbolic_graph() -> dict:
     return {
         "criterion": "symbolic_graph",
         "verdict": verdict,
-        "artifact_paths": ["Tgrad/UOp.lean", "/tmp/tgrad_rangeify_trace.jsonl",
+        "artifact_paths": ["Tgrad/UOp.lean", str(trace),
                            "fixtures/codegen/matmul_*.msl"],
         "evidence": (
             f"uop_movement_ctors={n_ctors}/5 {found}, binop={binop_present}, "
@@ -310,7 +324,7 @@ def static_check_no_pickDispatchPlan_lookup_table() -> bool:
 
 
 def static_check_rangeify_traces_present() -> bool:
-    trace = Path("/tmp/tgrad_rangeify_trace.jsonl")
+    trace = run_artifact("rangeify_trace.jsonl")
     if not trace.exists():
         return False
     rows = 0

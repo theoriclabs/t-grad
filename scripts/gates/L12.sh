@@ -16,8 +16,12 @@
 #   D  pure renderer/runtime generation and observable alternate FFI route
 #   E  evidence describing semantic outcomes and current source digests
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
 echo "[L12] semantic generated-code validation (11 sentinel shapes)"
@@ -29,8 +33,7 @@ PROFILE="${TGRAD_PERF_PROFILE:-${TGRAD_HOST:-apple_m4_mini_release}}"
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 TGRAD_CLI="$TGRAD_DIR/.lake/build/bin/tgrad-cli"
-WORK_DIR="$(mktemp -d -t tgrad_L12.XXXXXX)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+WORK_DIR="$(tgrad_run_subdir L12_work)"
 
 # ─── LAYER B: generated implementation and independent oracle ─────────
 required_modules=(

@@ -253,6 +253,13 @@ def workUnits : List WorkUnit :=
        "Tgrad/Spec/ParityTarget.lean"] .loadBearing
       "capture the exact official revision twice, verify canonical and section hashes, render the generated Lean inventory, check 590 unique well-formed requirements, and reject calibrated source/hash/exclusion mutations"
       "this establishes the foreign denominator and its drift detection; it does not classify a single Tgrad coverage cell or produce parity evidence",
+    implemented "verify.run-isolation" "run-scoped verification artifact isolation"
+      .verification .validate [.candidateRevision, .scenario] [.validationEvidence]
+      .gateHarness [.sourceTree, .tmpNamespace] [.scenarioCount]
+      ["scripts/lib/run_context.sh", "scripts/dev/test_run_context.sh",
+       "scripts/lib/checks.sh", "Tgrad/Pipeline.lean"] .loadBearing
+      "launch concurrent run contexts; require disjoint owned roots and explicit rangeify trace paths; reject missing trace paths and unsafe cleanup targets"
+      "this permits build-independent CPU checks to overlap; shared Lean builds, Metal execution, timing, and committed evidence writes remain separately serialized",
     implemented "verify.unit-tests" "Lean assertion suite"
       .verification .validate [.candidateRevision, .scenario] [.validationEvidence]
       .gateHarness [.sourceTree, .leanBuildTree] [.scenarioCount]

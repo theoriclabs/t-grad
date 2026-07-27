@@ -7,16 +7,19 @@
 # gate now checks the emitted program, Lean's non-aliasing theorems, one fresh
 # captured/generated differential, and the production FFI smoke.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
 echo "[L14_B_2_b] generated matmul uses typed, non-aliasing indices"
 run_preflight
 cd "$REPO_ROOT"
 
-WORK_DIR="$(mktemp -d -t tgrad_L14B2b.XXXXXX)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+WORK_DIR="$(tgrad_run_subdir L14B2b_work)"
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 TGRAD_CLI="$TGRAD_DIR/.lake/build/bin/tgrad-cli"

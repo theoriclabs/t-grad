@@ -82,16 +82,13 @@ collapses the moment you lean on it.
 ## 3. The metric: tinygrad's own tests
 
 Parity should be measured by the suite tinygrad ships, run against
-Tgrad through the FFI. An unpinned inspection used while writing this plan
-found the following shape. These counts are orientation, **not** the
-compatibility denominator; the pinned manifest produced in Phase 0 replaces
-them:
+Tgrad through the FFI. The generated manifest for the pinned target contains:
 
 | group | files | size | backend needed |
 |---|---|---|---|
-| `test/null` | 55 | 571 KB | none |
-| `test/unit` | 44 | 376 KB | one |
-| `test/backend` | 42 | 644 KB | each |
+| `test/null` | 54 | 585,379 bytes | none |
+| `test/unit` | 43 | 385,954 bytes | one |
+| `test/backend` | 41 | 660,114 bytes | each |
 
 `test/backend/test_ops.py` alone is 196 KB of differential tests.
 
@@ -102,10 +99,9 @@ Why this rather than a hand-written checklist:
 - **It is exhaustive in ways a checklist is not.** It encodes a decade
   of edge cases nobody on this project would think to write.
 - **It is already partitioned along the axis that constrains us.**
-  tinygrad's own README splits tests by backend requirement. The 55
+  tinygrad's own README splits tests by backend requirement. The 54
   `null` files need no GPU, so they run in CI, run fast, and run in
-  parallel — which matters because verification here is serial on one
-  Metal device.
+  parallel — while Metal verification remains serial on one device.
 - **It directly encodes the stated design goal.** The project's claim
   is interface continuity with tinygrad. This measures exactly that.
 
@@ -230,9 +226,9 @@ claims. Five additions, each earned:
    consecutive runs of identical code; its variance exceeds the effect
    it purports to detect, so any single verdict from it is a coin flip.
 
-5. **Parallelism applies to authoring, not verification.** One GPU;
-   141 hardcoded `/tmp/tgrad_*` paths; a shared Lean build tree.
-   Agents write concurrently, one integrator verifies serially.
+5. **Parallelism is resource-specific.** Run-scoped CPU artifacts can be
+   produced concurrently. Shared `.lake` writes, Metal execution, timing, and
+   committed evidence integration remain serial on this machine.
 
 ## 7. What this plan deliberately does not do
 
@@ -758,8 +754,8 @@ adapter is intentionally thin and included in evidence identity.
 | read-only discovery / gap analysis | yes | no generated or evidence writes |
 | disjoint implementation authoring | yes, bounded | neither packet writes what the other reads or writes; disk/worktree capacity re-probed |
 | shared `.lake` build | no | one writer because incremental artifacts are shared |
-| gate/devcheck verification | no | 141 fixed `/tmp/tgrad_*` paths until namespaced |
-| CPU/property verification | later | safe after temp namespaces and isolated build outputs |
+| gate/devcheck verification | partially | run-scoped artifacts are isolated; any shared `.lake`, GPU, timing, or evidence write still serializes |
+| CPU/property verification | yes, bounded | build-independent checks with disjoint run roots and outputs may overlap |
 | Metal correctness in separate processes | logically yes, operationally serial preferred | one GPU; avoid interference and memory pressure |
 | performance | never parallel on this host | exclusive GPU and thermal lane |
 | committed evidence integration | no | single integrator and clean measured tree |
@@ -777,10 +773,11 @@ rules. The human-readable critical path is:
 
 ### Stage A — trust substrate
 
-1. Pin upstream and generate manifests.
+1. Pin upstream and generate manifests. Promoted at candidate `8c87034`.
 2. Import/adapter-run upstream null, unit and backend tests; publish the first
    honest score plus explicit exclusions.
-3. Namespace temporary artifacts so CPU verification can parallelize.
+3. Namespace temporary artifacts so build-independent CPU verification can
+   parallelize. Implemented; exact-tree promotion is pending.
 4. Replace frozen performance denominators with live paired observations; keep
    verdict `indeterminate` until repeated-session variance supports a rule.
 5. Finish coherent evidence regeneration and make provenance audit fatal only
@@ -899,11 +896,11 @@ templates, not from feature requests:
   with no silent exclusions.
 - Falsify by changing one generated symbol/hash and proving drift turns red.
 
-The research snapshot used for this plan observed official tinygrad package
-version `0.13.0` at commit `19c4d736f2bc8e26d21f08b28ffd6298408da00f`
-on 2026-07-27. That is a **candidate input**, not yet Tgrad's promoted target:
-the repository must reproduce the capture and commit its manifests before the
-pin becomes confirmed.
+The promoted target is official tinygrad package version `0.13.0` at commit
+`19c4d736f2bc8e26d21f08b28ffd6298408da00f`, captured on 2026-07-27. The
+official API and an independent clean checkout reproduced the same canonical
+manifest before candidate `8c87034` was promoted. This confirms the target and
+denominator; it does not yet provide any Tgrad coverage evidence.
 
 ### `harness.namespace-temporaries`
 

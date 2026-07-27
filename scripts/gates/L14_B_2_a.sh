@@ -25,9 +25,15 @@
 #       * D3 — gate script invokes ffi-compile-smoke (no silent pass)
 #   - Layer E : evidence to fixtures/gate_evidence/L14_B_2_a.json
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L14B2A_EMIT="$(tgrad_run_path L14B2a_emit.msl)"
+L14B2A_SMOKE="$(tgrad_run_path L14B2a_smoke.txt)"
 
 echo "[L14_B_2_a] Stmt grammar (loadIndexed/storeIndexed) + UOp.renderIndexExpr"
 
@@ -124,7 +130,7 @@ echo "  ✓ UOp.renderIndexExpr is pure (UOp → String)"
 TGRAD_CLI="$TGRAD_DIR/.lake/build/bin/tgrad-cli"
 [[ -x "$TGRAD_CLI" ]] || { echo "  ✗ tgrad-cli missing at $TGRAD_CLI"; exit 1; }
 
-EMIT_OUT="$(mktemp -t tgrad_L14B2a_emit.XXXXXX.msl)"
+EMIT_OUT="$L14B2A_EMIT"
 "$TGRAD_CLI" render-metal-algebraic synthetic_indexed_kernel >"$EMIT_OUT" 2>&1
 EMIT_RC=$?
 if [[ "$EMIT_RC" -ne 0 ]]; then
@@ -143,7 +149,7 @@ fi
 echo "  ✓ synthetic_indexed_kernel renders byte-equal to committed fixture"
 
 # C2: ffi-compile-smoke.
-SMOKE_OUT="$(mktemp -t tgrad_L14B2a_smoke.XXXXXX.txt)"
+SMOKE_OUT="$L14B2A_SMOKE"
 "$TGRAD_CLI" ffi-compile-smoke "$TGRAD_DIR/fixtures/codegen/synthetic_indexed_kernel.msl" >"$SMOKE_OUT" 2>&1
 SMOKE_RC=$?
 if [[ "$SMOKE_RC" -ne 0 ]] || ! grep -q '^fn_count: 1' "$SMOKE_OUT"; then

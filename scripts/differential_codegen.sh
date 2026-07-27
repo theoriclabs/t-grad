@@ -21,13 +21,13 @@
 #   bash scripts/differential_codegen.sh            # all sentinels
 #   bash scripts/differential_codegen.sh 64x64x64   # one shape
 #
-# Temp files go in a run-scoped mktemp dir on purpose. The gate scripts
-# use 141 distinct hardcoded /tmp/tgrad_* paths, which is why two
-# concurrent gate runs clobber each other; this one is safe to run
-# alongside anything.
+# Temporary outputs share the caller's run context. Direct invocation creates
+# a private root; nested gate invocation inherits the gate runner's root.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$REPO_ROOT/scripts/lib/run_context.sh"
+tgrad_run_context_init
 TGRAD_CLI="${TGRAD_CLI:-$REPO_ROOT/.lake/build/bin/tgrad-cli}"
 SEED="${TGRAD_DIFF_SEED:-42}"
 
@@ -35,9 +35,6 @@ if [[ ! -x "$TGRAD_CLI" ]]; then
   echo "  ✗ tgrad-cli not built at $TGRAD_CLI" >&2
   exit 1
 fi
-
-TMPDIR_RUN="$(mktemp -d -t tgrad_diffcodegen)"
-trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 if [[ $# -gt 0 ]]; then
   SHAPES=("$@")
@@ -55,7 +52,7 @@ n_ok=0
 n_fail=0
 
 for shape in "${SHAPES[@]}"; do
-  out="$TMPDIR_RUN/$shape.txt"
+  out="$(tgrad_run_path "differential_${shape}.txt")"
   if ! "$TGRAD_CLI" matmul-differential --shape "$shape" --seed "$SEED" >"$out" 2>&1; then
     echo "  ✗ $shape — differential reported divergence or failed to run"
     sed 's/^/      /' "$out"

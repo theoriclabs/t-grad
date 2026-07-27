@@ -9,9 +9,18 @@
 # the manual-load WMMA kernel from L13.F.STRICT.B/C and is measured
 # against the synchronized tinygrad BEAM=0 baseline.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L13F_DYLIB="$(tgrad_run_path L13F_dylib.log)"
+L13F_PINNED="$(tgrad_run_path L13F_tc_general.jsonl)"
+L13F_PINNED_LOG="$(tgrad_run_path L13F_pinned.txt)"
+L13F_RANDOM="$(tgrad_run_path L13F_random_tc.jsonl)"
+L13F_RANDOM_LOG="$(tgrad_run_path L13F_random.txt)"
 
 echo "[L13_F] optimized non-sentinel TC/WMMA general matmul"
 
@@ -65,7 +74,7 @@ print("OK")
 echo "  ✓ manifest has 8 non-sentinel TC-eligible entries"
 
 # Rebuild dylib.
-ensure_dylib /tmp/tgrad_L13F_dylib.log || exit 1
+ensure_dylib "$L13F_DYLIB" || exit 1
 DYLIB="$TGRAD_DIR/.lake/build/lib/libtgrad.dylib"
 for sym in _tgrad_matmul_tc _tgrad_matmul_tc_eligible; do
   if ! nm -gU "$DYLIB" 2>/dev/null | awk '{print $3}' | grep -qx "$sym"; then
@@ -126,10 +135,10 @@ echo "  ✓ tinygrad TC baseline capture uses synchronized timing"
 
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-tc-general \
     --baseline "$BASELINE" \
-    --output /tmp/tgrad_L13F_tc_general.jsonl --warmup 10 --measured 30) \
-    >/tmp/tgrad_L13F_pinned.txt 2>&1 || {
+    --output "$L13F_PINNED" --warmup 10 --measured 30) \
+    >"$L13F_PINNED_LOG" 2>&1 || {
   echo "  ✗ bench-tc-general failed"
-  tail -20 /tmp/tgrad_L13F_pinned.txt | sed 's/^/      /'
+  tail -20 "$L13F_PINNED_LOG" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ bench-tc-general 8/8 correct + 8/8 TC-route"
@@ -146,7 +155,7 @@ ratios = [r["ratio"] for r in rows]
 print(json.dumps({"n_correct": n_correct, "n_tc": n_tc, "n_scalar": n_scalar,
                   "n_manual": n_manual,
                   "ratio_max": max(ratios), "ratio_median": statistics.median(ratios)}))
-' /tmp/tgrad_L13F_tc_general.jsonl)
+' "$L13F_PINNED")
 echo "  pinned stats: $STATS"
 
 PERF_RATIO_MAX=1.5
@@ -171,13 +180,13 @@ HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null)"
 SEED="${HEAD_SHA:0:16}"
 echo "  [C2] random TC-eligible shapes (seed: $SEED) ..."
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-tc-general \
-    --seed "$SEED" --count 10 --output /tmp/tgrad_L13F_random_tc.jsonl) \
-    >/tmp/tgrad_L13F_random.txt 2>&1 || {
+    --seed "$SEED" --count 10 --output "$L13F_RANDOM") \
+    >"$L13F_RANDOM_LOG" 2>&1 || {
   echo "  ✗ bench-random-tc-general failed"
-  tail -20 /tmp/tgrad_L13F_random.txt | sed 's/^/      /'
+  tail -20 "$L13F_RANDOM_LOG" | sed 's/^/      /'
   exit 1
 }
-n_random="$(wc -l < /tmp/tgrad_L13F_random_tc.jsonl | awk '{print $1}')"
+n_random="$(wc -l < "$L13F_RANDOM" | awk '{print $1}')"
 [[ "$n_random" -eq 10 ]] || {
   echo "  ✗ random-tc produced $n_random rows (need 10)"; exit 1
 }
@@ -185,12 +194,12 @@ RAND_CORRECT="$("$PY" -c '
 import json,sys
 rows=[json.loads(l) for l in open(sys.argv[1])]
 print(sum(1 for r in rows if r["correct"]))
-' /tmp/tgrad_L13F_random_tc.jsonl)"
+' "$L13F_RANDOM")"
 RAND_TC="$("$PY" -c '
 import json,sys
 rows=[json.loads(l) for l in open(sys.argv[1])]
 print(sum(1 for r in rows if r.get("route") == "tc"))
-' /tmp/tgrad_L13F_random_tc.jsonl)"
+' "$L13F_RANDOM")"
 echo "  random-tc: correct=$RAND_CORRECT/10  tc_route=$RAND_TC/10"
 if [[ "$RAND_CORRECT" -ne 10 ]] || [[ "$RAND_TC" -ne 10 ]]; then
   echo "  ✗ L13.F RED (random): correct=$RAND_CORRECT/10, tc_route=$RAND_TC/10"
@@ -202,8 +211,8 @@ echo "  ✓ all 10 random TC-eligible shapes pass correctness + tc-route"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$HEAD_SHA"
 host="$PROFILE"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L13F_tc_general.jsonl | awk '{print $1}')"
-random_hash="$(shasum -a 256 /tmp/tgrad_L13F_random_tc.jsonl | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L13F_PINNED" | awk '{print $1}')"
+random_hash="$(shasum -a 256 "$L13F_RANDOM" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/tc_general_manifest.json" | awk '{print $1}')"
 baseline_hash="$(shasum -a 256 "$BASELINE" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"

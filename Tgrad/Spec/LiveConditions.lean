@@ -37,11 +37,11 @@ def resourcePolicies : List ResourcePolicy :=
       observation := "ps for lake/lean; inspect .lake/build",
       basis := .confirmed "one writer/verifier at a time"
         "shared incremental artifacts and 239 MB build tree" },
-    { resource := .tmpNamespace, authoringCapacity := 1,
-      verificationCapacity := 1,
-      observation := "rg fixed /tmp/tgrad_ paths in scripts",
-      basis := .confirmed "gate verification must be serial"
-        "141 fixed /tmp/tgrad_* paths; only seven scripts use mktemp" },
+    { resource := .tmpNamespace, authoringCapacity := 3,
+      verificationCapacity := 3,
+      observation := "rg fixed /tmp paths in gate/devcheck scripts; run two concurrent run-context probes",
+      basis := .confirmed "run-scoped script artifacts can be verified concurrently"
+        "zero fixed gate/devcheck /tmp paths; inherited owned roots, explicit rangeify trace paths, and concurrent cleanup/isolation self-tests" },
     { resource := .metalGpu, authoringCapacity := 1,
       verificationCapacity := 1,
       observation := "ensure no other Tgrad benchmark is running",
@@ -62,6 +62,6 @@ def exclusiveForVerification (resource : Resource) : Bool :=
   | none => true
 
 example : exclusiveForVerification .metalGpu = true := by native_decide
-example : exclusiveForVerification .tmpNamespace = true := by native_decide
+example : exclusiveForVerification .tmpNamespace = false := by native_decide
 
 end Tgrad.Spec

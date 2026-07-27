@@ -2,8 +2,12 @@
 # Gate L14.B.2 umbrella — verifies L14.B.2.a + L14.B.2.b + L14.B.2.c
 # all have valid evidence files; rolls up sha256s into L14_B_2.json.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
 echo "[L14_B_2] umbrella — index-UOp-driven matmul codegen + rangeify wiring"

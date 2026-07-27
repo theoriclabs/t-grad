@@ -26,9 +26,17 @@
 # diff or compile-and-dispatch). The cost: we accept numpy as the
 # canonical reference rather than re-deriving tinygrad's bytes.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L13E_DYLIB="$(tgrad_run_path L13E_dylib.log)"
+L13E_RUN="$(tgrad_run_path L13E_run.py)"
+L13E_LOG="$(tgrad_run_path L13E_bench.txt)"
+L13E_BUILD="$(tgrad_run_path L13E_build.log)"
 
 echo "[L13_E] semantic equivalence vs canonical bf16 matmul (route b)"
 
@@ -47,7 +55,7 @@ done
 echo "  ✓ all ${#required_modules[@]} required modules present"
 
 # Rebuild dylib.
-ensure_dylib /tmp/tgrad_L13E_dylib.log || exit 1
+ensure_dylib "$L13E_DYLIB" || exit 1
 echo "  ✓ libtgrad.dylib rebuilt"
 
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
@@ -60,7 +68,7 @@ PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 
 # Write the sample-bench python to a temp file (avoids heredoc + ||
 # parsing issues).
-cat >/tmp/tgrad_L13E_run.py <<'PYL13E'
+cat >"$L13E_RUN" <<'PYL13E'
 import sys, json, os
 sys.path.insert(0, os.path.join(os.environ.get("REPO_ROOT", "."), "Tgrad", "python"))
 import tgrad
@@ -94,29 +102,29 @@ print(json.dumps({
 sys.exit(0 if all_ok else 1)
 PYL13E
 
-REPO_ROOT="$REPO_ROOT" "$PY" /tmp/tgrad_L13E_run.py \
-    >/tmp/tgrad_L13E_bench.txt 2>&1 || {
+REPO_ROOT="$REPO_ROOT" "$PY" "$L13E_RUN" \
+    >"$L13E_LOG" 2>&1 || {
   echo "  ✗ L13.E sample bench failed"
-  cat /tmp/tgrad_L13E_bench.txt | tail -20 | sed 's/^/      /'
+  tail -20 "$L13E_LOG" | sed 's/^/      /'
   exit 1
 }
 
 # Parse the result.
 N_SAMPLES="$("$PY" -c '
 import json, sys
-text = open("/tmp/tgrad_L13E_bench.txt").read()
+text = open(sys.argv[1]).read()
 # Skip any leading non-JSON
 idx = text.find("{")
 data = json.loads(text[idx:])
 print(data["samples"])
-')"
+' "$L13E_LOG")"
 N_CORRECT="$("$PY" -c '
-import json
-text = open("/tmp/tgrad_L13E_bench.txt").read()
+import json, sys
+text = open(sys.argv[1]).read()
 idx = text.find("{")
 data = json.loads(text[idx:])
 print(data["correct"])
-')"
+' "$L13E_LOG")"
 
 [[ "$N_SAMPLES" -eq 10 ]] || {
   echo "  ✗ expected 10 samples, got $N_SAMPLES"; exit 1
@@ -147,7 +155,7 @@ echo "  ✓ canonical numpy reference present"
 
 # D3: Tgrad's emit for one shape (4x4x4) compiles via ffi-compile-smoke.
 TGRAD_CLI="$TGRAD_DIR/.lake/build/bin/tgrad-cli"
-[[ -x "$TGRAD_CLI" ]] || (cd "$TGRAD_DIR" && lake build tgrad-cli) >/tmp/tgrad_L13E_build.log 2>&1
+[[ -x "$TGRAD_CLI" ]] || (cd "$TGRAD_DIR" && lake build tgrad-cli) >"$L13E_BUILD" 2>&1
 # Render scalarMatmulKernelDecl 4x4x4 via Python (we don't have a CLI for it
 # yet, but the dispatch path's first call exercises compile via metalCompile).
 # So having the L13.E bench succeed implies the kernel compiled.
@@ -157,7 +165,7 @@ echo "  ✓ scalarMatmulKernelDecl outputs compile (verified implicitly by dispa
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L13E_bench.txt | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L13E_LOG" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_E.json" <<EOF
 {

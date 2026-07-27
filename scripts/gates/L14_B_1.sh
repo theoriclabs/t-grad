@@ -25,9 +25,16 @@
 #       * D4 — MatmulOnNonBufferUop class is defined as a typed exception
 #   - Layer E : evidence to fixtures/gate_evidence/L14_B_1.json
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L14B1_DYLIB="$(tgrad_run_path L14B1_dylib.log)"
+L14B1_SMOKE_PY="$(tgrad_run_path L14B1_smoke.py)"
+L14B1_SMOKE_LOG="$(tgrad_run_path L14B1_smoke.txt)"
 
 echo "[L14_B_1] UOp movement ctors + 5 view methods + FFI plumbing"
 
@@ -185,14 +192,14 @@ done
 echo "  ✓ Tensor.shape body matches all 5 root kinds (D3)"
 
 # ─── LAYER C: behavioural ─────────────────────────────────────────────
-ensure_dylib /tmp/tgrad_L14B1_dylib.log || exit 1
+ensure_dylib "$L14B1_DYLIB" || exit 1
 
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 
 # Combined smoke: 64×64 byte-match + view methods compose without alloc
 # + matmul-on-view raises MatmulOnNonBufferUop.
-SMOKE_PY="$(mktemp -t tgrad_L14B1_smoke.XXXXXX.py)"
+SMOKE_PY="$L14B1_SMOKE_PY"
 cat >"$SMOKE_PY" <<'PYEOF'
 import sys, os, hashlib
 sys.path.insert(0, os.path.join(os.environ.get("REPO_ROOT", "."), "Tgrad", "python"))
@@ -279,7 +286,7 @@ PYEOF
 # subshell — Lean's matmul kernels read MSL fixtures via relative
 # paths rooted at REPO_ROOT, so the smoke must run from REPO_ROOT.
 cd "$REPO_ROOT"
-SMOKE_LOG="/tmp/tgrad_L14B1_smoke.txt"
+SMOKE_LOG="$L14B1_SMOKE_LOG"
 if ! REPO_ROOT="$REPO_ROOT" "$PY" "$SMOKE_PY" >"$SMOKE_LOG" 2>&1; then
   echo "  ✗ Layer C smoke failed:"
   sed 's/^/      /' "$SMOKE_LOG"

@@ -10,9 +10,16 @@
 # branch so any non-sentinel bf16 shape gets a scalar plan, and
 # `bench-general` walks the 45 non-below-TC-tile manifest entries.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L13C_DYLIB="$(tgrad_run_path L13C_dylib.log)"
+L13C_BENCH="$(tgrad_run_path L13C_bench.jsonl)"
+L13C_LOG="$(tgrad_run_path L13C_bench.txt)"
 
 echo "[L13_C] general-shape scalar matmul (45 shapes)"
 
@@ -63,7 +70,7 @@ fi
 echo "  ✓ tgrad.py exposes bench-general subcommand"
 
 # Rebuild dylib (the L13.C Heuristic edit needs to propagate).
-ensure_dylib /tmp/tgrad_L13C_dylib.log || exit 1
+ensure_dylib "$L13C_DYLIB" || exit 1
 echo "  ✓ libtgrad.dylib current"
 
 # ─── LAYER D1: scalarMatmulKernelDecl still pure ─────────────────────
@@ -85,21 +92,21 @@ echo "  ✓ canonical numpy reference present in tgrad_bench.py"
 
 # ─── LAYER C: bench-general sweep ─────────────────────────────────────
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-general \
-    --output /tmp/tgrad_L13C_bench.jsonl) \
-    >/tmp/tgrad_L13C_bench.txt 2>&1 || {
+    --output "$L13C_BENCH") \
+    >"$L13C_LOG" 2>&1 || {
   echo "  ✗ python bench-general failed"
-  tail -30 /tmp/tgrad_L13C_bench.txt | sed 's/^/      /'
+  tail -30 "$L13C_LOG" | sed 's/^/      /'
   exit 1
 }
-n_rows="$(wc -l < /tmp/tgrad_L13C_bench.jsonl | awk '{print $1}')"
+n_rows="$(wc -l < "$L13C_BENCH" | awk '{print $1}')"
 [[ "$n_rows" -eq 45 ]] || {
   echo "  ✗ bench-general produced $n_rows rows (need 45)"; exit 1
 }
 echo "  ✓ bench-general JSONL has exactly 45 rows"
 
-STATS="$("$PY" - <<'PYSTATS'
-import json
-rows = [json.loads(l) for l in open("/tmp/tgrad_L13C_bench.jsonl")]
+STATS="$("$PY" - "$L13C_BENCH" <<'PYSTATS'
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])]
 n_correct = sum(1 for r in rows if r["correct"])
 print(json.dumps({
     "n_correct": n_correct,
@@ -121,7 +128,7 @@ echo "  ✓ all 45 general shapes pass correctness"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-bench_hash="$(shasum -a 256 /tmp/tgrad_L13C_bench.jsonl | awk '{print $1}')"
+bench_hash="$(shasum -a 256 "$L13C_BENCH" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/general_shape_manifest.json" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_C.json" <<EOF

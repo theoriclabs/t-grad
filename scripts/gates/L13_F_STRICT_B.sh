@@ -13,6 +13,14 @@ if [[ -z "${TGRAD_DIR:-}" ]]; then
 fi
 cd "$REPO_ROOT"
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+STRICT_B_DYLIB="$(tgrad_run_path L13F_STRICT_B_dylib.log)"
+STRICT_B_SHAPES="$(tgrad_run_path L13F_STRICT_B_shapes.txt)"
+STRICT_B_PINNED="$(tgrad_run_path L13F_STRICT_B_pinned.jsonl)"
+STRICT_B_PINNED_LOG="$(tgrad_run_path L13F_STRICT_B_pinned.txt)"
+STRICT_B_RANDOM="$(tgrad_run_path L13F_STRICT_B_random.jsonl)"
+STRICT_B_RANDOM_LOG="$(tgrad_run_path L13F_STRICT_B_random.txt)"
+STRICT_B_L13F="$(tgrad_run_path L13F_STRICT_B_L13_F.log)"
+STRICT_B_A="$(tgrad_run_path L13F_STRICT_B_A.log)"
 
 echo "[L13_F_STRICT_B] manual-load TC kernel correctness"
 
@@ -76,7 +84,7 @@ grep -qF -- '--use-manual-load' "$PYMOD" || {
 }
 echo "  ✓ FFI, C trampoline, ctypes binding, and CLI flag present"
 
-ensure_dylib /tmp/tgrad_L13F_STRICT_B_dylib.log || exit 1
+ensure_dylib "$STRICT_B_DYLIB" || exit 1
 DYLIB="$TGRAD_DIR/.lake/build/lib/libtgrad.dylib"
 if ! nm -gU "$DYLIB" 2>/dev/null | awk '{print $3}' | grep -qx '_tgrad_matmul_tc_manual_load'; then
   echo "  ✗ libtgrad.dylib missing _tgrad_matmul_tc_manual_load"
@@ -91,7 +99,7 @@ fi
 echo "  ✓ canonical numpy reference present"
 
 # ─── LAYER D5: rendered manual kernels really expose tg/manual-WMMA shape ─
-SHAPES_FILE="/tmp/tgrad_L13F_STRICT_B_shapes.txt"
+SHAPES_FILE="$STRICT_B_SHAPES"
 "$PY" - "$MANIFEST" >"$SHAPES_FILE" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1]))
@@ -103,10 +111,11 @@ for r in rows:
 PY
 
 while read -r M K N; do
-  OUT="/tmp/tgrad_L13F_STRICT_B_${M}x${K}x${N}.msl"
-  "$TGRAD_CLI" render-metal-algebraic "matmul_tc_manual_${M}x${K}x${N}" >"$OUT" 2>"/tmp/tgrad_L13F_STRICT_B_${M}x${K}x${N}.err" || {
+  OUT="$(tgrad_run_path "L13F_STRICT_B_${M}x${K}x${N}.msl")"
+  ERR="$(tgrad_run_path "L13F_STRICT_B_${M}x${K}x${N}.err")"
+  "$TGRAD_CLI" render-metal-algebraic "matmul_tc_manual_${M}x${K}x${N}" >"$OUT" 2>"$ERR" || {
     echo "  ✗ render-metal-algebraic failed for manual TC ${M}x${K}x${N}"
-    cat "/tmp/tgrad_L13F_STRICT_B_${M}x${K}x${N}.err"
+    cat "$ERR"
     exit 1
   }
   grep -qF 'threadgroup bfloat tg_a[256];' "$OUT" || { echo "  ✗ ${M}x${K}x${N} missing tg_a threadgroup tile"; exit 1; }
@@ -128,13 +137,13 @@ else
   RANDOM_COUNT=10
 fi
 
-PINNED="/tmp/tgrad_L13F_STRICT_B_pinned.jsonl"
+PINNED="$STRICT_B_PINNED"
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-tc-general \
     --baseline "$BASELINE" \
     --use-manual-load --output "$PINNED" --warmup "$WARMUP" --measured "$MEASURED") \
-    >/tmp/tgrad_L13F_STRICT_B_pinned.txt 2>&1 || {
+    >"$STRICT_B_PINNED_LOG" 2>&1 || {
   echo "  ✗ bench-tc-general --use-manual-load failed"
-  tail -30 /tmp/tgrad_L13F_STRICT_B_pinned.txt | sed 's/^/      /'
+  tail -30 "$STRICT_B_PINNED_LOG" | sed 's/^/      /'
   exit 1
 }
 PINNED_STATS="$("$PY" - "$PINNED" <<'PY'
@@ -169,12 +178,12 @@ echo "  ✓ manual-load pinned sweep correct=8/8 tc_route=8/8"
 
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 SEED="${HEAD_SHA:0:16}"
-RANDOM_OUT="/tmp/tgrad_L13F_STRICT_B_random.jsonl"
+RANDOM_OUT="$STRICT_B_RANDOM"
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-tc-general \
     --use-manual-load --seed "$SEED" --count "$RANDOM_COUNT" --output "$RANDOM_OUT") \
-    >/tmp/tgrad_L13F_STRICT_B_random.txt 2>&1 || {
+    >"$STRICT_B_RANDOM_LOG" 2>&1 || {
   echo "  ✗ bench-random-tc-general --use-manual-load failed"
-  tail -30 /tmp/tgrad_L13F_STRICT_B_random.txt | sed 's/^/      /'
+  tail -30 "$STRICT_B_RANDOM_LOG" | sed 's/^/      /'
   exit 1
 }
 RANDOM_STATS="$("$PY" - "$RANDOM_OUT" <<'PY'
@@ -199,16 +208,16 @@ PY
 echo "  ✓ random manual-load sweep correct=$RANDOM_COUNT/$RANDOM_COUNT tc_route=$RANDOM_COUNT/$RANDOM_COUNT"
 
 # ─── LAYER C2: regressions ────────────────────────────────────────────
-bash "$TGRAD_DIR/scripts/gates/L13_F.sh" >/tmp/tgrad_L13F_STRICT_B_L13_F.log 2>&1 || {
+bash "$TGRAD_DIR/scripts/gates/L13_F.sh" >"$STRICT_B_L13F" 2>&1 || {
   echo "  ✗ L13_F regression failed"
-  tail -40 /tmp/tgrad_L13F_STRICT_B_L13_F.log | sed 's/^/      /'
+  tail -40 "$STRICT_B_L13F" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F regression gate still green"
 
-bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >/tmp/tgrad_L13F_STRICT_B_A.log 2>&1 || {
+bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >"$STRICT_B_A" 2>&1 || {
   echo "  ✗ L13_F_STRICT_A regression failed"
-  tail -40 /tmp/tgrad_L13F_STRICT_B_A.log | sed 's/^/      /'
+  tail -40 "$STRICT_B_A" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F_STRICT_A regression gate still green"

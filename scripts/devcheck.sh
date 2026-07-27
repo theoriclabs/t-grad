@@ -21,6 +21,23 @@ cd "$REPO_ROOT"
 
 source "$TGRAD_DIR/scripts/lib/checks.sh"
 
+DEV_MAKE_LOG="$(tgrad_run_path devcheck_make.log)"
+DEV_LAKE_LOG="$(tgrad_run_path devcheck_lake.log)"
+DEV_DYLIB_LOG="$(tgrad_run_path devcheck_dylib.log)"
+DEV_BASIC_LOG="$(tgrad_run_path devcheck_basic.txt)"
+DEV_TIMING_LOG="$(tgrad_run_path devcheck_timing.txt)"
+DEV_MATMUL_MSL="$(tgrad_run_path devcheck_matmul.msl)"
+DEV_TC_LOG="$(tgrad_run_path devcheck_tc.txt)"
+DEV_SYNTHETIC_MSL="$(tgrad_run_path devcheck_synthetic_tg_kernel.msl)"
+DEV_SYNTHETIC_COMPILE_LOG="$(tgrad_run_path devcheck_synthetic_tg_kernel_compile.txt)"
+DEV_MANUAL_MSL="$(tgrad_run_path devcheck_manual_tc_1024x1024x3072.msl)"
+DEV_MANUAL_COMPILE_LOG="$(tgrad_run_path devcheck_manual_tc_compile.txt)"
+DEV_MANUAL_JSONL="$(tgrad_run_path devcheck_manual_tc.jsonl)"
+DEV_MANUAL_LOG="$(tgrad_run_path devcheck_manual_tc.txt)"
+DEV_RANDOM_VIEWS_JSONL="$(tgrad_run_path devcheck_random_views.jsonl)"
+DEV_RANDOM_VIEWS_LOG="$(tgrad_run_path devcheck_random_views.txt)"
+DEV_CLI_HELP="$(tgrad_run_path devcheck_cli_help.txt)"
+
 gate="${1:-}"
 if [[ -z "$gate" ]]; then
   echo "usage: bash scripts/devcheck.sh <gate|--all>"
@@ -73,34 +90,34 @@ cheap_preflight() {
   check_no_gate_regression || return 1
 
   if [[ -f "$TGRAD_DIR/c/Makefile" ]]; then
-    make -C "$TGRAD_DIR/c" >/tmp/tgrad_devcheck_make.log 2>&1 || {
+    make -C "$TGRAD_DIR/c" >"$DEV_MAKE_LOG" 2>&1 || {
       echo "  ✗ make -C c failed"
-      sed 's/^/      /' /tmp/tgrad_devcheck_make.log
+      sed 's/^/      /' "$DEV_MAKE_LOG"
       return 1
     }
   fi
   (cd "$TGRAD_DIR" && lake build tgrad-cli tgrad-tests) \
-    >/tmp/tgrad_devcheck_lake.log 2>&1 || {
+    >"$DEV_LAKE_LOG" 2>&1 || {
       echo "  ✗ lake build tgrad-cli tgrad-tests failed"
-      sed 's/^/      /' /tmp/tgrad_devcheck_lake.log
+      sed 's/^/      /' "$DEV_LAKE_LOG"
       return 1
     }
-  ensure_dylib /tmp/tgrad_devcheck_dylib.log || return 1
+  ensure_dylib "$DEV_DYLIB_LOG" || return 1
   echo "[devcheck] cheap preflight ✓"
 }
 
 smoke_basic_matmul() {
   if ! run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench --shape 64x64x64 --dtype bf16 \
-      >/tmp/tgrad_devcheck_basic.txt 2>&1; then
-    if skip_metal_runtime_smoke "runtime smoke" /tmp/tgrad_devcheck_basic.txt; then
+      >"$DEV_BASIC_LOG" 2>&1; then
+    if skip_metal_runtime_smoke "runtime smoke" "$DEV_BASIC_LOG"; then
       return 0
     fi
-    cat /tmp/tgrad_devcheck_basic.txt
+    cat "$DEV_BASIC_LOG"
     return 1
   fi
-  grep -q "py_byte_match: true" /tmp/tgrad_devcheck_basic.txt || {
+  grep -q "py_byte_match: true" "$DEV_BASIC_LOG" || {
     echo "  ✗ basic 64x64x64 bench did not byte-match"
-    cat /tmp/tgrad_devcheck_basic.txt
+    cat "$DEV_BASIC_LOG"
     return 1
   }
 }
@@ -108,18 +125,18 @@ smoke_basic_matmul() {
 smoke_timing() {
   if ! run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench-timing \
       --shape 64x64x64 --dtype bf16 --warmup 1 --measured 3 \
-      >/tmp/tgrad_devcheck_timing.txt 2>&1; then
-    if grep -q "tgrad_tensor_alloc" /tmp/tgrad_devcheck_timing.txt; then
+      >"$DEV_TIMING_LOG" 2>&1; then
+    if grep -q "tgrad_tensor_alloc" "$DEV_TIMING_LOG"; then
       echo "  ⚠ timing smoke skipped: Metal allocation unavailable in this environment"
-      cat /tmp/tgrad_devcheck_timing.txt | sed 's/^/      /'
+      sed 's/^/      /' "$DEV_TIMING_LOG"
       return 0
     fi
-    cat /tmp/tgrad_devcheck_timing.txt
+    cat "$DEV_TIMING_LOG"
     return 1
   fi
-  grep -q "py_lean_ms_median" /tmp/tgrad_devcheck_timing.txt || {
+  grep -q "py_lean_ms_median" "$DEV_TIMING_LOG" || {
     echo "  ✗ timing smoke missing py_lean_ms_median"
-    cat /tmp/tgrad_devcheck_timing.txt
+    cat "$DEV_TIMING_LOG"
     return 1
   }
 }
@@ -127,8 +144,8 @@ smoke_timing() {
 smoke_render_algebraic() {
   [[ -x "$TGRAD_CLI" ]] || { echo "  ✗ missing tgrad-cli at $TGRAD_CLI"; return 1; }
   run_cmd "$TGRAD_CLI" render-metal-algebraic matmul_1024x1024x1024 \
-    >/tmp/tgrad_devcheck_matmul.msl
-  grep -q "simdgroup_multiply_accumulate" /tmp/tgrad_devcheck_matmul.msl || {
+    >"$DEV_MATMUL_MSL"
+  grep -q "simdgroup_multiply_accumulate" "$DEV_MATMUL_MSL" || {
     echo "  ✗ algebraic render smoke did not emit simdgroup_multiply_accumulate"
     return 1
   }
@@ -151,35 +168,35 @@ assert tgrad._lib.tgrad_matmul_tc_eligible(31, 64, 64) == 0
 assert tgrad._lib.tgrad_matmul_tc_eligible(64, 7, 64) == 0
 assert tgrad._lib.tgrad_matmul_tc_eligible(64, 64, 48) == 0
 print("tc_eligibility_smoke: true")
-' >/tmp/tgrad_devcheck_tc.txt
+' >"$DEV_TC_LOG"
 }
 
 smoke_synthetic_tg_kernel() {
   [[ -x "$TGRAD_CLI" ]] || { echo "  ✗ missing tgrad-cli at $TGRAD_CLI"; return 1; }
   run_cmd "$TGRAD_CLI" render-metal-algebraic synthetic_tg_kernel \
-    >/tmp/tgrad_devcheck_synthetic_tg_kernel.msl
+    >"$DEV_SYNTHETIC_MSL"
   grep -qF "threadgroup_barrier(mem_flags::mem_threadgroup);" \
-    /tmp/tgrad_devcheck_synthetic_tg_kernel.msl || {
+    "$DEV_SYNTHETIC_MSL" || {
     echo "  ✗ synthetic_tg_kernel missing threadgroup barrier"
     return 1
   }
   grep -qF "mat_a.thread_elements()[0]" \
-    /tmp/tgrad_devcheck_synthetic_tg_kernel.msl || {
+    "$DEV_SYNTHETIC_MSL" || {
     echo "  ✗ synthetic_tg_kernel missing per-thread WMMA load"
     return 1
   }
-  run_cmd "$TGRAD_CLI" ffi-compile-smoke /tmp/tgrad_devcheck_synthetic_tg_kernel.msl \
-    >/tmp/tgrad_devcheck_synthetic_tg_kernel_compile.txt
-  grep -q "fn_count: 1" /tmp/tgrad_devcheck_synthetic_tg_kernel_compile.txt || {
+  run_cmd "$TGRAD_CLI" ffi-compile-smoke "$DEV_SYNTHETIC_MSL" \
+    >"$DEV_SYNTHETIC_COMPILE_LOG"
+  grep -q "fn_count: 1" "$DEV_SYNTHETIC_COMPILE_LOG" || {
     echo "  ✗ synthetic_tg_kernel failed ffi-compile-smoke"
-    cat /tmp/tgrad_devcheck_synthetic_tg_kernel_compile.txt
+    cat "$DEV_SYNTHETIC_COMPILE_LOG"
     return 1
   }
 }
 
 smoke_manual_tc_kernel() {
   [[ -x "$TGRAD_CLI" ]] || { echo "  ✗ missing tgrad-cli at $TGRAD_CLI"; return 1; }
-  local out="/tmp/tgrad_devcheck_manual_tc_1024x1024x3072.msl"
+  local out="$DEV_MANUAL_MSL"
   run_cmd "$TGRAD_CLI" render-metal-algebraic matmul_tc_manual_1024x1024x3072 \
     >"$out"
   grep -qF "threadgroup bfloat tg_a[256];" "$out" || {
@@ -195,19 +212,19 @@ smoke_manual_tc_kernel() {
     return 1
   }
   run_cmd "$TGRAD_CLI" ffi-compile-smoke "$out" \
-    >/tmp/tgrad_devcheck_manual_tc_compile.txt
-  grep -q "fn_count: 1" /tmp/tgrad_devcheck_manual_tc_compile.txt || {
+    >"$DEV_MANUAL_COMPILE_LOG"
+  grep -q "fn_count: 1" "$DEV_MANUAL_COMPILE_LOG" || {
     echo "  ✗ manual TC kernel failed ffi-compile-smoke"
-    cat /tmp/tgrad_devcheck_manual_tc_compile.txt
+    cat "$DEV_MANUAL_COMPILE_LOG"
     return 1
   }
   run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench-tc-general \
     --use-manual-load --warmup 1 --measured 1 \
-    --output /tmp/tgrad_devcheck_manual_tc.jsonl \
-    >/tmp/tgrad_devcheck_manual_tc.txt
-  grep -q "py_bench_tc_general_n_correct: 8" /tmp/tgrad_devcheck_manual_tc.txt || {
+    --output "$DEV_MANUAL_JSONL" \
+    >"$DEV_MANUAL_LOG"
+  grep -q "py_bench_tc_general_n_correct: 8" "$DEV_MANUAL_LOG" || {
     echo "  ✗ manual TC pinned smoke did not report 8/8 correctness"
-    cat /tmp/tgrad_devcheck_manual_tc.txt
+    cat "$DEV_MANUAL_LOG"
     return 1
   }
 }
@@ -215,12 +232,12 @@ smoke_manual_tc_kernel() {
 smoke_views() {
   if has_subcommand bench-random-views; then
     if ! run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-views \
-        --seed "$DEV_SEED" --count 1 --output /tmp/tgrad_devcheck_random_views.jsonl \
-        >/tmp/tgrad_devcheck_random_views.txt 2>&1; then
-      if skip_metal_runtime_smoke "view smoke" /tmp/tgrad_devcheck_random_views.txt; then
+        --seed "$DEV_SEED" --count 1 --output "$DEV_RANDOM_VIEWS_JSONL" \
+        >"$DEV_RANDOM_VIEWS_LOG" 2>&1; then
+      if skip_metal_runtime_smoke "view smoke" "$DEV_RANDOM_VIEWS_LOG"; then
         return 0
       fi
-      cat /tmp/tgrad_devcheck_random_views.txt
+      cat "$DEV_RANDOM_VIEWS_LOG"
       return 1
     fi
   else
@@ -240,7 +257,7 @@ case "$gate" in
     smoke_views
     ;;
   L0|L1|L2|L3|L4|L5)
-    [[ -x "$TGRAD_CLI" ]] && run_cmd "$TGRAD_CLI" --help >/tmp/tgrad_devcheck_cli_help.txt || true
+    [[ -x "$TGRAD_CLI" ]] && run_cmd "$TGRAD_CLI" --help >"$DEV_CLI_HELP" || true
     ;;
   L6)
     smoke_basic_matmul

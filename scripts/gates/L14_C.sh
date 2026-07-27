@@ -2,9 +2,16 @@
 # Gate L14.C — anti-hardcoding random-views sweep (20 chains, seed=HEAD)
 # Per `Tgrad/GOAL_L14_C.md`.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L14C_DYLIB="$(tgrad_run_path L14C_dylib.log)"
+L14C_JSONL="$(tgrad_run_path L14C_random.jsonl)"
+L14C_LOG="$(tgrad_run_path L14C_random.log)"
 
 echo "[L14_C] random-views anti-hardcoding (20 chains, seed=HEAD)"
 
@@ -63,13 +70,13 @@ done
 echo "  ✓ D5 catalogue has all 7 ops"
 
 # Layer C — behavioural (20 random rows under HEAD seed)
-ensure_dylib /tmp/tgrad_L14C_dylib.log || exit 1
+ensure_dylib "$L14C_DYLIB" || exit 1
 
 SEED="$(git -C "$REPO_ROOT" rev-parse HEAD | head -c 16)"
 echo "  → seed=$SEED (from HEAD prefix)"
 
-OUT_JSONL="/tmp/tgrad_L14_C_random.jsonl"
-LOG="/tmp/tgrad_L14_C_random.log"
+OUT_JSONL="$L14C_JSONL"
+LOG="$L14C_LOG"
 if ! (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-views \
         --seed "$SEED" --count 20 --output "$OUT_JSONL") >"$LOG" 2>&1; then
   echo "  ✗ bench-random-views failed:"

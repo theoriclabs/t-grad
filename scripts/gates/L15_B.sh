@@ -2,9 +2,20 @@
 # Gate L15.B — experiment-closure runtime + benchmark recheck.
 # Per `Tgrad/GOAL_L15_B.md` + `GOAL_L15.md §3 criteria 4-6` + §5 runtime checks.
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L15B_DYLIB="$(tgrad_run_path L15B_dylib.log)"
+L15B_SHAPES_LOG="$(tgrad_run_path L15B_random_shapes.log)"
+L15B_SHAPES="$(tgrad_run_path L15B_random_shapes.jsonl)"
+L15B_VIEWS_LOG="$(tgrad_run_path L15B_random_views.log)"
+L15B_VIEWS="$(tgrad_run_path L15B_random_views.jsonl)"
+L15B_AUDIT="$(tgrad_run_path L15B_audit.json)"
+L15B_AUDIT_ERR="$(tgrad_run_path L15B_audit.err)"
 
 echo "[L15_B] experiment closure — runtime + benchmark recheck"
 
@@ -46,14 +57,14 @@ done
 echo "  ✓ runtime-indep + audit scripts present"
 
 # Layer C — fresh random samples under HEAD-derived seed.
-ensure_dylib /tmp/tgrad_L15_B_dylib.log || exit 1
+ensure_dylib "$L15B_DYLIB" || exit 1
 
 SEED="$(git -C "$REPO_ROOT" rev-parse HEAD | head -c 16)"
 echo "  → seed=$SEED (from HEAD prefix)"
 
 # 10 fresh random shapes
-LOG_S=/tmp/tgrad_L15_B_random_shapes.log
-OUT_S=/tmp/tgrad_L15_B_random_shapes.jsonl
+LOG_S="$L15B_SHAPES_LOG"
+OUT_S="$L15B_SHAPES"
 if ! (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-shapes \
         --seed "$SEED" --count 10 --output "$OUT_S") >"$LOG_S" 2>&1; then
   echo "  ✗ bench-random-shapes failed:"
@@ -66,8 +77,8 @@ N_SHAPES_TOTAL="$(grep -oE 'py_bench_random_count: [0-9]+' "$LOG_S" | awk '{prin
 echo "  ✓ fresh random-shapes: 10/10 correct under seed $SEED"
 
 # 10 fresh random views
-LOG_V=/tmp/tgrad_L15_B_random_views.log
-OUT_V=/tmp/tgrad_L15_B_random_views.jsonl
+LOG_V="$L15B_VIEWS_LOG"
+OUT_V="$L15B_VIEWS"
 if ! (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-random-views \
         --seed "$SEED" --count 10 --output "$OUT_V") >"$LOG_V" 2>&1; then
   echo "  ✗ bench-random-views failed:"
@@ -80,11 +91,11 @@ N_VIEWS_TOTAL="$(grep -oE 'py_random_views_count: [0-9]+' "$LOG_V" | awk '{print
 echo "  ✓ fresh random-views: 10/10 correct under seed $SEED"
 
 # Run the audit; capture JSON.
-AUDIT_OUT=/tmp/tgrad_L15_B_audit.json
-"$PY" "$TGRAD_DIR/scripts/dev/l15_b_audit.py" >"$AUDIT_OUT" 2>/tmp/tgrad_L15_B_audit.err
+AUDIT_OUT="$L15B_AUDIT"
+"$PY" "$TGRAD_DIR/scripts/dev/l15_b_audit.py" >"$AUDIT_OUT" 2>"$L15B_AUDIT_ERR"
 if [[ ! -s "$AUDIT_OUT" ]]; then
   echo "  ✗ audit produced no output"
-  cat /tmp/tgrad_L15_B_audit.err
+  cat "$L15B_AUDIT_ERR"
   exit 1
 fi
 

@@ -44,6 +44,8 @@ ALL_GATES=(L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 L11 L12 L13_A L13_B L13_C L13_D L13
 export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export TGRAD_DIR="$REPO_ROOT"
 export TGRAD_BENCH_MODE=full
+source "$TGRAD_DIR/scripts/lib/run_context.sh"
+tgrad_run_context_init
 cd "$REPO_ROOT"
 
 run_gate() {

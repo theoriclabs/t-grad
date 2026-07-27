@@ -3,9 +3,19 @@
 # Per `Tgrad/GOAL_L15_A.md` + `Tgrad/GOAL_L15.md §3` (criteria 1-3) and
 # `Tgrad/GOAL_L15.md §4` (9 static checks).
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L15A_DYLIB="$(tgrad_run_path L15A_dylib.log)"
+L15A_TRACE="$(tgrad_run_prepare_rangeify_trace)"
+L15A_VIEWS="$(tgrad_run_path L15A_views.jsonl)"
+L15A_BENCH_LOG="$(tgrad_run_path L15A_bench.log)"
+L15A_AUDIT="$(tgrad_run_path L15A_audit.json)"
+L15A_AUDIT_ERR="$(tgrad_run_path L15A_audit.err)"
 
 echo "[L15_A] experiment closure — static + structural audit"
 
@@ -42,23 +52,24 @@ N_CTORS="$(grep -cE '\|[[:space:]]+\.(buffer|permute|reshape|expand|slice)\b' \
 echo "  ✓ UOp.lean has $N_CTORS movement ctors (>= 5)"
 
 # Layer C — ensure rangeify trace is fresh (regenerate by re-running bench-views).
-ensure_dylib /tmp/tgrad_L15_A_dylib.log || exit 1
+ensure_dylib "$L15A_DYLIB" || exit 1
 
 GATE_START_TS="$(date +%s)"
-TRACE=/tmp/tgrad_rangeify_trace.jsonl
+TRACE="$L15A_TRACE"
 echo "  → regenerating rangeify trace via bench-views (D3 freshness)"
-(cd "$REPO_ROOT" && TGRAD_RANGEIFY_TRACE=1 "$PY" "$TGRAD_DIR/python/tgrad.py" bench-views \
-    --output /tmp/tgrad_L15_A_views.jsonl) >/tmp/tgrad_L15_A_bench.log 2>&1
+(cd "$REPO_ROOT" && TGRAD_RANGEIFY_TRACE=1 TGRAD_RANGEIFY_TRACE_PATH="$TRACE" \
+  "$PY" "$TGRAD_DIR/python/tgrad.py" bench-views \
+    --output "$L15A_VIEWS") >"$L15A_BENCH_LOG" 2>&1
 TRACE_MTIME="$(stat -f %m "$TRACE" 2>/dev/null || echo 0)"
 [[ "$TRACE_MTIME" -ge "$GATE_START_TS" ]] || { echo "  ✗ rangeify trace not fresh (mtime=$TRACE_MTIME < gate_start=$GATE_START_TS)"; exit 1; }
 echo "  ✓ rangeify trace mtime=$TRACE_MTIME >= gate_start=$GATE_START_TS"
 
 # Run the audit; capture the JSON output.
-AUDIT_OUT=/tmp/tgrad_L15_A_audit.json
-"$PY" "$TGRAD_DIR/scripts/dev/l15_a_audit.py" >"$AUDIT_OUT" 2>/tmp/tgrad_L15_A_audit.err
+AUDIT_OUT="$L15A_AUDIT"
+"$PY" "$TGRAD_DIR/scripts/dev/l15_a_audit.py" >"$AUDIT_OUT" 2>"$L15A_AUDIT_ERR"
 if [[ ! -s "$AUDIT_OUT" ]]; then
   echo "  ✗ audit produced no output"
-  cat /tmp/tgrad_L15_A_audit.err
+  cat "$L15A_AUDIT_ERR"
   exit 1
 fi
 

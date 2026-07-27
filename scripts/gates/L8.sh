@@ -22,9 +22,16 @@
 #   - Layer D : negative test — unknown kernel name rejected
 #   - Layer E : evidence file
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L8_EMIT="$(tgrad_run_path L8_emit.msl)"
+L8_COMPILE="$(tgrad_run_path L8_compile.txt)"
+L8_NEG="$(tgrad_run_path L8_negative.txt)"
 
 echo "[L8] algebraic MSL emit (kernel decl → bytes)"
 
@@ -57,7 +64,7 @@ done
 echo "  ✓ all ${#required_fixtures[@]} required fixtures present"
 
 # ─── LAYER C1: byte-match emit vs fixture ─────────────────────────────
-EMIT_OUT="/tmp/tgrad_L8_emit.msl"
+EMIT_OUT="$L8_EMIT"
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" render-metal-algebraic copy_kernel) \
     >"$EMIT_OUT" 2>&1 || {
   echo "  ✗ tgrad-cli render-metal-algebraic copy_kernel failed"
@@ -71,7 +78,7 @@ fi
 echo "  ✓ Tgrad.Renderer.Metal.renderKernel(copyKernelDecl) byte-matches fixture"
 
 # ─── LAYER C2: emitted MSL compiles via Tgrad runtime ─────────────────
-COMPILE_OUT="/tmp/tgrad_L8_compile.txt"
+COMPILE_OUT="$L8_COMPILE"
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" ffi-compile-smoke "$EMIT_OUT") \
     >"$COMPILE_OUT" 2>&1 || {
   echo "  ✗ ffi-compile-smoke rejected the algebraically-emitted MSL"
@@ -86,16 +93,16 @@ echo "  ✓ emitted MSL compiles via Tgrad.Runtime.Metal (fn_count: 1)"
 # ─── LAYER D: negative test ───────────────────────────────────────────
 set +e
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" render-metal-algebraic unknown_kernel) \
-    >/tmp/tgrad_L8_neg.txt 2>&1
+    >"$L8_NEG" 2>&1
 neg_rc=$?
 set -e
 if [[ "$neg_rc" -eq 0 ]]; then
   echo "  ✗ render-metal-algebraic unknown_kernel returned 0 — should reject"
-  cat /tmp/tgrad_L8_neg.txt; exit 1
+  cat "$L8_NEG"; exit 1
 fi
-grep -q "unknown kernel" /tmp/tgrad_L8_neg.txt || {
+grep -q "unknown kernel" "$L8_NEG" || {
   echo "  ✗ render-metal-algebraic unknown_kernel did not surface 'unknown kernel' error"
-  cat /tmp/tgrad_L8_neg.txt; exit 1
+  cat "$L8_NEG"; exit 1
 }
 echo "  ✓ negative test correctly rejected (unknown kernel → nonzero exit)"
 

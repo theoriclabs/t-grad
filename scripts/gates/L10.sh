@@ -20,9 +20,16 @@
 #   - Layer D : negative test — bogus path rejected
 #   - Layer E : evidence file
 set -euo pipefail
-: "${REPO_ROOT:?must be set by gate.sh}"
-: "${TGRAD_DIR:?must be set by gate.sh}"
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+if [[ -z "${TGRAD_DIR:-}" ]]; then
+  export TGRAD_DIR="$REPO_ROOT"
+fi
 source "$TGRAD_DIR/scripts/lib/checks.sh"
+L10_BASE="$(tgrad_run_path L10_base.json)"
+L10_NEW="$(tgrad_run_path L10_new.json)"
+L10_NEG="$(tgrad_run_path L10_negative.txt)"
 
 echo "[L10] rangeify coverage extension"
 
@@ -44,13 +51,13 @@ echo "  ✓ all ${#required_fixtures[@]} required fixtures present"
 # ─── LAYER C1: L2 fixture regression ──────────────────────────────────
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" \
     rangeify fixtures/schedule/rangeify_input.json) \
-    >/tmp/tgrad_L10_l2.json 2>&1 || {
+    >"$L10_BASE" 2>&1 || {
   echo "  ✗ rangeify on L2 fixture failed"
-  cat /tmp/tgrad_L10_l2.json; exit 1
+  cat "$L10_BASE"; exit 1
 }
-if ! diff -q /tmp/tgrad_L10_l2.json "$TGRAD_DIR/fixtures/schedule/rangeify_expected.json" >/dev/null; then
+if ! diff -q "$L10_BASE" "$TGRAD_DIR/fixtures/schedule/rangeify_expected.json" >/dev/null; then
   echo "  ✗ L2 rangeify fixture diverges (regression)"
-  diff /tmp/tgrad_L10_l2.json "$TGRAD_DIR/fixtures/schedule/rangeify_expected.json" | head -20
+  diff "$L10_BASE" "$TGRAD_DIR/fixtures/schedule/rangeify_expected.json" | head -20
   exit 1
 fi
 echo "  ✓ L2 rangeify fixture still byte-matches (no regression)"
@@ -58,13 +65,13 @@ echo "  ✓ L2 rangeify fixture still byte-matches (no regression)"
 # ─── LAYER C2: L10 fixture behavioural ────────────────────────────────
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" \
     rangeify fixtures/schedule/rangeify_input_l10.json) \
-    >/tmp/tgrad_L10_new.json 2>&1 || {
+    >"$L10_NEW" 2>&1 || {
   echo "  ✗ rangeify on L10 fixture failed"
-  cat /tmp/tgrad_L10_new.json; exit 1
+  cat "$L10_NEW"; exit 1
 }
-if ! diff -q /tmp/tgrad_L10_new.json "$TGRAD_DIR/fixtures/schedule/rangeify_expected_l10.json" >/dev/null; then
+if ! diff -q "$L10_NEW" "$TGRAD_DIR/fixtures/schedule/rangeify_expected_l10.json" >/dev/null; then
   echo "  ✗ L10 rangeify fixture does NOT byte-match captured expected"
-  diff /tmp/tgrad_L10_new.json "$TGRAD_DIR/fixtures/schedule/rangeify_expected_l10.json" | head -20
+  diff "$L10_NEW" "$TGRAD_DIR/fixtures/schedule/rangeify_expected_l10.json" | head -20
   exit 1
 fi
 echo "  ✓ L10 rangeify fixture byte-matches captured expected (RESHAPE 6 → PERMUTE [3,2])"
@@ -72,7 +79,7 @@ echo "  ✓ L10 rangeify fixture byte-matches captured expected (RESHAPE 6 → P
 # ─── LAYER D: negative test ───────────────────────────────────────────
 set +e
 (cd "$REPO_ROOT" && "$TGRAD_DIR/.lake/build/bin/tgrad-cli" \
-    rangeify /nonexistent/path.json) >/tmp/tgrad_L10_neg.txt 2>&1
+    rangeify /nonexistent/path.json) >"$L10_NEG" 2>&1
 neg_rc=$?
 set -e
 if [[ "$neg_rc" -eq 0 ]]; then
@@ -85,8 +92,8 @@ echo "  ✓ negative test correctly rejected (bogus path → nonzero exit)"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-l2_hash="$(shasum -a 256 /tmp/tgrad_L10_l2.json | awk '{print $1}')"
-l10_hash="$(shasum -a 256 /tmp/tgrad_L10_new.json | awk '{print $1}')"
+l2_hash="$(shasum -a 256 "$L10_BASE" | awk '{print $1}')"
+l10_hash="$(shasum -a 256 "$L10_NEW" | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L10.json" <<EOF
 {

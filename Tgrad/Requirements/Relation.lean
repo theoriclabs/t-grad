@@ -28,7 +28,14 @@ inductive ObservationDimension where
   | shape
   | dtype
   | exception
+  | exceptionStage
+  | exceptionClass
+  | exceptionMessage
+  | terminalOutcome
   | effect
+  | objectIdentity
+  | readbackStability
+  | inputImmutability
   | storageAndLifetime
   | performance
   deriving DecidableEq, BEq, Repr, Inhabited
@@ -44,7 +51,14 @@ inductive ObservationRelation where
   | sameShape
   | sameDtype
   | sameException
+  | sameExceptionStage
+  | sameExceptionClass
+  | sameExceptionMessage
+  | sameTerminalOutcome
   | sameEffects
+  | realizeReturnsSelf
+  | repeatedReadbackStable
+  | inputsUnchanged
   | sameStorageAndLifetime
   | performanceDistribution (statistic protocol : String)
   | all (relations : List ObservationRelation)
@@ -71,7 +85,14 @@ partial def ObservationRelation.dimensions :
   | .sameShape => [.shape]
   | .sameDtype => [.dtype]
   | .sameException => [.exception]
+  | .sameExceptionStage => [.exceptionStage]
+  | .sameExceptionClass => [.exceptionClass]
+  | .sameExceptionMessage => [.exceptionMessage]
+  | .sameTerminalOutcome => [.terminalOutcome]
   | .sameEffects => [.effect]
+  | .realizeReturnsSelf => [.objectIdentity]
+  | .repeatedReadbackStable => [.readbackStability]
+  | .inputsUnchanged => [.inputImmutability]
   | .sameStorageAndLifetime => [.storageAndLifetime]
   | .performanceDistribution _ _ => [.performance]
   | .all relations =>

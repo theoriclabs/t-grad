@@ -539,6 +539,22 @@ The first pilot should cover only three end-to-end requirements:
 
 Those three deliberately span lexical substitution, pure transformation, and workpiece/lifetime behavior. If the model handles them cleanly, it can scale. If it cannot, adding 590 rows will only produce schema theatre.
 
+The next prospective cycle has now corrected one weakness in that original
+decomposition. The broad retrospective add row is retained for historical
+evidence, but prospective add work is split into legal same-dtype behavior,
+dtype promotion, incompatible-shape exceptions, and realization idempotence.
+The frozen manifest and work packet are linked from
+[plan_2026-07-27.md](plan_2026-07-27.md#frozen-shape-of-the-next-prospective-packet).
+No product candidate has been selected: the first predicted transformation is
+observer/specification work, and its result may honestly be failed, calibrated
+pass, blocked, or verifier error.
+
+The legacy bf16 add requirement is explicitly retained as historical rather
+than counted alongside the new requirements as if it had already been
+superseded. The trial-definition stage predicts no observation change. The
+observer stage has a distinct write/resource set and an uncertainty envelope;
+its eventual outcome cannot derive conformance while adequacy remains open.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

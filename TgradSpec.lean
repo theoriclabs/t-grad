@@ -12,8 +12,10 @@ import Tgrad.Requirements.World
 import Tgrad.Requirements.Relation
 import Tgrad.Requirements.Requirements
 import Tgrad.Requirements.Pilot
+import Tgrad.Requirements.BroadcastAddPilot
 import Tgrad.Specification.Boundary
 import Tgrad.Specification.Pilot
+import Tgrad.Specification.BroadcastAddPilot
 import Tgrad.Conformance.Claims
 import Tgrad.Evidence.Observations
 import Tgrad.Evidence.PilotGenerated
@@ -21,6 +23,9 @@ import Tgrad.Evidence.SuiteGenerated
 import Tgrad.Growth.Derived
 import Tgrad.Growth.PilotState
 import Tgrad.Growth.Work
+import Tgrad.Growth.BroadcastAddManifest
+import Tgrad.Growth.BroadcastAddManifestGenerated
+import Tgrad.Growth.BroadcastAddPacket
 import Tgrad.Growth.PilotReport
 
 /-! # TgradSpec — checked specification, separate from the product runtime

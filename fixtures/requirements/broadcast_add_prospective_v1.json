@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V1",
+  "frozen_before_product_change": true,
+  "baseline_revision": "51244a9",
+  "upstream_revision": "19c4d736f2bc8e26d21f08b28ffd6298408da00f",
+  "profile": {
+    "backend": "METAL",
+    "deterministic": true,
+    "operator": "Tensor.__add__",
+    "legal_trace": [
+      "construct_left",
+      "construct_right",
+      "snapshot_inputs",
+      "invoke_add",
+      "capture_result_identity",
+      "observe_shape",
+      "observe_dtype",
+      "realize_1",
+      "readback_1",
+      "realize_2",
+      "readback_2",
+      "snapshot_inputs_after"
+    ],
+    "incompatible_trace": [
+      "construct_left",
+      "construct_right",
+      "invoke_add",
+      "observe_shape_if_constructed",
+      "record_terminal_stage_class_message"
+    ],
+    "excluded": [
+      "autograd",
+      "reverse-add API surface",
+      "symbolic dimensions",
+      "zero-size dimensions",
+      "broad dtype lattice",
+      "performance",
+      "concurrency"
+    ]
+  },
+  "requirements": [
+    "REQ-ADD-LEGAL-SAME-DTYPE",
+    "REQ-ADD-DTYPE-PROMOTION",
+    "REQ-ADD-INCOMPATIBLE-SHAPE",
+    "REQ-REALIZE-IDEMPOTENT"
+  ],
+  "scenarios": [
+    {
+      "id": "ADD-SAME-SHAPE-F32",
+      "requirements": ["REQ-ADD-LEGAL-SAME-DTYPE", "REQ-REALIZE-IDEMPOTENT"],
+      "left": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 3], "dtype": "float32", "values": [1, 2, 3, 4, 5, 6]},
+      "right": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 3], "dtype": "float32", "values": [10, 20, 30, 40, 50, 60]},
+      "observe": ["construction", "shape", "dtype", "exact_values", "realize_identity", "repeated_readback", "inputs_unchanged"]
+    },
+    {
+      "id": "ADD-SINGLETON-AXIS-F32",
+      "requirements": ["REQ-ADD-LEGAL-SAME-DTYPE", "REQ-REALIZE-IDEMPOTENT"],
+      "left": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 3], "dtype": "float32", "values": [1, 2, 3, 4, 5, 6]},
+      "right": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 1], "dtype": "float32", "values": [10, 20]},
+      "observe": ["construction", "shape", "dtype", "exact_values", "realize_identity", "repeated_readback", "inputs_unchanged"]
+    },
+    {
+      "id": "ADD-RANK-EXTENSION-I32",
+      "requirements": ["REQ-ADD-LEGAL-SAME-DTYPE", "REQ-REALIZE-IDEMPOTENT"],
+      "left": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 3], "dtype": "int32", "values": [1, 2, 3, 4, 5, 6]},
+      "right": {"kind": "tensor", "construction": "typed_tensor", "shape": [3], "dtype": "int32", "values": [10, 20, 30]},
+      "observe": ["construction", "shape", "dtype", "exact_values", "realize_identity", "repeated_readback", "inputs_unchanged"]
+    },
+    {
+      "id": "ADD-TWO-SIDED-BROADCAST-F32",
+      "requirements": ["REQ-ADD-LEGAL-SAME-DTYPE", "REQ-REALIZE-IDEMPOTENT"],
+      "left": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 1, 3], "dtype": "float32", "values": [1, 2, 3, 4, 5, 6]},
+      "right": {"kind": "tensor", "construction": "typed_tensor", "shape": [1, 2, 1], "dtype": "float32", "values": [10, 20]},
+      "observe": ["construction", "shape", "dtype", "exact_values", "realize_identity", "repeated_readback", "inputs_unchanged"]
+    },
+    {
+      "id": "ADD-I32-F32-SCALAR-PROMOTION",
+      "requirements": ["REQ-ADD-DTYPE-PROMOTION", "REQ-REALIZE-IDEMPOTENT"],
+      "left": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 3], "dtype": "int32", "values": [1, 2, 3, 4, 5, 6]},
+      "right": {"kind": "tensor", "construction": "typed_zero_dimensional_tensor", "shape": [], "dtype": "float32", "values": ["0.5"]},
+      "observe": ["construction", "shape", "dtype", "exact_values", "realize_identity", "repeated_readback", "inputs_unchanged"]
+    },
+    {
+      "id": "ADD-INCOMPATIBLE-SHAPES",
+      "requirements": ["REQ-ADD-INCOMPATIBLE-SHAPE"],
+      "left": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 3], "dtype": "float32", "values": [1, 2, 3, 4, 5, 6]},
+      "right": {"kind": "tensor", "construction": "typed_tensor", "shape": [2, 2], "dtype": "float32", "values": [10, 20, 30, 40]},
+      "observe": ["construction", "shape_access", "exception_stage", "exception_class", "exception_message"]
+    }
+  ],
+  "mutations": [
+    {"id": "MUT-ADD-SUBTRACT", "target_scenarios": ["ADD-SAME-SHAPE-F32"], "fault": "replace addition with subtraction", "implementation": "observer-owned substitution of the add opcode with sub", "must_fail": ["value"], "must_not_change": ["shape", "dtype", "terminal_outcome"], "may_be_unobserved": []},
+    {"id": "MUT-ADD-WRONG-RIGHT-ALIGNMENT", "target_scenarios": ["ADD-RANK-EXTENSION-I32"], "fault": "align the rank-one operand from the left", "implementation": "observer-owned broadcast alignment mutant", "must_fail": ["terminal_outcome"], "must_not_change": ["dtype"], "may_be_unobserved": ["shape", "value"]},
+    {"id": "MUT-ADD-NO-SINGLETON-EXPANSION", "target_scenarios": ["ADD-SINGLETON-AXIS-F32"], "fault": "reject expansion of a size-one axis", "implementation": "observer-owned singleton-compatibility mutant", "must_fail": ["terminal_outcome"], "must_not_change": ["dtype"], "may_be_unobserved": ["shape", "value"]},
+    {"id": "MUT-ADD-WRONG-PROMOTION", "target_scenarios": ["ADD-I32-F32-SCALAR-PROMOTION"], "fault": "retain int32 for int32 plus float32", "implementation": "observer-owned promotion-result mutant", "must_fail": ["dtype", "value"], "must_not_change": ["shape", "terminal_outcome"], "may_be_unobserved": []},
+    {"id": "MUT-ADD-ACCEPT-INCOMPATIBLE", "target_scenarios": ["ADD-INCOMPATIBLE-SHAPES"], "fault": "accept the incompatible shape pair", "implementation": "observer-owned compatibility predicate mutant", "must_fail": ["exception_stage", "exception_class", "exception_message"], "must_not_change": [], "may_be_unobserved": []},
+    {"id": "MUT-REALIZE-RETURNS-COPY", "target_scenarios": ["ADD-SAME-SHAPE-F32"], "fault": "return an observationally equal distinct Tensor object from realize", "implementation": "observer-owned result-identity mutant", "must_fail": ["realize_identity"], "must_not_change": ["shape", "dtype", "value", "repeated_readback", "inputs_unchanged"], "may_be_unobserved": []},
+    {"id": "MUT-REALIZE-SECOND-READBACK", "target_scenarios": ["ADD-SAME-SHAPE-F32"], "fault": "alter only the second readback", "implementation": "observer-owned second-readback mutant", "must_fail": ["repeated_readback"], "must_not_change": ["shape", "dtype", "realize_identity", "inputs_unchanged"], "may_be_unobserved": []},
+    {"id": "MUT-ADD-MUTATES-LEFT", "target_scenarios": ["ADD-SAME-SHAPE-F32"], "fault": "mutate only the left input after add", "implementation": "observer-owned post-call input mutant", "must_fail": ["inputs_unchanged"], "must_not_change": ["shape", "dtype", "value", "realize_identity", "repeated_readback"], "may_be_unobserved": []}
+  ],
+  "expected_observation_delta": {
+    "before": "unobserved",
+    "allowed_after": ["failed", "passed_calibrated", "blocked", "verifier_error"],
+    "forbidden_inference": ["conformant", "promoted", "full_tinygrad_parity"]
+  }
+}

@@ -287,6 +287,20 @@ class ProtocolTests(unittest.TestCase):
             sources.append(observer.digest(source))
         self.assertEqual(8, len(set(sources)))
 
+    def test_child_environment_receives_active_manifest_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw) / "run"
+            upstream = Path(raw) / "upstream"
+            root.mkdir()
+            upstream.mkdir()
+            manifest_path = root / "manifest.json"
+            env = observer.controlled_environment(
+                "upstream", root, upstream, manifest_path,
+                self.manifest["effective_manifest_sha256"], "token", None, None,
+            )
+        self.assertEqual(self.manifest["effective_manifest_sha256"],
+                         env["SCENARIO_MANIFEST_SHA256"])
+
     def test_both_subject_ownership_modes_validate(self) -> None:
         for mode in ("upstream", "tgrad"):
             observer.validate_probe_protocol(

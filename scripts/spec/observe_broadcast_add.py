@@ -1423,7 +1423,7 @@ def copy_tgrad_snapshot(root: Path) -> tuple[dict[str, Path], dict]:
 
 
 def controlled_environment(mode: str, root: Path, upstream: Path,
-                           manifest_path: Path, token: str,
+                           manifest_path: Path, manifest_sha256: str, token: str,
                            tgrad: dict[str, Path] | None,
                            mutation: dict | None) -> dict[str, str]:
     home = root / "home"
@@ -1436,7 +1436,7 @@ def controlled_environment(mode: str, root: Path, upstream: Path,
         "PYTHONHASHSEED": "0", "PYTHONNOUSERSITE": "1", "PYTHONSAFEPATH": "1",
         "DEV": "METAL", "SUBJECT_MODE": mode,
         "MANIFEST_PATH": str(manifest_path), "PROTOCOL_TOKEN": token,
-        "SCENARIO_MANIFEST_SHA256": EXPECTED_EFFECTIVE_MANIFEST_SHA256,
+        "SCENARIO_MANIFEST_SHA256": manifest_sha256,
         "EXPECTED_UPSTREAM": str(upstream),
         "MUTATION_CONFIG_JSON": canonical(mutation).decode("ascii"),
     }
@@ -1462,7 +1462,7 @@ def run_probe(py: Path, mode: str, root: Path, upstream: Path,
     manifest_path = root / "effective_manifest.json"
     manifest_path.write_bytes(canonical(manifest))
     env = controlled_environment(
-        mode, root, upstream, manifest_path,
+        mode, root, upstream, manifest_path, manifest["effective_manifest_sha256"],
         protocol_token(manifest, mutation), tgrad, mutation
     )
     completed = subprocess.run(

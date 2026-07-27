@@ -93,6 +93,8 @@ cheap_preflight() {
     || return 1
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/check_broadcast_add_v5_relation_amendment.py" \
     || return 1
+  run_cmd "$PY" "$TGRAD_DIR/scripts/spec/check_broadcast_add_v6_identity_split.py" \
+    || return 1
   run_cmd "$PY" -m unittest \
     scripts.spec.test_broadcast_add_observer \
     scripts.spec.test_broadcast_add_trial_lock \

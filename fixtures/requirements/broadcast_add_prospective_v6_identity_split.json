@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V6",
+  "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V6",
+  "baseline_revision": "b35205870244f90d7b2c326e67a0414e0e3813ff",
+  "v5_amendment_path": "fixtures/requirements/broadcast_add_prospective_v5_relation_amendment.json",
+  "v5_amendment_sha256": "100a923c72fb14feff38356d371e58d101a0ce81a850d7249f8acd4c1450ebcb",
+  "v5_disposition": "relation_definition_refuted_before_implementation",
+  "finding": "V5 still compared the whole observer file, but implementing V5 necessarily changes that file; observation semantics and orchestration provenance require distinct identities.",
+  "identity_split": {
+    "subject_protocol_equivalence": ["probe_sha256", "schema_version", "manifest_effective_sha256", "semantic_lock_sha256"],
+    "per_run_provenance_only": ["observer_sha256", "git.revision", "git.tree", "git.files", "git.sha256"],
+    "relation_module": "scripts/spec/broadcast_add_relation.py",
+    "relation_tests": "scripts/spec/test_broadcast_add_relation.py"
+  },
+  "relation_fault_model": [
+    "probe mismatch rejected",
+    "schema mismatch rejected",
+    "manifest mismatch rejected",
+    "semantic lock mismatch rejected",
+    "missing relation identity rejected",
+    "revision-only provenance difference accepted"
+  ],
+  "upstream_baseline_remains_immutable": true,
+  "v4_observation_contract_inherited_unchanged": true,
+  "frozen_before_relation_module_implementation": true,
+  "frozen_before_tgrad_observation": true,
+  "product_candidate_forbidden_before_tgrad_observation": true
+}

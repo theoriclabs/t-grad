@@ -636,6 +636,13 @@ the relation repair: retain Git revision/tree/hash in each artifact, but compare
 executable verifier equivalence by observer hash, probe hash, schema, clean
 state, and verifier-file hashes. The upstream baseline remains immutable.
 
+Review refuted V5 before implementation: its relation code still lived in the
+observer file whose whole-file hash it proposed comparing. Implementing V5
+would therefore invalidate its own equality premise. V6 freezes an architectural
+split instead. Subject-protocol equivalence is probe/schema/manifest/semantic-
+lock identity; observer and Git identities remain per-run provenance; a new
+pure relation module is independently hashed and mutation-calibrated.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

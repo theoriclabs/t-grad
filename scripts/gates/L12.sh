@@ -106,8 +106,15 @@ for f in \
   Tgrad/Renderer/MatmulTc.lean \
   Tgrad/Pipeline.lean \
   Tgrad/PythonFFI.lean; do
-  if grep -qE 'IO\.FS\.readFile' "$REPO_ROOT/$f"; then
+  # Strip Lean line comments before matching. The predicate is about
+  # what the code DOES, and a bare grep also matched prose — the
+  # comment in Pipeline.lean that documents the readFile this path used
+  # to perform is not itself a readFile. Making the source describe
+  # itself less accurately in order to satisfy a text match would be
+  # the wrong repair.
+  if sed 's|--.*||' "$REPO_ROOT/$f" | grep -qE 'IO\.FS\.readFile'; then
     echo "  ✗ product generation path reads source from disk: $f"
+    sed 's|--.*||' "$REPO_ROOT/$f" | grep -nE 'IO\.FS\.readFile' | sed 's/^/      /'
     exit 1
   fi
 done

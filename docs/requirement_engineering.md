@@ -688,6 +688,14 @@ Tensor lacks `tolist`. The incompatible pair reaches `invoke_add` and raises
 Tgrad's shape error. This is observability gain—construction changed from a
 common blocker to a passed dimension—but still supplies no legal add result.
 
+The next prospective packet,
+[`WORK-PY-F32-VIEW-READBACK-V1`](../fixtures/requirements/broadcast_add_readback_candidate_v1.json),
+owns both sides of the newly exposed boundary: the public `Tensor.tolist`
+method and the Lean view materializer's element width. Its fault model includes
+the tempting partial fix—adding `tolist` while leaving float32 reshape views
+unmaterializable—and a 16-bit copy of 32-bit storage. The only predicted
+observer transition is that three legal float32 scenarios reach `invoke_add`.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

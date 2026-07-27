@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-PY-F32-VIEW-READBACK-V1",
+  "baseline_revision": "6a646a54007be78c443db7373e14b2a35e186c75",
+  "trigger_evidence_id": "8f6a7f9dc4bf105d23773e6fafc7dc145b8b3e7d8c5b6bf0a0cc8edfd9531de1",
+  "finding": "Three legal float32 scenarios construct both operands and then stop at snapshot_inputs because Tensor.tolist is absent; adding it also requires float32 reshape-view materialization because the frozen constructor protocol builds a flat Tensor then reshapes it.",
+  "candidate": {
+    "python_surface": "Tensor.tolist() returns the nested Python representation of exact logical readback",
+    "lean_materializer": "materializeView performs bit-preserving indexed copies for bf16 and f32",
+    "typed_copy_mapping": {"bf16": "ushort", "f32": "uint"},
+    "unsupported_materialization_dtypes": ["f16", "i32"],
+    "preserve": [
+      "view shape and index algebra",
+      "source-buffer bounds checks",
+      "signed 32-bit index-domain checks",
+      "exact dtype-sized output allocation",
+      "existing two-handle FFI ABI"
+    ]
+  },
+  "predicted_observation_transition": {
+    "snapshot_inputs_crosses_for": [
+      "ADD-SAME-SHAPE-F32",
+      "ADD-SINGLETON-AXIS-F32",
+      "ADD-TWO-SIDED-BROADCAST-F32"
+    ],
+    "minimum_newly_reached_stage": "invoke_add",
+    "incompatible_scenario_unchanged_at": "invoke_add",
+    "int32_scenarios_unchanged_at": "construct_left",
+    "arithmetic_outcome_predicted": false,
+    "realization_identity_predicted": false,
+    "parity_promotion_predicted": false
+  },
+  "write_set": {
+    "product": ["python/tgrad.py", "Tgrad/Pipeline.lean"],
+    "verification": ["scripts/spec/test_tensor_tolist.py"],
+    "forbidden": [
+      "scripts/spec/observe_broadcast_add.py",
+      "scripts/parity/shim/tinygrad/__init__.py",
+      "scripts/parity/shim/tinygrad/dtype.py",
+      "Tgrad/PythonFFI.lean",
+      "c/tgrad_python.c"
+    ]
+  },
+  "fault_model": [
+    "implement tolist without materializing views",
+    "copy f32 view elements as ushort",
+    "return flat values instead of shape-preserving nested values"
+  ],
+  "recovery": "Revert both product files and the contract test together; retain the resulting V6 observation as a localized readback diagnostic.",
+  "frozen_before_product_authoring": true
+}

@@ -696,6 +696,16 @@ the tempting partial fix—adding `tolist` while leaving float32 reshape views
 unmaterializable—and a 16-bit copy of 32-bit storage. The only predicted
 observer transition is that three legal float32 scenarios reach `invoke_add`.
 
+Evidence
+`317fc368cfcda64ed0ee45eab33f49a985605ad75dc921021f4a7d86040572d1`
+confirms that prediction. Same-shape and singleton-axis float32 addition now
+reach result shape and dtype observation—both are `(2,3)`/float32—and stop at
+`realize_1` because `Tensor.realize` is absent. Two-sided rank-3 broadcasting
+reaches `invoke_add` and stops at the explicit rank-2 guard. These are now two
+separable work fronts: realization identity for already materialized results,
+and generalized right-aligned broadcasting. Keeping them separate preserves
+fault localization and avoids crediting a convenience method with kernel work.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

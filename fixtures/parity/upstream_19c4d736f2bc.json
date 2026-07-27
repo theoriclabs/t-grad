@@ -1,0 +1,1405 @@
+{
+  "backends": {
+    "names": [
+      "amd",
+      "cl",
+      "cpu",
+      "cuda",
+      "disk",
+      "dsp",
+      "hip",
+      "metal",
+      "npy",
+      "null",
+      "nv",
+      "python",
+      "qcom",
+      "rdma",
+      "tinyfs",
+      "webgpu"
+    ],
+    "source": "tinygrad/runtime/"
+  },
+  "content_sha256": "439370c2308bae30756329b6dfd96c0e004ce7a4aa78f155b4ee689554973874",
+  "counts": {
+    "backends": 16,
+    "dtype_names": 52,
+    "ops_members": 82,
+    "tensor_methods": 297,
+    "tensor_properties": 5,
+    "test_files": 138,
+    "test_files_no_backend": 54
+  },
+  "dtypes": {
+    "names": [
+      "all",
+      "bfloat16",
+      "bool",
+      "char",
+      "default_float",
+      "default_int",
+      "double",
+      "finfo",
+      "float",
+      "float16",
+      "float32",
+      "float64",
+      "floats",
+      "fp8_fnuz",
+      "fp8_ocp",
+      "fp8e4m3",
+      "fp8e4m3fnuz",
+      "fp8e5m2",
+      "fp8e5m2fnuz",
+      "fp8s",
+      "from_py",
+      "half",
+      "int",
+      "int16",
+      "int16s",
+      "int32",
+      "int32s",
+      "int64",
+      "int64s",
+      "int8",
+      "int8s",
+      "ints",
+      "is_bool",
+      "is_float",
+      "is_int",
+      "is_unsigned",
+      "long",
+      "short",
+      "sints",
+      "uchar",
+      "uint",
+      "uint16",
+      "uint32",
+      "uint64",
+      "uint8",
+      "uints",
+      "ulong",
+      "ushort",
+      "void",
+      "weakfloat",
+      "weakint",
+      "weaks"
+    ],
+    "source": "tinygrad/dtype.py"
+  },
+  "extracted_at_utc": "2026-07-27T08:10:14Z",
+  "extractor": "scripts/parity/extract_upstream.py",
+  "ops": {
+    "members": [
+      "ADD",
+      "AFTER",
+      "ALLREDUCE",
+      "AND",
+      "BARRIER",
+      "BINARY",
+      "BIND",
+      "BITCAST",
+      "BUFFER",
+      "CALL",
+      "CAST",
+      "CDIV",
+      "CMOD",
+      "CMPEQ",
+      "CMPLT",
+      "CMPNE",
+      "CONST",
+      "CONTIGUOUS",
+      "CONTIGUOUS_BACKWARD",
+      "COPY",
+      "CUSTOM",
+      "CUSTOMI",
+      "CUSTOM_FUNCTION",
+      "DETACH",
+      "END",
+      "ENDIF",
+      "EXP2",
+      "EXPAND",
+      "FDIV",
+      "FLIP",
+      "FLOORDIV",
+      "FLOORMOD",
+      "FUNCTION",
+      "GETADDR",
+      "GETTUPLE",
+      "GROUP",
+      "IF",
+      "INDEX",
+      "INS",
+      "LINEAR",
+      "LOAD",
+      "LOG2",
+      "MAX",
+      "MSELECT",
+      "MSTACK",
+      "MUL",
+      "MULACC",
+      "MULTI",
+      "NEG",
+      "NOOP",
+      "OR",
+      "PAD",
+      "PARAM",
+      "PERMUTE",
+      "POW",
+      "PROGRAM",
+      "PYLITERAL",
+      "RANGE",
+      "RECIPROCAL",
+      "REDUCE",
+      "RESHAPE",
+      "REWRITE_ERROR",
+      "SHL",
+      "SHR",
+      "SHRINK",
+      "SIN",
+      "SINK",
+      "SLICE",
+      "SOURCE",
+      "SPECIAL",
+      "SQRT",
+      "STACK",
+      "STAGE",
+      "STORE",
+      "SUB",
+      "THREEFRY",
+      "TRUNC",
+      "TUPLE",
+      "WAIT",
+      "WHERE",
+      "WMMA",
+      "XOR"
+    ],
+    "source": "tinygrad/uop/__init__.py"
+  },
+  "tensor_api": {
+    "by_source": {
+      "tinygrad/mixin/creation.py": [
+        "const",
+        "const_like",
+        "empty",
+        "empty_like",
+        "full",
+        "full_like",
+        "invalids",
+        "ones",
+        "ones_like",
+        "zeros",
+        "zeros_like"
+      ],
+      "tinygrad/mixin/dtype.py": [
+        "bfloat16",
+        "bitcast",
+        "bool",
+        "cast",
+        "double",
+        "dtype",
+        "element_size",
+        "float",
+        "half",
+        "int",
+        "is_floating_point",
+        "long",
+        "short"
+      ],
+      "tinygrad/mixin/elementwise.py": [
+        "__add__",
+        "__and__",
+        "__floordiv__",
+        "__ge__",
+        "__gt__",
+        "__invert__",
+        "__le__",
+        "__lshift__",
+        "__lt__",
+        "__mod__",
+        "__mul__",
+        "__ne__",
+        "__neg__",
+        "__or__",
+        "__pow__",
+        "__radd__",
+        "__rand__",
+        "__rfloordiv__",
+        "__rlshift__",
+        "__rmod__",
+        "__rmul__",
+        "__ror__",
+        "__rpow__",
+        "__rrshift__",
+        "__rshift__",
+        "__rsub__",
+        "__rtruediv__",
+        "__rxor__",
+        "__sub__",
+        "__truediv__",
+        "__xor__",
+        "abs",
+        "acos",
+        "acosh",
+        "add",
+        "alu",
+        "asin",
+        "asinh",
+        "atan",
+        "atanh",
+        "bitwise_and",
+        "bitwise_not",
+        "bitwise_or",
+        "bitwise_xor",
+        "ceil",
+        "celu",
+        "clamp",
+        "clip",
+        "contiguous",
+        "contiguous_backward",
+        "copysign",
+        "cos",
+        "cosh",
+        "detach",
+        "div",
+        "elu",
+        "eq",
+        "erf",
+        "exp",
+        "exp2",
+        "floor",
+        "fmod",
+        "gelu",
+        "hardsigmoid",
+        "hardswish",
+        "hardtanh",
+        "isclose",
+        "isfinite",
+        "isinf",
+        "isnan",
+        "leaky_relu",
+        "lerp",
+        "log",
+        "log10",
+        "log2",
+        "logaddexp",
+        "logical_not",
+        "logsigmoid",
+        "lshift",
+        "masked_fill",
+        "maximum",
+        "minimum",
+        "mish",
+        "mod",
+        "mul",
+        "ne",
+        "neg",
+        "pow",
+        "quick_gelu",
+        "reciprocal",
+        "relu",
+        "relu6",
+        "round",
+        "rshift",
+        "rsqrt",
+        "selu",
+        "sigmoid",
+        "sign",
+        "silu",
+        "sin",
+        "sinh",
+        "softplus",
+        "softsign",
+        "sqrt",
+        "square",
+        "sub",
+        "swish",
+        "tan",
+        "tanh",
+        "threefry",
+        "trunc",
+        "ufix",
+        "uprod",
+        "usum",
+        "where"
+      ],
+      "tinygrad/mixin/gradient.py": [],
+      "tinygrad/mixin/movement.py": [
+        "T",
+        "chunk",
+        "device",
+        "diag",
+        "diagonal",
+        "expand",
+        "flatten",
+        "flip",
+        "meshgrid",
+        "ndim",
+        "numel",
+        "pad",
+        "pad_to",
+        "permute",
+        "rearrange",
+        "repeat",
+        "repeat_interleave",
+        "reshape",
+        "roll",
+        "shape",
+        "shrink",
+        "shrink_to",
+        "size",
+        "split",
+        "squeeze",
+        "stack",
+        "transpose",
+        "unflatten",
+        "unfold",
+        "unsqueeze",
+        "view"
+      ],
+      "tinygrad/mixin/op.py": [
+        "__getitem__",
+        "__matmul__",
+        "__rmatmul__",
+        "allclose",
+        "arange",
+        "argmax",
+        "argmin",
+        "argsort",
+        "avg_pool2d",
+        "batchnorm",
+        "binary_crossentropy",
+        "binary_crossentropy_logits",
+        "cat",
+        "conv2d",
+        "conv_transpose2d",
+        "cross_entropy",
+        "cummax",
+        "cummin",
+        "cumprod",
+        "cumsum",
+        "data",
+        "dot",
+        "einsum",
+        "eye",
+        "gather",
+        "gradient",
+        "hash",
+        "image_conv2d",
+        "image_dot",
+        "interpolate",
+        "item",
+        "keccak",
+        "layernorm",
+        "linear",
+        "linspace",
+        "log_softmax",
+        "logcumsumexp",
+        "logsumexp",
+        "masked_select",
+        "matmul",
+        "max_pool2d",
+        "max_unpool2d",
+        "mean",
+        "min",
+        "nbytes",
+        "newton_schulz",
+        "nll_loss",
+        "nonzero",
+        "normalize",
+        "one_hot",
+        "pad",
+        "qr",
+        "scatter",
+        "scatter_reduce",
+        "sequential",
+        "softmax",
+        "sort",
+        "sparse_categorical_crossentropy",
+        "std",
+        "std_mean",
+        "svd",
+        "topk",
+        "tril",
+        "triu",
+        "var",
+        "var_mean"
+      ],
+      "tinygrad/mixin/rand.py": [
+        "dropout",
+        "glorot_uniform",
+        "kaiming_normal",
+        "kaiming_uniform",
+        "multinomial",
+        "normal",
+        "rand",
+        "rand_like",
+        "randint",
+        "randn",
+        "randn_like",
+        "random_bits",
+        "randperm",
+        "scaled_dot_product_attention",
+        "scaled_uniform",
+        "uniform"
+      ],
+      "tinygrad/mixin/reduce.py": [
+        "all",
+        "any",
+        "max",
+        "prod",
+        "sum"
+      ],
+      "tinygrad/tensor.py": [
+        "__bool__",
+        "__del__",
+        "__delitem__",
+        "__eq__",
+        "__hash__",
+        "__iadd__",
+        "__iand__",
+        "__ifloordiv__",
+        "__ilshift__",
+        "__imatmul__",
+        "__imul__",
+        "__init__",
+        "__ior__",
+        "__ipow__",
+        "__irshift__",
+        "__isub__",
+        "__itruediv__",
+        "__ixor__",
+        "__len__",
+        "__repr__",
+        "__setitem__",
+        "alu",
+        "as_param",
+        "assign",
+        "backward",
+        "call",
+        "callify",
+        "clone",
+        "const",
+        "custom_kernel",
+        "data",
+        "decode_hevc_frame",
+        "device",
+        "dtype",
+        "from_blob",
+        "from_url",
+        "get",
+        "is_param_",
+        "linear_with_vars",
+        "manual_seed",
+        "numpy",
+        "realize",
+        "replace",
+        "schedule_linear",
+        "set",
+        "shape",
+        "shard",
+        "shard_",
+        "shard_like",
+        "to",
+        "to_",
+        "tolist"
+      ]
+    },
+    "methods": [
+      "__add__",
+      "__and__",
+      "__bool__",
+      "__del__",
+      "__delitem__",
+      "__eq__",
+      "__floordiv__",
+      "__ge__",
+      "__getitem__",
+      "__gt__",
+      "__hash__",
+      "__iadd__",
+      "__iand__",
+      "__ifloordiv__",
+      "__ilshift__",
+      "__imatmul__",
+      "__imul__",
+      "__init__",
+      "__invert__",
+      "__ior__",
+      "__ipow__",
+      "__irshift__",
+      "__isub__",
+      "__itruediv__",
+      "__ixor__",
+      "__le__",
+      "__len__",
+      "__lshift__",
+      "__lt__",
+      "__matmul__",
+      "__mod__",
+      "__mul__",
+      "__ne__",
+      "__neg__",
+      "__or__",
+      "__pow__",
+      "__radd__",
+      "__rand__",
+      "__repr__",
+      "__rfloordiv__",
+      "__rlshift__",
+      "__rmatmul__",
+      "__rmod__",
+      "__rmul__",
+      "__ror__",
+      "__rpow__",
+      "__rrshift__",
+      "__rshift__",
+      "__rsub__",
+      "__rtruediv__",
+      "__rxor__",
+      "__setitem__",
+      "__sub__",
+      "__truediv__",
+      "__xor__",
+      "abs",
+      "acos",
+      "acosh",
+      "add",
+      "all",
+      "allclose",
+      "alu",
+      "any",
+      "arange",
+      "argmax",
+      "argmin",
+      "argsort",
+      "as_param",
+      "asin",
+      "asinh",
+      "assign",
+      "atan",
+      "atanh",
+      "avg_pool2d",
+      "backward",
+      "batchnorm",
+      "bfloat16",
+      "binary_crossentropy",
+      "binary_crossentropy_logits",
+      "bitcast",
+      "bitwise_and",
+      "bitwise_not",
+      "bitwise_or",
+      "bitwise_xor",
+      "bool",
+      "call",
+      "callify",
+      "cast",
+      "cat",
+      "ceil",
+      "celu",
+      "chunk",
+      "clamp",
+      "clip",
+      "clone",
+      "const",
+      "const_like",
+      "contiguous",
+      "contiguous_backward",
+      "conv2d",
+      "conv_transpose2d",
+      "copysign",
+      "cos",
+      "cosh",
+      "cross_entropy",
+      "cummax",
+      "cummin",
+      "cumprod",
+      "cumsum",
+      "custom_kernel",
+      "data",
+      "decode_hevc_frame",
+      "detach",
+      "diag",
+      "diagonal",
+      "div",
+      "dot",
+      "double",
+      "dropout",
+      "einsum",
+      "element_size",
+      "elu",
+      "empty",
+      "empty_like",
+      "eq",
+      "erf",
+      "exp",
+      "exp2",
+      "expand",
+      "eye",
+      "flatten",
+      "flip",
+      "float",
+      "floor",
+      "fmod",
+      "from_blob",
+      "from_url",
+      "full",
+      "full_like",
+      "gather",
+      "gelu",
+      "get",
+      "glorot_uniform",
+      "gradient",
+      "half",
+      "hardsigmoid",
+      "hardswish",
+      "hardtanh",
+      "hash",
+      "image_conv2d",
+      "image_dot",
+      "int",
+      "interpolate",
+      "invalids",
+      "is_floating_point",
+      "is_param_",
+      "isclose",
+      "isfinite",
+      "isinf",
+      "isnan",
+      "item",
+      "kaiming_normal",
+      "kaiming_uniform",
+      "keccak",
+      "layernorm",
+      "leaky_relu",
+      "lerp",
+      "linear",
+      "linear_with_vars",
+      "linspace",
+      "log",
+      "log10",
+      "log2",
+      "log_softmax",
+      "logaddexp",
+      "logcumsumexp",
+      "logical_not",
+      "logsigmoid",
+      "logsumexp",
+      "long",
+      "lshift",
+      "manual_seed",
+      "masked_fill",
+      "masked_select",
+      "matmul",
+      "max",
+      "max_pool2d",
+      "max_unpool2d",
+      "maximum",
+      "mean",
+      "meshgrid",
+      "min",
+      "minimum",
+      "mish",
+      "mod",
+      "mul",
+      "multinomial",
+      "nbytes",
+      "ne",
+      "neg",
+      "newton_schulz",
+      "nll_loss",
+      "nonzero",
+      "normal",
+      "normalize",
+      "numel",
+      "numpy",
+      "one_hot",
+      "ones",
+      "ones_like",
+      "pad",
+      "pad_to",
+      "permute",
+      "pow",
+      "prod",
+      "qr",
+      "quick_gelu",
+      "rand",
+      "rand_like",
+      "randint",
+      "randn",
+      "randn_like",
+      "random_bits",
+      "randperm",
+      "realize",
+      "rearrange",
+      "reciprocal",
+      "relu",
+      "relu6",
+      "repeat",
+      "repeat_interleave",
+      "replace",
+      "reshape",
+      "roll",
+      "round",
+      "rshift",
+      "rsqrt",
+      "scaled_dot_product_attention",
+      "scaled_uniform",
+      "scatter",
+      "scatter_reduce",
+      "schedule_linear",
+      "selu",
+      "sequential",
+      "set",
+      "shard",
+      "shard_",
+      "shard_like",
+      "short",
+      "shrink",
+      "shrink_to",
+      "sigmoid",
+      "sign",
+      "silu",
+      "sin",
+      "sinh",
+      "size",
+      "softmax",
+      "softplus",
+      "softsign",
+      "sort",
+      "sparse_categorical_crossentropy",
+      "split",
+      "sqrt",
+      "square",
+      "squeeze",
+      "stack",
+      "std",
+      "std_mean",
+      "sub",
+      "sum",
+      "svd",
+      "swish",
+      "tan",
+      "tanh",
+      "threefry",
+      "to",
+      "to_",
+      "tolist",
+      "topk",
+      "transpose",
+      "tril",
+      "triu",
+      "trunc",
+      "ufix",
+      "unflatten",
+      "unfold",
+      "uniform",
+      "unsqueeze",
+      "uprod",
+      "usum",
+      "var",
+      "var_mean",
+      "view",
+      "where",
+      "zeros",
+      "zeros_like"
+    ],
+    "properties": [
+      "T",
+      "device",
+      "dtype",
+      "ndim",
+      "shape"
+    ],
+    "sources": [
+      "tinygrad/tensor.py",
+      "tinygrad/mixin/creation.py",
+      "tinygrad/mixin/dtype.py",
+      "tinygrad/mixin/elementwise.py",
+      "tinygrad/mixin/gradient.py",
+      "tinygrad/mixin/movement.py",
+      "tinygrad/mixin/op.py",
+      "tinygrad/mixin/rand.py",
+      "tinygrad/mixin/reduce.py"
+    ]
+  },
+  "tests": {
+    "groups": {
+      "backend": {
+        "bytes": 660114,
+        "count": 41,
+        "files": [
+          {
+            "bytes": 12589,
+            "name": "test_arange.py"
+          },
+          {
+            "bytes": 21240,
+            "name": "test_asm_gemm.py"
+          },
+          {
+            "bytes": 1655,
+            "name": "test_call.py"
+          },
+          {
+            "bytes": 9644,
+            "name": "test_const_folding.py"
+          },
+          {
+            "bytes": 20362,
+            "name": "test_custom_kernel.py"
+          },
+          {
+            "bytes": 20751,
+            "name": "test_dtype.py"
+          },
+          {
+            "bytes": 23567,
+            "name": "test_dtype_alu.py"
+          },
+          {
+            "bytes": 10673,
+            "name": "test_edgecases.py"
+          },
+          {
+            "bytes": 8157,
+            "name": "test_encodings.py"
+          },
+          {
+            "bytes": 12140,
+            "name": "test_graph.py"
+          },
+          {
+            "bytes": 1948,
+            "name": "test_interop.py"
+          },
+          {
+            "bytes": 2405,
+            "name": "test_isel.py"
+          },
+          {
+            "bytes": 16345,
+            "name": "test_jit.py"
+          },
+          {
+            "bytes": 25088,
+            "name": "test_linearizer.py"
+          },
+          {
+            "bytes": 2032,
+            "name": "test_linearizer_dumb.py"
+          },
+          {
+            "bytes": 8188,
+            "name": "test_llama_kernels.py"
+          },
+          {
+            "bytes": 19386,
+            "name": "test_multitensor.py"
+          },
+          {
+            "bytes": 25613,
+            "name": "test_nn.py"
+          },
+          {
+            "bytes": 200934,
+            "name": "test_ops.py"
+          },
+          {
+            "bytes": 1826,
+            "name": "test_opt_gemm.py"
+          },
+          {
+            "bytes": 9083,
+            "name": "test_optim.py"
+          },
+          {
+            "bytes": 6459,
+            "name": "test_pickle.py"
+          },
+          {
+            "bytes": 11285,
+            "name": "test_profiler.py"
+          },
+          {
+            "bytes": 12398,
+            "name": "test_quantize_onnx.py"
+          },
+          {
+            "bytes": 11216,
+            "name": "test_randomness.py"
+          },
+          {
+            "bytes": 9521,
+            "name": "test_rangeify.py"
+          },
+          {
+            "bytes": 6540,
+            "name": "test_renderer_failures.py"
+          },
+          {
+            "bytes": 20637,
+            "name": "test_schedule.py"
+          },
+          {
+            "bytes": 13688,
+            "name": "test_setitem.py"
+          },
+          {
+            "bytes": 7331,
+            "name": "test_softmax_fusion.py"
+          },
+          {
+            "bytes": 2083,
+            "name": "test_stunning.py"
+          },
+          {
+            "bytes": 7028,
+            "name": "test_subbuffer.py"
+          },
+          {
+            "bytes": 11780,
+            "name": "test_symbolic_jit.py"
+          },
+          {
+            "bytes": 14184,
+            "name": "test_symbolic_ops.py"
+          },
+          {
+            "bytes": 30643,
+            "name": "test_tensor.py"
+          },
+          {
+            "bytes": 8705,
+            "name": "test_tensor_variable.py"
+          },
+          {
+            "bytes": 436,
+            "name": "test_to_numpy.py"
+          },
+          {
+            "bytes": 10004,
+            "name": "test_transcendental.py"
+          },
+          {
+            "bytes": 17277,
+            "name": "test_uops.py"
+          },
+          {
+            "bytes": 4381,
+            "name": "test_wait_loop.py"
+          },
+          {
+            "bytes": 892,
+            "name": "test_zero_copy.py"
+          }
+        ]
+      },
+      "null": {
+        "bytes": 585379,
+        "count": 54,
+        "files": [
+          {
+            "bytes": 1452,
+            "name": "test_attention.py"
+          },
+          {
+            "bytes": 16083,
+            "name": "test_autogen.py"
+          },
+          {
+            "bytes": 1193,
+            "name": "test_compile_failures.py"
+          },
+          {
+            "bytes": 7408,
+            "name": "test_const_folding.py"
+          },
+          {
+            "bytes": 10608,
+            "name": "test_device.py"
+          },
+          {
+            "bytes": 3607,
+            "name": "test_disk_cache.py"
+          },
+          {
+            "bytes": 2936,
+            "name": "test_dtype.py"
+          },
+          {
+            "bytes": 24852,
+            "name": "test_dtype_spec.py"
+          },
+          {
+            "bytes": 1748,
+            "name": "test_elf.py"
+          },
+          {
+            "bytes": 3659,
+            "name": "test_gc.py"
+          },
+          {
+            "bytes": 6810,
+            "name": "test_gpudims.py"
+          },
+          {
+            "bytes": 3508,
+            "name": "test_gradient.py"
+          },
+          {
+            "bytes": 23028,
+            "name": "test_graph_rewrite.py"
+          },
+          {
+            "bytes": 3584,
+            "name": "test_hcq_iface.py"
+          },
+          {
+            "bytes": 16923,
+            "name": "test_helpers.py"
+          },
+          {
+            "bytes": 3591,
+            "name": "test_indexing.py"
+          },
+          {
+            "bytes": 1386,
+            "name": "test_linearizer_failures.py"
+          },
+          {
+            "bytes": 1781,
+            "name": "test_linearizer_rewrite.py"
+          },
+          {
+            "bytes": 12229,
+            "name": "test_llm_server.py"
+          },
+          {
+            "bytes": 6304,
+            "name": "test_llm_tokenizer.py"
+          },
+          {
+            "bytes": 7968,
+            "name": "test_memory_planner.py"
+          },
+          {
+            "bytes": 1812,
+            "name": "test_method_cache.py"
+          },
+          {
+            "bytes": 2805,
+            "name": "test_microbenchmarks.py"
+          },
+          {
+            "bytes": 452,
+            "name": "test_mnist_dataset.py"
+          },
+          {
+            "bytes": 8437,
+            "name": "test_multitensor.py"
+          },
+          {
+            "bytes": 8916,
+            "name": "test_pattern_matcher.py"
+          },
+          {
+            "bytes": 1642,
+            "name": "test_process_replay.py"
+          },
+          {
+            "bytes": 8238,
+            "name": "test_real_world.py"
+          },
+          {
+            "bytes": 6241,
+            "name": "test_rearrange_einops.py"
+          },
+          {
+            "bytes": 503,
+            "name": "test_resnet.py"
+          },
+          {
+            "bytes": 913,
+            "name": "test_rewrite_bottom_up_gate.py"
+          },
+          {
+            "bytes": 70349,
+            "name": "test_schedule.py"
+          },
+          {
+            "bytes": 1149,
+            "name": "test_schedule_cache.py"
+          },
+          {
+            "bytes": 24108,
+            "name": "test_simplify_valid_idx.py"
+          },
+          {
+            "bytes": 5773,
+            "name": "test_symbolic_failures.py"
+          },
+          {
+            "bytes": 4657,
+            "name": "test_symbolic_tensor.py"
+          },
+          {
+            "bytes": 8291,
+            "name": "test_tensor.py"
+          },
+          {
+            "bytes": 790,
+            "name": "test_tensor_io.py"
+          },
+          {
+            "bytes": 5038,
+            "name": "test_tensor_metadata.py"
+          },
+          {
+            "bytes": 31652,
+            "name": "test_tensor_uop_mixin.py"
+          },
+          {
+            "bytes": 1795,
+            "name": "test_tensor_uop_representation.py"
+          },
+          {
+            "bytes": 15898,
+            "name": "test_tqdm.py"
+          },
+          {
+            "bytes": 3741,
+            "name": "test_transcendental_helpers.py"
+          },
+          {
+            "bytes": 27853,
+            "name": "test_uop_graph.py"
+          },
+          {
+            "bytes": 1374,
+            "name": "test_uop_repr.py"
+          },
+          {
+            "bytes": 3286,
+            "name": "test_uop_resolve.py"
+          },
+          {
+            "bytes": 68836,
+            "name": "test_uop_symbolic.py"
+          },
+          {
+            "bytes": 14916,
+            "name": "test_uop_vmin_vmax.py"
+          },
+          {
+            "bytes": 24044,
+            "name": "test_uops.py"
+          },
+          {
+            "bytes": 10344,
+            "name": "test_uops_stats.py"
+          },
+          {
+            "bytes": 1489,
+            "name": "test_upat_compile.py"
+          },
+          {
+            "bytes": 8546,
+            "name": "test_validate_oob.py"
+          },
+          {
+            "bytes": 48424,
+            "name": "test_viz.py"
+          },
+          {
+            "bytes": 2409,
+            "name": "test_winograd.py"
+          }
+        ]
+      },
+      "unit": {
+        "bytes": 385954,
+        "count": 43,
+        "files": [
+          {
+            "bytes": 3321,
+            "name": "test_allreduce.py"
+          },
+          {
+            "bytes": 43120,
+            "name": "test_assign.py"
+          },
+          {
+            "bytes": 11628,
+            "name": "test_attention.py"
+          },
+          {
+            "bytes": 13686,
+            "name": "test_call.py"
+          },
+          {
+            "bytes": 2758,
+            "name": "test_callify.py"
+          },
+          {
+            "bytes": 3742,
+            "name": "test_conv.py"
+          },
+          {
+            "bytes": 1168,
+            "name": "test_cpu.py"
+          },
+          {
+            "bytes": 26475,
+            "name": "test_disk_tensor.py"
+          },
+          {
+            "bytes": 12542,
+            "name": "test_dtype_spec.py"
+          },
+          {
+            "bytes": 10887,
+            "name": "test_dtype_weak.py"
+          },
+          {
+            "bytes": 25327,
+            "name": "test_function.py"
+          },
+          {
+            "bytes": 1031,
+            "name": "test_getitem_ops.py"
+          },
+          {
+            "bytes": 15507,
+            "name": "test_gguf.py"
+          },
+          {
+            "bytes": 9036,
+            "name": "test_gradient.py"
+          },
+          {
+            "bytes": 5338,
+            "name": "test_hashing.py"
+          },
+          {
+            "bytes": 2107,
+            "name": "test_hcq_graph.py"
+          },
+          {
+            "bytes": 916,
+            "name": "test_helpers.py"
+          },
+          {
+            "bytes": 54795,
+            "name": "test_indexing.py"
+          },
+          {
+            "bytes": 6111,
+            "name": "test_invalid_tensor.py"
+          },
+          {
+            "bytes": 14275,
+            "name": "test_jit.py"
+          },
+          {
+            "bytes": 2647,
+            "name": "test_jit_cases.py"
+          },
+          {
+            "bytes": 15813,
+            "name": "test_jit_footguns.py"
+          },
+          {
+            "bytes": 4757,
+            "name": "test_linalg.py"
+          },
+          {
+            "bytes": 3443,
+            "name": "test_llm_mla.py"
+          },
+          {
+            "bytes": 4898,
+            "name": "test_llm_moe.py"
+          },
+          {
+            "bytes": 6646,
+            "name": "test_llm_server.py"
+          },
+          {
+            "bytes": 750,
+            "name": "test_masked_tensor.py"
+          },
+          {
+            "bytes": 1494,
+            "name": "test_metal_graph.py"
+          },
+          {
+            "bytes": 39666,
+            "name": "test_multitensor.py"
+          },
+          {
+            "bytes": 591,
+            "name": "test_objc.py"
+          },
+          {
+            "bytes": 10179,
+            "name": "test_randomness.py"
+          },
+          {
+            "bytes": 1745,
+            "name": "test_realize_is_realize.py"
+          },
+          {
+            "bytes": 6444,
+            "name": "test_rearrange_einops.py"
+          },
+          {
+            "bytes": 2153,
+            "name": "test_schedule_cache.py"
+          },
+          {
+            "bytes": 5276,
+            "name": "test_setitem_schedule.py"
+          },
+          {
+            "bytes": 1150,
+            "name": "test_shm_tensor.py"
+          },
+          {
+            "bytes": 333,
+            "name": "test_symbolic_tensor.py"
+          },
+          {
+            "bytes": 907,
+            "name": "test_system_pci_scan_bus.py"
+          },
+          {
+            "bytes": 5224,
+            "name": "test_tar.py"
+          },
+          {
+            "bytes": 2826,
+            "name": "test_tensor_data.py"
+          },
+          {
+            "bytes": 585,
+            "name": "test_tensor_io.py"
+          },
+          {
+            "bytes": 3339,
+            "name": "test_tinyfs.py"
+          },
+          {
+            "bytes": 1318,
+            "name": "test_winograd.py"
+          }
+        ]
+      }
+    },
+    "source": "test/"
+  },
+  "upstream_committed_at": "2026-07-27T06:44:24Z",
+  "upstream_ref": "19c4d736f2bc8e26d21f08b28ffd6298408da00f",
+  "upstream_repo": "tinygrad/tinygrad",
+  "upstream_subject": "validate json output of viz.cli in CI (#17232)"
+}

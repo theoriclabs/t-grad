@@ -1,0 +1,147 @@
+FFFFFFFFFFFFF                                                            [100%]
+=================================== FAILURES ===================================
+____________________________ TestCallify.test_basic ____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_basic>
+
+    def test_basic(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:6: TypeError
+_______________________ TestCallify.test_chained_callify _______________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_chained_callify>
+
+    def test_chained_callify(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:55: TypeError
+____________________________ TestCallify.test_const ____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_const>
+
+    def test_const(self):
+>     out = Tensor(2.0) + Tensor(3.0)
+            ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:13: TypeError
+_______________________ TestCallify.test_double_callify ________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_double_callify>
+
+    def test_double_callify(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:93: TypeError
+_________________ TestCallify.test_double_callify_multi_output _________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_double_callify_multi_output>
+
+    def test_double_callify_multi_output(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:101: TypeError
+____________________________ TestCallify.test_gemm _____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_gemm>
+
+    def test_gemm(self):
+>     a = Tensor.ones(8, 8).contiguous()
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'ones'
+
+test/unit/test_callify.py:64: AttributeError
+__________________________ TestCallify.test_int_dtype __________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_int_dtype>
+
+    def test_int_dtype(self):
+>     a = Tensor([1,2,3], dtype=dtypes.int)
+                                ^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'int'. Did you mean: 'int8'?
+
+test/unit/test_callify.py:74: AttributeError
+________________________ TestCallify.test_multi_output _________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_multi_output>
+
+    def test_multi_output(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:23: TypeError
+________________________ TestCallify.test_multiple_ops _________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_multiple_ops>
+
+    def test_multiple_ops(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:86: TypeError
+___________________________ TestCallify.test_reduce ____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_reduce>
+
+    def test_reduce(self):
+>     out = Tensor([1.,2,3,4]).sum()
+            ^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:81: TypeError
+_____________________________ TestCallify.test_sum _____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_sum>
+
+    def test_sum(self):
+>     out = Tensor.ones(16).contiguous().sum()
+            ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'ones'
+
+test/unit/test_callify.py:18: AttributeError
+___________________ TestCallify.test_two_callify_independent ___________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_two_callify_independent>
+
+    def test_two_callify_independent(self):
+>     a = Tensor([1.,2,3])
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:32: TypeError
+__________________ TestCallify.test_two_callify_shared_input ___________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_two_callify_shared_input>
+
+    def test_two_callify_shared_input(self):
+>     a = Tensor([1.,2,3]).contiguous().realize()
+          ^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_callify.py:46: TypeError
+=========================== short test summary info ============================
+FAILED test/unit/test_callify.py::TestCallify::test_basic - TypeError: Tensor...
+FAILED test/unit/test_callify.py::TestCallify::test_chained_callify - TypeErr...
+FAILED test/unit/test_callify.py::TestCallify::test_const - TypeError: Tensor...
+FAILED test/unit/test_callify.py::TestCallify::test_double_callify - TypeErro...
+FAILED test/unit/test_callify.py::TestCallify::test_double_callify_multi_output
+FAILED test/unit/test_callify.py::TestCallify::test_gemm - AttributeError: ty...
+FAILED test/unit/test_callify.py::TestCallify::test_int_dtype - AttributeErro...
+FAILED test/unit/test_callify.py::TestCallify::test_multi_output - TypeError:...
+FAILED test/unit/test_callify.py::TestCallify::test_multiple_ops - TypeError:...
+FAILED test/unit/test_callify.py::TestCallify::test_reduce - TypeError: Tenso...
+FAILED test/unit/test_callify.py::TestCallify::test_sum - AttributeError: typ...
+FAILED test/unit/test_callify.py::TestCallify::test_two_callify_independent
+FAILED test/unit/test_callify.py::TestCallify::test_two_callify_shared_input
+13 failed in 0.07s

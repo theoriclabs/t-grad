@@ -1,0 +1,626 @@
+FFFsFFFFFFFFFFFFFFFFFFFFFFFFFF                                           [100%]
+=================================== FAILURES ===================================
+__________ TestJitFootguns.test_class_method_shared_across_instances ___________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_class_method_shared_across_instances>
+
+    def test_class_method_shared_across_instances(self):
+      """JIT on instance methods is shared at class level."""
+>     class Model:
+
+test/unit/test_jit_footguns.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_jit_footguns.py:279: in Model
+    @TinyJit
+     ^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_class_method_shared_across_instances.<locals>.Model.forward at 0x1031a4040>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_______________ TestJitFootguns.test_conditional_branches_frozen _______________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_conditional_branches_frozen>
+
+    def test_conditional_branches_frozen(self):
+      """Only the branch taken during capture runs thereafter."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:251: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_conditional_branches_frozen.<locals>.f at 0x10325b7e0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+__________________ TestJitFootguns.test_duplicate_inputs_fail __________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_duplicate_inputs_fail>
+
+    def test_duplicate_inputs_fail(self):
+      """JIT cannot handle the same tensor passed as multiple arguments."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_duplicate_inputs_fail.<locals>.f at 0x10325b240>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+______________ TestJitFootguns.test_implicit_inputs_need_realize _______________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_implicit_inputs_need_realize>
+
+    def test_implicit_inputs_need_realize(self):
+      """Closure tensors must be realized before JIT call."""
+>     x = Tensor([0])
+          ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_jit_footguns.py:187: TypeError
+___________ TestJitFootguns.test_intra_kernel_output_input_aliasing ____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_intra_kernel_output_input_aliasing>
+
+    def test_intra_kernel_output_input_aliasing(self):
+      """JIT must copy aliased input when output buffer is fed back as input (read-write race in same kernel)."""
+      N = 1 << 20
+>     f = TinyJit(lambda buf, new: buf[N//2:].cat(new), prune=True)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_jit_footguns.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_intra_kernel_output_input_aliasing.<locals>.<lambda> at 0x10325be20>,)
+kwargs = {'prune': True}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+__________________ TestJitFootguns.test_item_bakes_in_values ___________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_item_bakes_in_values>
+
+    def test_item_bakes_in_values(self):
+      """.item() during JIT capture raises error (would bake in value)."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:329: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_item_bakes_in_values.<locals>.f at 0x10325b560>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_____________ TestJitFootguns.test_item_creates_unrealized_return ______________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_item_creates_unrealized_return>
+
+    def test_item_creates_unrealized_return(self):
+      """.item() in shape computation raises error during JIT capture."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:320: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_item_creates_unrealized_return.<locals>.f at 0x10325b880>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+___________ TestJitFootguns.test_masked_select_static_size_jittable ____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_masked_select_static_size_jittable>
+
+    def test_masked_select_static_size_jittable(self):
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:337: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_masked_select_static_size_jittable.<locals>.f at 0x10325ae80>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+___________ TestJitFootguns.test_multiple_outputs_same_intermediate ____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_multiple_outputs_same_intermediate>
+
+    def test_multiple_outputs_same_intermediate(self):
+      """Multiple outputs derived from the same intermediate - JIT copies aliased inputs to prevent hazard."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_multiple_outputs_same_intermediate.<locals>.f at 0x10325a8e0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_____________ TestJitFootguns.test_nested_jit_fails_on_second_call _____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_nested_jit_fails_on_second_call>
+
+    def test_nested_jit_fails_on_second_call(self):
+      """Nested JIT works on first call but fails on second."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_nested_jit_fails_on_second_call.<locals>.inner at 0x10325aa20>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+________________ TestJitFootguns.test_non_tensor_outputs_error _________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_non_tensor_outputs_error>
+
+    def test_non_tensor_outputs_error(self):
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_non_tensor_outputs_error.<locals>.f at 0x10325ba60>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+______________ TestJitFootguns.test_nonzero_static_size_jittable _______________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_nonzero_static_size_jittable>
+
+    def test_nonzero_static_size_jittable(self):
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_nonzero_static_size_jittable.<locals>.f at 0x10325b100>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_________________ TestJitFootguns.test_nothing_realized_fails __________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_nothing_realized_fails>
+
+    def test_nothing_realized_fails(self):
+      """Must JIT at least one kernel."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_nothing_realized_fails.<locals>.f at 0x10325a160>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+___________________ TestJitFootguns.test_output_buffer_reuse ___________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_output_buffer_reuse>
+
+    def test_output_buffer_reuse(self):
+      """Output tensors share buffer after capture - old references get overwritten."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_output_buffer_reuse.<locals>.f at 0x103259e40>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+________________ TestJitFootguns.test_output_buffer_workaround _________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_output_buffer_workaround>
+
+    def test_output_buffer_workaround(self):
+      """Use .clone().realize() to get independent copies."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_output_buffer_workaround.<locals>.f at 0x10325a980>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+______________ TestJitFootguns.test_positional_kwargs_cannot_mix _______________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_positional_kwargs_cannot_mix>
+
+    def test_positional_kwargs_cannot_mix(self):
+      """Must use same calling convention after capture."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_positional_kwargs_cannot_mix.<locals>.f at 0x10325bd80>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_________________ TestJitFootguns.test_python_constants_frozen _________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_python_constants_frozen>
+
+    def test_python_constants_frozen(self):
+      """Python variables inside JIT use capture-time values."""
+      mult = 1
+    
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:221: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_python_constants_frozen.<locals>.f at 0x103259800>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+____________ TestJitFootguns.test_shape_change_after_capture_fails _____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_shape_change_after_capture_fails>
+
+    def test_shape_change_after_capture_fails(self):
+      """Shapes are locked at capture time."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:208: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_shape_change_after_capture_fails.<locals>.f at 0x103259760>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+____________ TestJitFootguns.test_side_effects_only_during_capture _____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_side_effects_only_during_capture>
+
+    def test_side_effects_only_during_capture(self):
+      """Function body not executed during JIT replay."""
+      call_count = [0]
+    
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:295: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_side_effects_only_during_capture.<locals>.f at 0x103259ee0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+___________ TestJitFootguns.test_slice_assign_works_without_realize ____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_slice_assign_works_without_realize>
+
+    def test_slice_assign_works_without_realize(self):
+      """Slice assign then read from same buffer - pending assigns are side-realized."""
+      from tinygrad import Variable
+>     v_pos = Variable("pos", 0, 3)
+              ^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_jit_footguns.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.Variable'>, args = ('pos', 0, 3), kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.Variable'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+________________ TestJitFootguns.test_symbolic_pad_view_frozen _________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_symbolic_pad_view_frozen>
+
+    def test_symbolic_pad_view_frozen(self):
+      """Symbolic pad view has BIND values baked in at capture time. TODO: pad should be captured in jit."""
+      from tinygrad import Variable
+>     a = Tensor.rand(3, 10).realize()
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_jit_footguns.py:138: AttributeError
+__________________ TestJitFootguns.test_tensors_in_containers __________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_tensors_in_containers>
+
+    def test_tensors_in_containers(self):
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:168: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_tensors_in_containers.<locals>.f at 0x103259d00>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_________________ TestJitFootguns.test_tolist_bakes_in_values __________________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_tolist_bakes_in_values>
+
+    def test_tolist_bakes_in_values(self):
+      """.tolist() raises error during JIT capture (would bake in values)."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_tolist_bakes_in_values.<locals>.f at 0x10325a160>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+______________ TestJitFootguns.test_unrealized_const_input_error _______________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_unrealized_const_input_error>
+
+    def test_unrealized_const_input_error(self):
+      """Const tensors have no buffer to replace, so JIT raises an error. Even explicit .realize() doesn't help."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:236: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_unrealized_const_input_error.<locals>.f at 0x103259bc0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+____________ TestJitFootguns.test_views_with_different_offsets_fail ____________
+
+self = <test.unit.test_jit_footguns.TestJitFootguns testMethod=test_views_with_different_offsets_fail>
+
+    def test_views_with_different_offsets_fail(self):
+      """JIT requires consistent tensor views across calls."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:198: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitFootguns.test_views_with_different_offsets_fail.<locals>.f at 0x103259f80>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+____________ TestJitCorrectBehavior.test_input_mutation_consistent _____________
+
+self = <test.unit.test_jit_footguns.TestJitCorrectBehavior testMethod=test_input_mutation_consistent>
+
+    def test_input_mutation_consistent(self):
+      """Input mutation via assign works consistently."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCorrectBehavior.test_input_mutation_consistent.<locals>.f at 0x1031840e0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+____________ TestJitCorrectBehavior.test_kwargs_order_doesnt_matter ____________
+
+self = <test.unit.test_jit_footguns.TestJitCorrectBehavior testMethod=test_kwargs_order_doesnt_matter>
+
+    def test_kwargs_order_doesnt_matter(self):
+      """Kwargs are sorted by name, so order doesn't matter."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:391: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCorrectBehavior.test_kwargs_order_doesnt_matter.<locals>.f at 0x1031842c0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+________________ TestJitCorrectBehavior.test_random_regenerates ________________
+
+self = <test.unit.test_jit_footguns.TestJitCorrectBehavior testMethod=test_random_regenerates>
+
+    def test_random_regenerates(self):
+      """Random tensors regenerate each call."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:370: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCorrectBehavior.test_random_regenerates.<locals>.f at 0x10325b100>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_________ TestJitCorrectBehavior.test_unrealized_return_auto_realized __________
+
+self = <test.unit.test_jit_footguns.TestJitCorrectBehavior testMethod=test_unrealized_return_auto_realized>
+
+    def test_unrealized_return_auto_realized(self):
+      """Unrealized return tensors are auto-realized."""
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_footguns.py:382: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCorrectBehavior.test_unrealized_return_auto_realized.<locals>.f at 0x103184720>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+=========================== short test summary info ============================
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_class_method_shared_across_instances
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_conditional_branches_frozen
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_duplicate_inputs_fail
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_implicit_inputs_need_realize
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_intra_kernel_output_input_aliasing
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_item_bakes_in_values
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_item_creates_unrealized_return
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_masked_select_static_size_jittable
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_multiple_outputs_same_intermediate
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_nested_jit_fails_on_second_call
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_non_tensor_outputs_error
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_nonzero_static_size_jittable
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_nothing_realized_fails
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_output_buffer_reuse
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_output_buffer_workaround
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_positional_kwargs_cannot_mix
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_python_constants_frozen
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_shape_change_after_capture_fails
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_side_effects_only_during_capture
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_slice_assign_works_without_realize
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_symbolic_pad_view_frozen
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_tensors_in_containers
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_tolist_bakes_in_values
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_unrealized_const_input_error
+FAILED test/unit/test_jit_footguns.py::TestJitFootguns::test_views_with_different_offsets_fail
+FAILED test/unit/test_jit_footguns.py::TestJitCorrectBehavior::test_input_mutation_consistent
+FAILED test/unit/test_jit_footguns.py::TestJitCorrectBehavior::test_kwargs_order_doesnt_matter
+FAILED test/unit/test_jit_footguns.py::TestJitCorrectBehavior::test_random_regenerates
+FAILED test/unit/test_jit_footguns.py::TestJitCorrectBehavior::test_unrealized_return_auto_realized
+29 failed, 1 skipped in 0.16s

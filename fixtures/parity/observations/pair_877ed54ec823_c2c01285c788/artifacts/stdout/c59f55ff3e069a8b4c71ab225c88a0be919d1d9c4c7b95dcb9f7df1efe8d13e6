@@ -1,0 +1,153 @@
+FFFFFFFFF                                                                [100%]
+=================================== FAILURES ===================================
+___________________________ TestEqStrDType.test_strs ___________________________
+
+self = <test.null.test_dtype.TestEqStrDType testMethod=test_strs>
+
+    def test_strs(self):
+>     self.assertEqual(str(dtypes.float32), "dtypes.float")
+E     AssertionError: 'f32' != 'dtypes.float'
+E     - f32
+E     + dtypes.float
+
+test/null/test_dtype.py:7: AssertionError
+_______________________ TestToDtype.test_dtype_to_dtype ________________________
+
+self = <test.null.test_dtype.TestToDtype testMethod=test_dtype_to_dtype>
+
+    def test_dtype_to_dtype(self):
+      dtype = dtypes.int32
+>     res = to_dtype(dtype)
+            ^^^^^^^^^^^^^^^
+
+test/null/test_dtype.py:12: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.to_dtype>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.to_dtype'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+________________________ TestToDtype.test_str_to_dtype _________________________
+
+self = <test.null.test_dtype.TestToDtype testMethod=test_str_to_dtype>
+
+    def test_str_to_dtype(self):
+      dtype = "int32"
+>     res = to_dtype(dtype)
+            ^^^^^^^^^^^^^^^
+
+test/null/test_dtype.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.to_dtype>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.to_dtype'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+____________________ TestCastConvenienceMethod.test_method _____________________
+
+self = <test.null.test_dtype.TestCastConvenienceMethod testMethod=test_method>
+
+    def test_method(self):
+>     for input_dtype in (dtypes.float, dtypes.int):
+                                        ^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'int'. Did you mean: 'int8'?
+
+test/null/test_dtype.py:24: AttributeError
+________________________ TestDtypeTolist.test_bfloat16 _________________________
+
+self = <test.null.test_dtype.TestDtypeTolist testMethod=test_bfloat16>
+
+    def test_bfloat16(self):
+>     self.assertEqual(Tensor([-60000, 1.5, 3.1, 60000], device="PYTHON", dtype=dtypes.bfloat16).tolist(), [-59904.0, 1.5, 3.09375, 59904.0])
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() got an unexpected keyword argument 'device'
+
+test/null/test_dtype.py:38: TypeError
+___________________________ TestDtypeTolist.test_fp8 ___________________________
+
+self = <test.null.test_dtype.TestDtypeTolist testMethod=test_fp8>
+
+    def test_fp8(self):
+      # 448
+>     self.assertEqual(Tensor([-30000, 1.5, 3.1, 30000], device="PYTHON", dtype=dtypes.fp8e4m3).tolist(), [-448.0, 1.5, 3.0, 448.0])
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() got an unexpected keyword argument 'device'
+
+test/null/test_dtype.py:41: TypeError
+__________________ TestCanLosslessCast.test_can_lossless_cast __________________
+
+self = <test.null.test_dtype.TestCanLosslessCast testMethod=test_can_lossless_cast>
+
+    def test_can_lossless_cast(self):
+      from tinygrad.dtype import can_lossless_cast
+      # signed -> unsigned is NOT lossless (negative values wrap)
+>     self.assertFalse(can_lossless_cast(dtypes.int8, dtypes.uint64))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/null/test_dtype.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.can_lossless_cast>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.can_lossless_cast'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+_______________________ TestInvalidSingleton.test_pickle _______________________
+
+self = <test.null.test_dtype.TestInvalidSingleton testMethod=test_pickle>
+
+    def test_pickle(self):
+>     self.assertIs(pickle.loads(pickle.dumps(Invalid)), Invalid)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/null/test_dtype.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:36: in __getattr__
+    self._raise()
+../shim/tinygrad/_unsupported.py:30: in _raise
+    raise TgradCapabilityError(_message(self.name))
+                                        ^^^^^^^^^
+../shim/tinygrad/_unsupported.py:36: in __getattr__
+    self._raise()
+../shim/tinygrad/_unsupported.py:30: in _raise
+    raise TgradCapabilityError(_message(self.name))
+                                        ^^^^^^^^^
+E   RecursionError: maximum recursion depth exceeded
+!!! Recursion detected (same locals & position)
+_____________________ TestInvalidSingleton.test_singleton ______________________
+
+self = <test.null.test_dtype.TestInvalidSingleton testMethod=test_singleton>
+
+    def test_singleton(self):
+>     self.assertIs(InvalidType(), InvalidType())
+E     AssertionError: TgradTypeError() is not TgradTypeError()
+
+test/null/test_dtype.py:63: AssertionError
+=========================== short test summary info ============================
+FAILED test/null/test_dtype.py::TestEqStrDType::test_strs - AssertionError: '...
+FAILED test/null/test_dtype.py::TestToDtype::test_dtype_to_dtype - tinygrad._...
+FAILED test/null/test_dtype.py::TestToDtype::test_str_to_dtype - tinygrad._un...
+FAILED test/null/test_dtype.py::TestCastConvenienceMethod::test_method - Attr...
+FAILED test/null/test_dtype.py::TestDtypeTolist::test_bfloat16 - TypeError: T...
+FAILED test/null/test_dtype.py::TestDtypeTolist::test_fp8 - TypeError: Tensor...
+FAILED test/null/test_dtype.py::TestCanLosslessCast::test_can_lossless_cast
+FAILED test/null/test_dtype.py::TestInvalidSingleton::test_pickle - Recursion...
+FAILED test/null/test_dtype.py::TestInvalidSingleton::test_singleton - Assert...
+9 failed in 0.07s

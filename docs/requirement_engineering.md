@@ -1,11 +1,12 @@
 # Requirements engineering for the tinygrad-to-Lean rewrite
 
-**Status:** design basis plus one retrospective pilot rehearsal, 2026-07-27
+**Status:** design basis, one retrospective pilot rehearsal, and one canonical
+diagnostic suite baseline, 2026-07-27
 
 **Starting product baseline:** `c465f89` on `main`
 
-**Current observed product subject:** `b1df552` (a source ancestor of the
-current specification work)
+**Current canonical suite subject:** `14ffa30` (clean source tree; runtime built
+by the observer from that revision)
 
 **Purpose:** define how Tgrad separates requirements, specification, implementation, evidence, and work before scaling the parity program.
 
@@ -42,12 +43,65 @@ without editing a status cell, but the derivation program itself changed; the
 next cycle must freeze it before candidate authoring.
 
 It is not yet evidence that Tgrad is tinygrad-compatible, nor that the method
-is ready for 590 requirements. The full upstream suite has not been rerun on
-the current subject, only two observation dimensions have reproduced fault
-injections, two pilot behaviors remain unobserved, all three adequacy arguments
-remain open, and the upstream target remains an extracted candidate. In the
-guide’s maturity vocabulary this is **instrumented**, not yet
-**operationalized** or **compounding**.
+is ready for 590 requirements. The canonical suite has now been observed, but
+no suite case was prospectively mapped to an interpreted requirement; only two
+pilot observation dimensions have reproduced fault injections, two pilot
+behaviors remain unobserved by requirement-specific validators, all three
+adequacy arguments remain open, and the upstream target remains an extracted
+candidate. In the guide’s maturity vocabulary this is **instrumented**, not
+yet **operationalized** or **compounding**.
+
+## Canonical suite baseline: facts, not a parity verdict
+
+The frozen 34-file `api_surface` contract has now been run on the pinned
+upstream revision and on Tgrad through the strict no-fallback shim. The paired
+bundle is [pair_877ed54ec823_c2c01285c788](../fixtures/parity/observations/pair_877ed54ec823_c2c01285c788/).
+Promotion replays every raw pytest event stream and reapplies the upstream
+oracle before accepting the bundle. [SuiteGenerated.lean](../Tgrad/Evidence/SuiteGenerated.lean)
+imports the resulting execution facts into the checked specification root.
+
+| Fact | Upstream | Tgrad |
+|---|---:|---:|
+| Contract files | 34 | 34 |
+| File outcomes | 33 passed, 1 environment-unobserved | 16 blocked by product surface, 15 nonconforming, 1 collection error, 1 environment-unobserved, 1 upstream-unobserved |
+| Raw passing executions | 1,145 | 17 |
+| Raw failures / errors | 0 / 0 | 836 / 159 |
+| Upstream-eligible cases | 1,145 | same oracle |
+| Eligible cases matched by descriptor | — | 1,004 |
+| Eligible cases passed | — | 17 |
+| Eligible cases nonpassing / missing | — | 987 / 141 |
+| Descriptor mismatches | — | 98 |
+
+These numbers are diagnostic coordinates, not a compatibility percentage.
+The unit of execution is a pytest case; the unit of requirement engineering is
+a world-facing behavioral obligation. No exact case-to-requirement witness map
+was frozen before this Tgrad result, so importing this bundle changes **zero**
+requirement states. The first admissible bridge is:
+
+```text
+replay-validated suite facts
+    → reviewed exact case/descriptor-to-requirement witnesses
+    → requirement-specific observations and calibration
+    → promotion decision
+```
+
+The replay machinery also falsified itself usefully. An initial promotion
+attempt rejected diagnostics whose hashes depended on a temporary observer
+root. Schema 8 makes normalization root-independent and a regression test now
+requires two different snapshot roots to produce identical normalized
+diagnostics. A second attempt found an undefined artifact-copy source before
+repository mutation; atomic staging removed the partial bundle and the copy
+closure is now tested byte-for-byte. These are positive method signals because
+the evidence boundary rejected its own defects rather than accepting a green
+story.
+
+One provenance obligation remains open: generated-file checking currently
+replays through the current verifier source and the local pinned checkout. Once
+that verifier evolves, historical evidence needs its recorded verifier source
+or an independently versioned replay executable; otherwise a valid old bundle
+cannot be regenerated hermetically. Until that artifact is added, suite facts
+may be checked on this baseline but must not be treated as a durable promoted
+requirement claim.
 
 ## The missing specification kernel
 
@@ -160,9 +214,11 @@ them. Their correct status was `unobserved behind prerequisite`, not `failed`,
 `absent`, or `conformant`.
 
 The current isolated observation establishes that the isolated three-name
-helper-import prerequisite passes. It does not project the old 0/34 suite score onto `b1df552`:
-the full upstream suite must be rerun, and whatever collection or assertion
-failures it reveals become new observations rather than retroactive claims.
+helper-import prerequisite passes. The canonical rerun does not turn that fact
+into broad substitution parity: it exposes a new, exact mixture of product
+surface blocks, collection error, assertion failures, and environment-unobserved
+cases. Those are new execution facts rather than retroactive claims about the
+helper requirement or the six implemented compute operations.
 
 That distinction is impossible with one flat `CoverageState`.
 
@@ -341,7 +397,7 @@ Across the starting baseline and current pilot subject, the planes read:
 | General operation spine | graph-indexed realization, broadcast pointwise operations, reductions, and fused reduce-of-elementwise matmul are merged | Implemented; each claim still depends on its own evidence |
 | Specialized matmul route | retained alongside the general expression route | Optimization candidate, not the semantic definition of matmul |
 | L12 performance predicate | its flags now execute correctly and the frozen-baseline predicate is red and non-repeatable | Open measurement-methodology failure, not a codegen verdict |
-| API parity | last full result was 0/34 at `fdc741d`; no full rerun on `b1df552` | Historical diagnosis only; current suite status unobserved |
+| API suite execution | paired schema-8 run at upstream `19c4d736…` and Tgrad `14ffa30` | Current diagnostic facts: 17/1,145 upstream-eligible cases passed, 987 nonpassing, 141 missing, 98 descriptor mismatches; no requirement parity inference |
 | Pilot helper behavior | calibrated isolated-scenario pass at `b1df552` | The current derived model emits neither an implementation gap nor a failed-behavior gap for this isolated scenario; executable conformance semantics, adequacy, and target promotion remain open |
 
 The fact that the manifest exists while [targetUpstream](../Tgrad/Spec/Parity.lean#L36) remains unknown is not necessarily wrong—capture and promotion should be separate—but the model needs an explicit `candidate → reviewed → promoted` transition.
@@ -499,6 +555,7 @@ changes. Track these measures per closed work cycle:
 | Manual-verdict count | Coverage, completion, priority, or promotion cells edited by an agent instead of derived | Zero status cells, but derivation code changed after the result; stability gate not met | Zero status edits and zero derivation changes within a frozen cycle |
 | Change locality | Unrelated requirement axes changed / unrelated axes present | No unrelated requirement was promoted or failed | Zero unexplained churn |
 | Reproducibility | Identical-input runs producing byte-identical evidence and status | Deterministic observer checks and repeated status hashes agree on the current host | Three clean reruns; distributions plus method identity for performance |
+| Evidence-boundary self-falsification | Verifier defects detected before promotion / defects exercised | 2/2 in this cycle: temporary-root-dependent normalization and undefined artifact-copy source were both rejected before a bundle landed | Every discovered verifier defect becomes a replay or mutation regression |
 | Cycle cost | Human decisions, agent time, wall time, scarce hardware time, and files touched to close one obligation | CPU-only, but no comparative diagnosis-time baseline was recorded | Must be cheaper to diagnose than the raw-suite/manual-roadmap alternative |
 
 Two metrics need special care.

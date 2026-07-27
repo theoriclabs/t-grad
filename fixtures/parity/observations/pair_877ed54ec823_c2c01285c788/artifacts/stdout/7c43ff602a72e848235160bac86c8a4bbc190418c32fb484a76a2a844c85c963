@@ -1,0 +1,239 @@
+sxxxFxFFFFFFxxxxxFFFFFFFs                                                [100%]
+=================================== FAILURES ===================================
+______________ TestEmptyTensorEdgeCases.test_masked_select_empty _______________
+
+self = <test.backend.test_edgecases.TestEmptyTensorEdgeCases testMethod=test_masked_select_empty>
+
+    def test_masked_select_empty(self):
+      # Masked select on empty tensors should return an empty tensor.
+      torch_out = torch.tensor([], dtype=torch.float32).masked_select(torch.tensor([], dtype=torch.bool))
+>     out = Tensor([], dtype=dtypes.float32).masked_select(Tensor([], dtype=dtypes.bool))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/backend/test_edgecases.py:97: TypeError
+___________________ TestEmptyTensorEdgeCases.test_sort_empty ___________________
+
+self = <test.backend.test_edgecases.TestEmptyTensorEdgeCases testMethod=test_sort_empty>
+
+    def test_sort_empty(self):
+      # Sorting an empty tensor works in PyTorch and should return empty
+      # values and indices. tinygrad raises an error instead.
+      torch_vals, torch_idxs = torch.tensor([]).sort()
+>     values, indices = Tensor([]).sort()
+                        ^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/backend/test_edgecases.py:74: TypeError
+__________ TestDropoutProbabilityEdgeCases.test_dropout_invalid_prob ___________
+
+self = <test.backend.test_edgecases.TestDropoutProbabilityEdgeCases testMethod=test_dropout_invalid_prob>
+
+    def test_dropout_invalid_prob(self):
+      with self.assertRaises(ValueError):
+        torch.nn.functional.dropout(torch.ones(10), -0.1, True)
+      with self.assertRaises(ValueError):
+>       with Context(TRAINING=1):
+             ^^^^^^^^^^^^^^^^^^^
+
+test/backend/test_edgecases.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+____________ TestDropoutProbabilityEdgeCases.test_dropout_rate_one _____________
+
+self = <test.backend.test_edgecases.TestDropoutProbabilityEdgeCases testMethod=test_dropout_rate_one>
+
+    def test_dropout_rate_one(self):
+>     with Context(TRAINING=1):
+           ^^^^^^^^^^^^^^^^^^^
+
+test/backend/test_edgecases.py:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.helpers.Context'>, args = (), kwargs = {'TRAINING': 1}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_____________________ TestInputValidation.test_negative_lr _____________________
+
+self = <test.backend.test_edgecases.TestInputValidation testMethod=test_negative_lr>
+
+    def test_negative_lr(self):
+      with self.assertRaises(ValueError):
+        torch.optim.SGD([torch.tensor([1.], requires_grad=True)], lr=-0.1)
+      with self.assertRaises(ValueError):
+>       nn.optim.SGD([Tensor([1.])], lr=-0.1)
+        ^^^^^^^^
+
+test/backend/test_edgecases.py:136: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/nn/__init__.py:15: in __getattr__
+    missing_attribute("tinygrad.nn", name)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def missing_attribute(module: str, name: str):
+>       raise AttributeError(
+            f"Tgrad's strict {module} shim does not provide {name!r}; "
+            "refusing to fall back to upstream tinygrad"
+        )
+E       AttributeError: Tgrad's strict tinygrad.nn shim does not provide 'optim'; refusing to fall back to upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:82: AttributeError
+__________________ TestInputValidation.test_negative_momentum __________________
+
+self = <test.backend.test_edgecases.TestInputValidation testMethod=test_negative_momentum>
+
+    def test_negative_momentum(self):
+      with self.assertRaises(ValueError):
+        torch.optim.SGD([torch.tensor([1.], requires_grad=True)], lr=0.1, momentum=-0.1)
+      with self.assertRaises(ValueError):
+>       nn.optim.SGD([Tensor([1.])], lr=0.1, momentum=-0.1)
+        ^^^^^^^^
+
+test/backend/test_edgecases.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/nn/__init__.py:15: in __getattr__
+    missing_attribute("tinygrad.nn", name)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def missing_attribute(module: str, name: str):
+>       raise AttributeError(
+            f"Tgrad's strict {module} shim does not provide {name!r}; "
+            "refusing to fall back to upstream tinygrad"
+        )
+E       AttributeError: Tgrad's strict tinygrad.nn shim does not provide 'optim'; refusing to fall back to upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:82: AttributeError
+________________ TestInputValidation.test_negative_weight_decay ________________
+
+self = <test.backend.test_edgecases.TestInputValidation testMethod=test_negative_weight_decay>
+
+    def test_negative_weight_decay(self):
+      with self.assertRaises(ValueError):
+        torch.optim.AdamW([torch.tensor([1.], requires_grad=True)], lr=0.1, weight_decay=-0.1)
+      with self.assertRaises(ValueError):
+>       nn.optim.AdamW([Tensor([1.])], lr=0.1, weight_decay=-0.1)
+        ^^^^^^^^
+
+test/backend/test_edgecases.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/nn/__init__.py:15: in __getattr__
+    missing_attribute("tinygrad.nn", name)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def missing_attribute(module: str, name: str):
+>       raise AttributeError(
+            f"Tgrad's strict {module} shim does not provide {name!r}; "
+            "refusing to fall back to upstream tinygrad"
+        )
+E       AttributeError: Tgrad's strict tinygrad.nn shim does not provide 'optim'; refusing to fall back to upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:82: AttributeError
+_____________ TestAssignIssues.test_assign_permuted_view_constant ______________
+
+self = <test.backend.test_edgecases.TestAssignIssues testMethod=test_assign_permuted_view_constant>
+
+    def test_assign_permuted_view_constant(self):
+      # assigning to a permuted view should modify the underlying tensor
+      arr = np.arange(6).reshape(2, 3).astype(np.float32)
+      torch_tensor = torch.tensor(arr)
+      torch_tensor.t().copy_(torch.tensor([[5.0, 6.0], [7.0, 8.0], [9.0, 10.0]]))
+>     t = Tensor(arr).contiguous().realize()
+          ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/backend/test_edgecases.py:179: TypeError
+______________ TestAssignIssues.test_assign_shrink_view_constant _______________
+
+self = <test.backend.test_edgecases.TestAssignIssues testMethod=test_assign_shrink_view_constant>
+
+    def test_assign_shrink_view_constant(self):
+      # assigning to a shrunk view should update the base tensor
+      arr = np.arange(9).reshape(3, 3).astype(np.float32)
+      torch_tensor = torch.tensor(arr)
+      torch_tensor[1:3, 1:3] = torch.ones(2, 2)
+>     t = Tensor(arr).contiguous().realize()
+          ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/backend/test_edgecases.py:188: TypeError
+______________ TestUOpValidationIssue.test_float_floordiv_scalar _______________
+
+self = <test.backend.test_edgecases.TestUOpValidationIssue testMethod=test_float_floordiv_scalar>
+
+    def test_float_floordiv_scalar(self):
+>     (Tensor.arange(4, dtype=dtypes.float32) // 2).realize()
+       ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_edgecases.py:214: AttributeError
+______________ TestUOpValidationIssue.test_float_floordiv_tensor _______________
+
+self = <test.backend.test_edgecases.TestUOpValidationIssue testMethod=test_float_floordiv_tensor>
+
+    def test_float_floordiv_tensor(self):
+>     (Tensor.arange(4, dtype=dtypes.float32) // Tensor.ones(4, dtype=dtypes.float32)).realize()
+       ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_edgecases.py:217: AttributeError
+______________ TestUOpValidationIssue.test_tensor_index_overflow _______________
+
+self = <test.backend.test_edgecases.TestUOpValidationIssue testMethod=test_tensor_index_overflow>
+
+    @unittest.skipIf(MOCKGPU or isinstance(Device[Device.DEFAULT].renderer, NIRRenderer), "hangs gpuocelot, NIR cannot render")
+    def test_tensor_index_overflow(self):
+>     val = Tensor([1])
+            ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/backend/test_edgecases.py:208: TypeError
+_____________________ TestEdgeCases.test_arange_float_step _____________________
+
+self = <test.backend.test_edgecases.TestEdgeCases testMethod=test_arange_float_step>
+
+    def test_arange_float_step(self):
+      # float steps should match PyTorch exactly
+      torch_out = torch.arange(0, 2, 0.3).numpy()
+>     out = Tensor.arange(0, 2, 0.3).numpy()
+            ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_edgecases.py:232: AttributeError
+___________________ TestEdgeCases.test_circular_pad_negative ___________________
+
+self = <test.backend.test_edgecases.TestEdgeCases testMethod=test_circular_pad_negative>
+
+    def test_circular_pad_negative(self):
+      # negative pads with circular mode should wrap like PyTorch
+      arr = np.arange(9).reshape(1, 1, 3, 3).astype(np.float32)
+      torch_out = torch.nn.functional.pad(torch.tensor(arr), (1, -1, 1, -1), mode='circular')
+>     out = Tensor(arr).pad((1, -1, 1, -1), mode='circular')
+            ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/backend/test_edgecases.py:226: TypeError
+=========================== short test summary info ============================
+FAILED test/backend/test_edgecases.py::TestEmptyTensorEdgeCases::test_masked_select_empty
+FAILED test/backend/test_edgecases.py::TestEmptyTensorEdgeCases::test_sort_empty
+FAILED test/backend/test_edgecases.py::TestDropoutProbabilityEdgeCases::test_dropout_invalid_prob
+FAILED test/backend/test_edgecases.py::TestDropoutProbabilityEdgeCases::test_dropout_rate_one
+FAILED test/backend/test_edgecases.py::TestInputValidation::test_negative_lr
+FAILED test/backend/test_edgecases.py::TestInputValidation::test_negative_momentum
+FAILED test/backend/test_edgecases.py::TestInputValidation::test_negative_weight_decay
+FAILED test/backend/test_edgecases.py::TestAssignIssues::test_assign_permuted_view_constant
+FAILED test/backend/test_edgecases.py::TestAssignIssues::test_assign_shrink_view_constant
+FAILED test/backend/test_edgecases.py::TestUOpValidationIssue::test_float_floordiv_scalar
+FAILED test/backend/test_edgecases.py::TestUOpValidationIssue::test_float_floordiv_tensor
+FAILED test/backend/test_edgecases.py::TestUOpValidationIssue::test_tensor_index_overflow
+FAILED test/backend/test_edgecases.py::TestEdgeCases::test_arange_float_step
+FAILED test/backend/test_edgecases.py::TestEdgeCases::test_circular_pad_negative
+14 failed, 2 skipped, 9 xfailed in 0.46s

@@ -1,0 +1,127 @@
+FFFFFFFsFFFF                                                             [100%]
+=================================== FAILURES ===================================
+__________________________ TestTensorBytes.test_bytes __________________________
+
+self = <test.unit.test_tensor_data.TestTensorBytes testMethod=test_bytes>
+
+    def test_bytes(self):
+>     lst = Tensor(bytes(b"\xaa\xbb\xcc\xdd"))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_tensor_data.py:9: TypeError
+_______________________ TestTensorBytes.test_float_bytes _______________________
+
+self = <test.unit.test_tensor_data.TestTensorBytes testMethod=test_float_bytes>
+
+    def test_float_bytes(self):
+>     lst = Tensor(bytes(struct.pack("ff", 0.234, 0.8585)), dtype=dtypes.float32)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:13: TypeError
+___________________ TestTensorData.test_const_dtype_for_uop ____________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_const_dtype_for_uop>
+
+    def test_const_dtype_for_uop(self):
+>     self.assertEqual(Tensor.const(dtypes.int8, UOp.const(dtypes.float32, 1.0)).dtype, dtypes.int8)
+                       ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'const'
+
+test/unit/test_tensor_data.py:69: AttributeError
+___________________________ TestTensorData.test_data ___________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data>
+
+    def test_data(self):
+>     a = Tensor([1,2,3,4], dtype=dtypes.int32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:20: TypeError
+________________________ TestTensorData.test_data_const ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_const>
+
+    def test_data_const(self):
+>     a = Tensor(3, dtype=dtypes.int32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:61: TypeError
+________________________ TestTensorData.test_data_empty ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_empty>
+
+    def test_data_empty(self):
+>     a = Tensor([], dtype=dtypes.int32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:29: TypeError
+___________________ TestTensorData.test_data_empty_multi_dim ___________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_empty_multi_dim>
+
+    def test_data_empty_multi_dim(self):
+>     a = Tensor([], dtype=dtypes.int32).reshape(0, 2)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:36: TypeError
+_______________________ TestTensorData.test_data_float32 _______________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_float32>
+
+    def test_data_float32(self):
+>     a = Tensor([[1,2.5],[3,4]], dtype=dtypes.float32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:73: TypeError
+_______________________ TestTensorData.test_data_nested ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_nested>
+
+    def test_data_nested(self):
+>     a = Tensor([[1,2],[3,4]], dtype=dtypes.int32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:51: TypeError
+________________________ TestTensorData.test_data_uint8 ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_uint8>
+
+    def test_data_uint8(self):
+>     a = Tensor([1,2,3,4], dtype=dtypes.uint8)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 2 required positional arguments: 'size' and 'shape'
+
+test/unit/test_tensor_data.py:43: TypeError
+___________________ TestTensorData.test_tolist_empty_shapes ____________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_tolist_empty_shapes>
+
+    def test_tolist_empty_shapes(self):
+      for shape, expected in (((0,), []), ((2, 0), [[], []]), ((0, 2), []),
+                              ((2, 0, 3), [[], []]), ((2, 3, 0), [[[], [], []], [[], [], []]])):
+>       self.assertEqual(Tensor.ones(*shape).tolist(), expected)
+                         ^^^^^^^^^^^
+E       AttributeError: type object 'Tensor' has no attribute 'ones'
+
+test/unit/test_tensor_data.py:89: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_tensor_data.py::TestTensorBytes::test_bytes - TypeError...
+FAILED test/unit/test_tensor_data.py::TestTensorBytes::test_float_bytes - Typ...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_const_dtype_for_uop
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data - TypeError: ...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_const - TypeE...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_empty - TypeE...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_empty_multi_dim
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_float32 - Typ...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_nested - Type...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_uint8 - TypeE...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_tolist_empty_shapes
+11 failed, 1 skipped in 0.07s

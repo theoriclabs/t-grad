@@ -1,0 +1,31 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________________________ TestInterop.test_torch_interop ________________________
+
+self = <test.backend.test_interop.TestInterop testMethod=test_torch_interop>
+
+    def test_torch_interop(self):
+      inp = torch.rand(2, 2, 3, device=torch.device(self.torch_device))
+    
+      if self.torch_device == "mps": torch.mps.synchronize()
+      else: torch.cuda.synchronize()
+    
+>     tg_data = Tensor.from_blob(inp.data_ptr(), inp.shape, dtype=_from_torch_dtype(inp.dtype))
+                ^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'from_blob'
+
+test/backend/test_interop.py:25: AttributeError
+_____________________ TestInterop.test_torch_interop_write _____________________
+
+self = <test.backend.test_interop.TestInterop testMethod=test_torch_interop_write>
+
+    def test_torch_interop_write(self):
+>     tg_data = Tensor.randn((4, 4), device=Device.DEFAULT)
+                ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/backend/test_interop.py:39: AttributeError
+=========================== short test summary info ============================
+FAILED test/backend/test_interop.py::TestInterop::test_torch_interop - Attrib...
+FAILED test/backend/test_interop.py::TestInterop::test_torch_interop_write - ...
+2 failed in 0.49s

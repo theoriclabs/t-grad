@@ -1,0 +1,96 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+________________________ TestAttention.test_apply_rope _________________________
+
+self = <test.unit.test_attention.TestAttention testMethod=test_apply_rope>
+
+    def test_apply_rope(self):
+>     x = Tensor.randn(1, 2, 4, 8, dtype=dtypes.float32)
+          ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_attention.py:17: AttributeError
+_________________ TestAttention.test_partial_rope_in_attention _________________
+
+self = <test.unit.test_attention.TestAttention testMethod=test_partial_rope_in_attention>
+
+    def test_partial_rope_in_attention(self):
+      dim, rope_dim, seqlen = 8, 4, 3
+>     config = TransformerConfig(num_blocks=1, dim=dim, hidden_dim=16, n_heads=1, n_kv_heads=1,
+                                 norm_eps=1e-5, vocab_size=32, head_dim=dim, rope_theta=10000.0,
+                                 rope_dim=rope_dim, v_head_dim=dim, max_context=8)
+
+test/unit/test_attention.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.llm.model.TransformerConfig'>, args = ()
+kwargs = {'num_blocks': 1, 'dim': 8, 'hidden_dim': 16, 'n_heads': 1, ...}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.llm.model.TransformerConfig'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_________ TestGatedDeltaNetBlock.test_gatedeltanet_reference_and_reset _________
+
+self = <test.unit.test_attention.TestGatedDeltaNetBlock testMethod=test_gatedeltanet_reference_and_reset>
+
+    def test_gatedeltanet_reference_and_reset(self):
+>     config = self._make_config(max_context=3)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_attention.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_attention.py:51: in _make_config
+    "ssm":SSMConfig(conv_kernel=2, state_size=2, group_count=1, time_step_rank=1, inner_size=2)} | kwargs))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.llm.model.SSMConfig'>, args = ()
+kwargs = {'conv_kernel': 2, 'state_size': 2, 'group_count': 1, 'time_step_rank': 1, ...}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.llm.model.SSMConfig'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_______________________ TestPairwiseTopk.test_basic_topk _______________________
+
+self = <test.unit.test_attention.TestPairwiseTopk testMethod=test_basic_topk>
+
+    def test_basic_topk(self):
+>     x = Tensor([[[1.0, 3.0, 2.0, 5.0, 4.0]]])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_attention.py:181: TypeError
+_______________________ TestPairwiseTopk.test_duplicates _______________________
+
+self = <test.unit.test_attention.TestPairwiseTopk testMethod=test_duplicates>
+
+    def test_duplicates(self):
+>     x = Tensor([[[5.0, 5.0, 3.0, 5.0]]])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_attention.py:187: TypeError
+_____________________ TestPairwiseTopk.test_matches_numpy ______________________
+
+self = <test.unit.test_attention.TestPairwiseTopk testMethod=test_matches_numpy>
+
+    def test_matches_numpy(self):
+      np.random.seed(42)
+      data = np.random.randn(4, 2, 16).astype(np.float32)
+>     vals, sel = pairwise_topk(Tensor(data), 5)
+                                ^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_attention.py:195: TypeError
+=========================== short test summary info ============================
+FAILED test/unit/test_attention.py::TestAttention::test_apply_rope - Attribut...
+FAILED test/unit/test_attention.py::TestAttention::test_partial_rope_in_attention
+FAILED test/unit/test_attention.py::TestGatedDeltaNetBlock::test_gatedeltanet_reference_and_reset
+FAILED test/unit/test_attention.py::TestPairwiseTopk::test_basic_topk - TypeE...
+FAILED test/unit/test_attention.py::TestPairwiseTopk::test_duplicates - TypeE...
+FAILED test/unit/test_attention.py::TestPairwiseTopk::test_matches_numpy - Ty...
+6 failed in 0.08s

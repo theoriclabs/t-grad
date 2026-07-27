@@ -1,0 +1,5 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestToNumpy", "request"], "marks": [], "nodeid": "test/backend/test_to_numpy.py::TestToNumpy::test_numpy_is_numpy", "parameters": {}}], "count": 1, "event": "collection_finish", "nodeids": ["test/backend/test_to_numpy.py::TestToNumpy::test_numpy_is_numpy"]}
+{"event": "test_report", "nodeid": "test/backend/test_to_numpy.py::TestToNumpy::test_numpy_is_numpy", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "AttributeError", "nodeid": "test/backend/test_to_numpy.py::TestToNumpy::test_numpy_is_numpy", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/backend/test_to_numpy.py::TestToNumpy::test_numpy_is_numpy", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 1}

@@ -1,0 +1,11 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestMaskedTensor", "request"], "marks": [], "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestMaskedTensor", "request"], "marks": [], "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestMaskedTensor", "request"], "marks": [], "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked", "parameters": {}}], "count": 3, "event": "collection_finish", "nodeids": ["test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked", "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked", "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked"]}
+{"event": "test_report", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TypeError", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TypeError", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TypeError", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 1}

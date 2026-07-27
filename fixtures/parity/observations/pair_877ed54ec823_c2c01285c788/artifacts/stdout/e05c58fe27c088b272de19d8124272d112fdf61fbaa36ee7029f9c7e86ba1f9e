@@ -1,0 +1,63 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+__________________________ TestJitCases.test_explicit __________________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_explicit>
+
+    def test_explicit(self):
+      # this function has an explicit input and an explicit output
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_cases.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCases.test_explicit.<locals>.f at 0x1051d4900>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+_______________________ TestJitCases.test_implicit_input _______________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_implicit_input>
+
+    def test_implicit_input(self):
+      # x is the implicit input (like a weight)
+>     x = Tensor([0])
+          ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_jit_cases.py:31: TypeError
+________________________ TestJitCases.test_implicit_io _________________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_implicit_io>
+
+    def test_implicit_io(self):
+      # x is the implicit input (like a weight)
+      # out is the implicit output (it's assigned to)
+>     x = Tensor([0])
+          ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_jit_cases.py:64: TypeError
+______________________ TestJitCases.test_implicit_output _______________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_implicit_output>
+
+    def test_implicit_output(self):
+      # out is the implicit output (it's assigned to)
+>     out = Tensor([0])
+            ^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_jit_cases.py:48: TypeError
+=========================== short test summary info ============================
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_explicit - tinygrad._u...
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_implicit_input - TypeE...
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_implicit_io - TypeErro...
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_implicit_output - Type...
+4 failed in 0.06s

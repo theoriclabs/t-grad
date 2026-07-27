@@ -17,6 +17,7 @@ import Tgrad.Specification.Pilot
 import Tgrad.Conformance.Claims
 import Tgrad.Evidence.Observations
 import Tgrad.Evidence.PilotGenerated
+import Tgrad.Evidence.SuiteGenerated
 import Tgrad.Growth.Derived
 import Tgrad.Growth.PilotState
 import Tgrad.Growth.Work

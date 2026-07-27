@@ -1,0 +1,25 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting test/backend/test_transcendental.py _____________
+test/backend/test_transcendental.py:5: in <module>
+    from test.backend.test_schedule import check_schedule
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:935: in _load_unlocked
+    ???
+/Users/harshwork/code/Tgrad/.venv/lib/python3.13/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+test/backend/test_schedule.py:294: in <module>
+    zero_pm = UPat(Ops.CONST, arg=0)
+                   ^^^^^^^^^
+../shim/tinygrad/_unsupported.py:36: in __getattr__
+    self._raise()
+../shim/tinygrad/_unsupported.py:30: in _raise
+    raise TgradCapabilityError(_message(self.name))
+E   tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.uop.ops.Ops'; the strict shim refuses to implement or import it from upstream tinygrad
+=========================== short test summary info ============================
+ERROR test/backend/test_transcendental.py - tinygrad._unsupported.TgradCapabi...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.10s

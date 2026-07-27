@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________________ TestToNumpy.test_numpy_is_numpy ________________________
+
+self = <test.backend.test_to_numpy.TestToNumpy testMethod=test_numpy_is_numpy>
+
+    def test_numpy_is_numpy(self):
+>     output = Tensor.ones((1, 3, 4096)).realize().numpy()
+               ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'ones'
+
+test/backend/test_to_numpy.py:8: AttributeError
+=========================== short test summary info ============================
+FAILED test/backend/test_to_numpy.py::TestToNumpy::test_numpy_is_numpy - Attr...
+1 failed in 0.05s

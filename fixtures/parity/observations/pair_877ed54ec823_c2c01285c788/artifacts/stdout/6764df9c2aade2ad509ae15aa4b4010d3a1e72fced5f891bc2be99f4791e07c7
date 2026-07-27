@@ -1,0 +1,37 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_______________________ TestMaskedTensor.test_add_masked _______________________
+
+self = <test.unit.test_masked_tensor.TestMaskedTensor testMethod=test_add_masked>
+
+    def test_add_masked(self):
+>     a = Tensor([1,1]).pad(((0,2),))
+          ^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_masked_tensor.py:22: TypeError
+____________________ TestMaskedTensor.test_mul_both_masked _____________________
+
+self = <test.unit.test_masked_tensor.TestMaskedTensor testMethod=test_mul_both_masked>
+
+    def test_mul_both_masked(self):
+>     a = Tensor([1,1]).pad(((0,3),))
+          ^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_masked_tensor.py:14: TypeError
+_______________________ TestMaskedTensor.test_mul_masked _______________________
+
+self = <test.unit.test_masked_tensor.TestMaskedTensor testMethod=test_mul_masked>
+
+    def test_mul_masked(self):
+>     a = Tensor([1,1,1,1,1])
+          ^^^^^^^^^^^^^^^^^^^
+E     TypeError: Tensor.__init__() missing 3 required positional arguments: 'size', 'shape', and 'dtype'
+
+test/unit/test_masked_tensor.py:6: TypeError
+=========================== short test summary info ============================
+FAILED test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked - T...
+FAILED test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked
+FAILED test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked - T...
+3 failed in 0.06s

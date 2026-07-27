@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________________ TestSymbolicPad.test_pad ___________________________
+
+self = <test.unit.test_symbolic_tensor.TestSymbolicPad testMethod=test_pad>
+
+    def test_pad(self):
+>     v = Variable("v", 1, 100).bind(5)
+          ^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_symbolic_tensor.py:7: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.Variable'>, args = ('v', 1, 100), kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.Variable'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:61: TgradCapabilityError
+=========================== short test summary info ============================
+FAILED test/unit/test_symbolic_tensor.py::TestSymbolicPad::test_pad - tinygra...
+1 failed in 0.05s

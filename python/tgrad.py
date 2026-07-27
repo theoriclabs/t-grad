@@ -229,6 +229,7 @@ class MatmulOnNonBufferUop(TgradError):
 # Op codes shared with PythonFFI.binOpOfCode.
 _BINOP_ADD = 0
 _BINOP_MUL = 1
+_BINOP_SUB = 2
 
 _SUPPORTED_DTYPES = {"bf16"}
 # Bytes per element, used to check that a materialized buffer is
@@ -569,6 +570,44 @@ class Tensor:
         """Return the underlying UOp kind: 0=BUFFER, 1=PERMUTE,
         2=RESHAPE, 3=EXPAND, 4=SLICE, 255=other/unregistered."""
         return _lib.tgrad_tensor_uop_kind(self._handle)
+
+    # Pointwise ops. Each is a table row: build a binop node, hand the
+    # graph to realize. No new FFI symbol, no new kernel generator, and
+    # views work for free because the index expressions come from the
+    # View algebra. Adding another operator is one line here plus one
+    # row in Renderer.Elementwise.elementwiseOpStr.
+    def _pointwise(self, other: "Tensor", op_code: int, name: str) -> "Tensor":
+        if not isinstance(other, Tensor):
+            return NotImplemented
+        if self._dtype != "bf16" or other._dtype != "bf16":
+            raise TgradTypeError(
+                f"{name}: bf16 only (got {self._dtype}, {other._dtype})")
+        if self._shape != other._shape:
+            # Broadcasting is a View.expand away but is not wired until
+            # dtype promotion lands, so it is refused rather than guessed.
+            raise NotInLeanScope(
+                f"{name}: shapes must match (got {self._shape}, {other._shape}); "
+                f"broadcasting is not implemented")
+        h = _lib.tgrad_tensor_binop(op_code, self._handle, other._handle)
+        if h == 0:
+            raise TgradError(f"tgrad_tensor_binop({name}) returned 0")
+        out_handle = _lib.tgrad_realize(h)
+        if out_handle == 0:
+            raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
+        out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+        m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+        n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+        return Tensor(out_buf, m * n * 2, (m, n), "bf16",
+                      handle=out_handle, owns_buf=True, base=None)
+
+    def __add__(self, other: "Tensor") -> "Tensor":
+        return self._pointwise(other, _BINOP_ADD, "add")
+
+    def __sub__(self, other: "Tensor") -> "Tensor":
+        return self._pointwise(other, _BINOP_SUB, "sub")
+
+    def __mul__(self, other: "Tensor") -> "Tensor":
+        return self._pointwise(other, _BINOP_MUL, "mul")
 
     def __matmul__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):

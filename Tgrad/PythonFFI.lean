@@ -3,6 +3,7 @@ import Tgrad.Runtime.MetalProgram
 import Tgrad.Runtime.Cache
 import Tgrad.Pipeline
 import Tgrad.Tensor
+import Tgrad.Renderer.Elementwise
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Codegen.Opt.Heuristic
@@ -559,6 +560,7 @@ def matmulView (aHandle bHandle : UInt64) : IO UInt64 := do
 private def binOpOfCode : UInt8 → Option BinOp
   | 0 => some .add
   | 1 => some .mul
+  | 2 => some .sub
   | _ => none
 
 /-- Compose a binary node over two graphs. -/
@@ -608,6 +610,60 @@ private def runBufferMatmul (a b : Tgrad.Tensor) (M K N : Nat) :
     return none
   pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes } [M, N] .bfloat16_))
 
+
+/-- Compiled-kernel cache for pointwise ops. Keyed on the operator, the
+    output extent and a hash of BOTH rendered index expressions, so two
+    different view chains never collide on one kernel. -/
+initialize libCacheEw : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetEw (op : BinOp) (rows cols : Nat)
+    (aIdx bIdx : UOp) : IO (Option (UInt64 × String)) := do
+  let tag := toString (String.hash (aIdx.renderIndexExpr ++ "|" ++ bIdx.renderIndexExpr))
+  match Tgrad.Renderer.Metal.elementwiseKernelDecl op rows cols aIdx bIdx tag with
+  | none => return none
+  | some decl =>
+    let key := decl.name
+    let cache ← libCacheEw.get
+    let cached := cacheLookup key cache
+    if cached != 0 then return some (cached, decl.name)
+    let msl := Tgrad.Renderer.Metal.renderKernel decl
+    if msl.isEmpty then return none
+    let lib ← Tgrad.Runtime.Metal.metalCompile msl
+    if lib == 0 then return none
+    libCacheEw.modify (fun c => (key, lib) :: c)
+    pure (some (lib, decl.name))
+
+/-- Lower a pointwise binary graph. One thread per output element; the
+    per-operand index expressions come from the `View` algebra, so an
+    operand that is a view costs nothing extra. -/
+private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
+    IO (Option Tgrad.Tensor) := do
+  let aShape := a.shape
+  let bShape := b.shape
+  if aShape != bShape then return none
+  if aShape.length != 2 then return none
+  match aShape[0]?, aShape[1]?,
+        Tgrad.Schedule.viewOfUOp a.uop, Tgrad.Schedule.viewOfUOp b.uop with
+  | some rows, some cols, some va, some vb => do
+    let vars : List UOp := [.var "gidx0" .int32_, .var "gidx1" .int32_]
+    let aIdx := Tgrad.Schedule.View.indexOf va vars
+    let bIdx := Tgrad.Schedule.View.indexOf vb vars
+    match (← compileOrCacheGetEw op rows cols aIdx bIdx) with
+    | none => return none
+    | some (lib, fnName) => do
+      let outBytes := rows * cols * 2
+      let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+      if outBuf == 0 then return none
+      let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName
+        #[outBuf, a.buffer.raw, b.buffer.raw]
+        (USize.ofNat rows) (USize.ofNat cols) 1 1 1 1
+      if rc != 0 then
+        Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+        return none
+      pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+                  [rows, cols] .bfloat16_))
+  | _, _, _, _ => return none
+
 /-- Materialise a graph and return a handle to the result.
 
     The accepted shape today is the matmul marker
@@ -645,6 +701,15 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
             match (← runBufferMatmul a b M K N) with
             | none     => return 0
             | some out => TensorRegistry.register out
+  | .binop op aU bU _ =>
+      -- Pointwise. Reachable for every operator `elementwiseOpStr`
+      -- accepts; the rest fail to build a kernel rather than emitting
+      -- something plausible.
+      let a : Tgrad.Tensor := { uop := aU, dtype := .bfloat16_ }
+      let b : Tgrad.Tensor := { uop := bU, dtype := .bfloat16_ }
+      match (← runElementwise op a b) with
+      | none     => return 0
+      | some out => TensorRegistry.register out
   | _ => return 0
 
 

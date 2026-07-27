@@ -1772,11 +1772,17 @@ def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
             "artifacts": refs_for_payloads(payloads),
         }
         document["evidence_id"] = computed_evidence_id(document)
-        if args.against == "upstream" and any(
-            item["outcome"] != "validator_rejected_mutant"
-            for item in calibrations
-        ):
-            raise RuntimeError("mutant calibration failed; refusing evidence")
+        if args.against == "upstream":
+            rejected = [
+                {"mutation_id": item["mutation_id"], "outcome": item["outcome"]}
+                for item in calibrations
+                if item["outcome"] != "validator_rejected_mutant"
+            ]
+            if rejected:
+                raise RuntimeError(
+                    "mutant calibration failed; refusing evidence: " +
+                    canonical(rejected).decode("ascii")
+                )
         if args.against == "tgrad":
             # The observer is read-only.  Rechecking the product source after
             # execution catches accidental or concurrent mutation of its inputs.

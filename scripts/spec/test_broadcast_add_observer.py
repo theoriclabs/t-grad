@@ -384,6 +384,13 @@ class ChildCalibrationTests(unittest.TestCase):
         )
         self.assertNotEqual("validator_rejected_mutant", result["outcome"])
 
+    def test_failed_calibration_summary_is_canonical(self) -> None:
+        failures = [{"mutation_id": "MUT-X", "outcome": "survived"}]
+        self.assertEqual(
+            '[{"mutation_id":"MUT-X","outcome":"survived"}]',
+            observer.canonical(failures).decode("ascii"),
+        )
+
 
 class ArtifactAndPolicyTests(unittest.TestCase):
     @classmethod

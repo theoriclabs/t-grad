@@ -670,6 +670,14 @@ arithmetic result is part of the specification. If the next observation stops
 at readback, reshape, addition, or realization, that is new information rather
 than a failed promise about full broadcast parity.
 
+Implementation preflight refuted V1's work shape before commit:
+`scripts/parity/fused_matmul_differential.py` was a second direct consumer of
+the internal raw-buffer constructor. V2 adds that migration file and requires
+a repository-wide absence check for the old call form. The semantic contract
+and expected observation transitions are unchanged. This is a concrete work-
+prediction miss, and therefore evidence that dependency discovery must include
+verification code—not only the product import graph.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

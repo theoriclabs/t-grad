@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-PY-TENSOR-PUBLIC-CONSTRUCTOR-V2",
+  "baseline_revision": "58d18cedc82d6ec8b3ac282afe6be919329e5ca7",
+  "v1_packet_path": "fixtures/requirements/broadcast_add_constructor_candidate_v1.json",
+  "v1_disposition": "implementation_rejected_before_commit",
+  "refuting_finding": "Repository-wide consumer analysis found scripts/parity/fused_matmul_differential.py constructing Tensor from a raw buffer. V1's one-file product write set could not separate the public constructor without breaking this verifier.",
+  "inherited_unchanged": [
+    "trigger observation",
+    "public and internal constructor protocols",
+    "float32 data and rank scope",
+    "predicted scenario transitions",
+    "forbidden Lean, C, and shim write sets",
+    "no arithmetic, realization, or parity prediction"
+  ],
+  "write_set": {
+    "product": ["python/tgrad.py"],
+    "internal_consumer_migration": ["scripts/parity/fused_matmul_differential.py"],
+    "verification": ["scripts/spec/test_tensor_public_constructor.py"],
+    "forbidden": [
+      "scripts/parity/shim/tinygrad/__init__.py",
+      "scripts/parity/shim/tinygrad/dtype.py",
+      "Tgrad/PythonFFI.lean",
+      "Tgrad/Pipeline.lean",
+      "c/tgrad_python.c"
+    ]
+  },
+  "new_validation_obligation": "No tracked Python file outside python/tgrad.py may call Tensor with the internal raw-buffer positional protocol.",
+  "recovery": "Revert all three V2 implementation files together and retain the failed run as a work-shape diagnostic.",
+  "frozen_before_v2_product_authoring": true
+}

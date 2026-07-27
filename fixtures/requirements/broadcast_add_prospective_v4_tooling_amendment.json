@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V4",
+  "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V4",
+  "baseline_revision": "15db155fadbaf68ab26ee2f08747064b0f08480e",
+  "v3_definition_revision": "fbb13c585da75f3e9fa00cf5d87aa72f0ff38ab4",
+  "v3_lock_path": "fixtures/requirements/broadcast_add_trial_lock_v3.json",
+  "v3_lock_sha256": "975820bfd46b1eaa3a5826f7c8357e5560d380cd5a6da1c88b1afc278ccb2b2a",
+  "v3_amendment_path": "fixtures/requirements/broadcast_add_prospective_v3_amendment.json",
+  "v3_amendment_sha256": "e8c78e7ea3d233334bf8fbc752dfeedc6908e86612e244659fca490403a33b0d",
+  "v3_generator_path": "scripts/spec/generate_broadcast_add_amendment_v3.py",
+  "v3_generator_sha256": "a7a5b21ae6b402c37a9f3ba2ce34a8c2f360600852c01f64ac3324a59dec58b8",
+  "v3_disposition": "work_packet_refuted_before_observation",
+  "finding": "V3 predicted changing the observer but its generator required the mutable current observer to retain the old V2 hash, so its own preflight made the predicted work impossible.",
+  "tooling_amendment": {
+    "binding": "v2_observer_sha256",
+    "from": "current_worktree_file",
+    "to": "frozen_git_object_at_v3_definition_revision"
+  },
+  "v3_trace_footprint_amendment_inherited_unchanged": true,
+  "v3_behavioral_manifest_inherited_unchanged": true,
+  "frozen_before_v4_tooling_implementation": true,
+  "frozen_before_v4_observer_implementation": true,
+  "frozen_before_product_candidate": true
+}

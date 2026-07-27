@@ -612,6 +612,13 @@ trace footprints and moves them into a frozen verifier contract. It changes no
 requirement, scenario, semantic dimension, mutant implementation, target, or
 product file. The V2 diagnostic remains ineligible as a baseline.
 
+The V3 implementation preflight then rejected V3 itself before another Metal
+run: its generator checked the old observer hash against the mutable current
+worktree, while the V3 packet explicitly required that observer to change.
+V4 records the sole tooling correction prospectively: verify the old observer
+against the Git object at the V3 definition revision. V3's trace correction,
+all behavioral semantics, and the empty product write set remain inherited.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

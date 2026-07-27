@@ -179,8 +179,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 bench_hash="$(shasum -a 256 "$L13B_BENCH" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/general_shape_manifest.json" | awk '{print $1}')"
 scalar_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulScalar.lean" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_B.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L13_B.json" <<EOF
 {
   "gate": "L13_B",
   "ts_utc": "$ts",

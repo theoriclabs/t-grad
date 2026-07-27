@@ -23,7 +23,7 @@
 #       * D1 — UOp.renderIndexExpr signature is pure (no IO)
 #       * D2 — synthetic kernel exercises both new ctors (>= 1 each)
 #       * D3 — gate script invokes ffi-compile-smoke (no silent pass)
-#   - Layer E : evidence to fixtures/gate_evidence/L14_B_2_a.json
+#   - Layer E : evidence to the run-owned L14_B_2_a.json
 set -euo pipefail
 if [[ -z "${REPO_ROOT:-}" ]]; then
   export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -174,14 +174,14 @@ PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 
 L11_PAIRS="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])
+print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])
 ' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS"; exit 1; }
 echo "  ✓ L11.json shows 50/50 (regression evidence)"
 
 L13F_TC="$("$PY" -c '
 import json
-d = json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L13_F.json"'"))
+d = json.load(open("'"$TGRAD_EVIDENCE_DIR/L13_F.json"'"))
 print(d["tc_general_wmma"], d["random_tc_wmma"], d["tc_general_scalar_routes"])
 ' 2>/dev/null || echo "0 0 1")"
 read L13F_PIN L13F_RAND L13F_SCALAR <<< "$L13F_TC"
@@ -193,7 +193,7 @@ echo "  ✓ L13_F.json shows 8/8 + 10/10 + 0 scalar"
 
 L14_B_1_VIEW="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L14_B_1.json"'"))["matmul_on_view_raises"])
+print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L14_B_1.json"'"))["matmul_on_view_raises"])
 ' 2>/dev/null || echo "missing")"
 [[ "$L14_B_1_VIEW" == "MatmulOnNonBufferUop" ]] || {
   echo "  ✗ L14_B_1.json.matmul_on_view_raises != MatmulOnNonBufferUop (got $L14_B_1_VIEW)"
@@ -208,8 +208,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 metal_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/Metal.lean" | awk '{print $1}')"
 uop_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/UOp.lean" | awk '{print $1}')"
 msl_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/codegen/synthetic_indexed_kernel.msl" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_2_a.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_B_2_a.json" <<EOF
 {
   "gate": "L14_B_2_a",
   "ts_utc": "$ts",

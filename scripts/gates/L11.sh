@@ -175,8 +175,8 @@ bench_hash="$(shasum -a 256 "$L11_BENCH" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/pair_manifest.json" | awk '{print $1}')"
 tol_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/dist_tolerances.json" | awk '{print $1}')"
 baseline_hash="$(shasum -a 256 "$BASELINE_FULL" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L11.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L11.json" <<EOF
 {
   "gate": "L11",
   "ts_utc": "$ts",

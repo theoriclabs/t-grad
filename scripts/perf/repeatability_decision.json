@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "policy_id": "prepared-runtime-repeatability-v1",
+  "state": "calibration_required",
+  "comparison_id": "tgrad_prepared_vs_tinygrad_tinyjit_replay",
+  "boundary_id": "prepared_runtime",
+  "boundary_id": "prepared_runtime",
+  "minimum_independent_calibration_runs": 3,
+  "minimum_independent_evaluation_runs": 3,
+  "minimum_logical_sessions_per_run": 3,
+  "minimum_samples_per_session": 30,
+  "minimum_bootstrap_resamples": 2000,
+  "confidence_level": 0.95,
+  "acceptance_rule": null,
+  "calibration_artifacts": [],
+  "missing": "Run and retain independent paired-runtime calibration sessions, derive a variance-sensitive rule from calibration only, then review this file before evaluating a release candidate."
+}

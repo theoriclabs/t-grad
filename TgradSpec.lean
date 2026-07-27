@@ -11,6 +11,7 @@ import Tgrad.Spec.Parity
 import Tgrad.Spec.ParityCoverage
 import Tgrad.Spec.ParityCalibration
 import Tgrad.Spec.PerformanceBoundary
+import Tgrad.Spec.EvidenceSnapshot
 
 /-! # TgradSpec — checked specification, separate from the product runtime
 

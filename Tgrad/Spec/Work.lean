@@ -528,14 +528,16 @@ def workItems : List WorkItem :=
       dependsOn := [ew "perf.rebaseline"],
       runtimeScope := [rw "verify.evidence-integrity"],
       touches := [.evidenceStore, .gateHarness],
-      writes := ["fixtures/gate_evidence"],
+      writes := ["fixtures/gate_evidence", "scripts/evidence/candidate.py",
+        "scripts/evidence/README.md", "scripts/perf/release_certificate.py",
+        "scripts/gates", "scripts/lib/run_context.sh"],
       authoringResources := [.sourceTree],
       verificationResources := [.metalGpu, .tmpNamespace, .evidenceStore],
       cost := 4, goalDistance := 0,
       validation := plannedValidation
-        "all 37 evidence files naming one shipped commit with recomputable hashes"
-        "after perf.rebaseline is promoted, run gates serially; retain red results; recompute every recorded hash; reject a partial snapshot"
-        "all 37 files come from their current scripts; commit equals the measured tree; all source, child, and baseline hashes resolve; L11 is not made green by threshold tuning"
+        "one complete-green candidate binding all 37 outcomes, logs, evidence files, and durable hash referents to one clean source commit and tree"
+        "after a same-source prepared-runtime certificate is promoted, run --regenerate-evidence serially into an external candidate; continue after red; finalize exact cover; pre-audit and filesystem-promote only after review; publish in a separate Git commit"
+        "all 37 files come from their current scripts; commit/tree equal the measured source; every source, child, baseline, build, and run hash resolves; partial/red candidates remain outside canonical evidence; L11 is not made green by threshold tuning"
         [.provenance, .semantic, .humanReview],
       recovery := "keep reproducible partial files as diagnostic history but do not promote the snapshot while any gate or provenance class remains red",
       progress := .planned },
@@ -551,9 +553,9 @@ def workItems : List WorkItem :=
       verificationResources := [.evidenceStore],
       cost := 1, goalDistance := 0,
       validation := plannedValidation
-        "release entry points fail on any absent commit, unresolved hash, bad roll-up, or writer mismatch"
-        "run the audit after regeneration, then inject one defect from each class"
-        "clean evidence passes; all four mutations fail before release publication"
+        "release promotion and explicit verification fail on any source drift, absent outcome, unresolved hash, bad roll-up, writer mismatch, or retained-artifact mutation"
+        "run the strict audit after regeneration; inject one defect in source identity, gate cover, outcome/log bytes, evidence bytes, roll-up, source referent, and retained artifact"
+        "clean evidence passes; every mutation fails before publication; failed in-process promotion restores the prior canonical directory; Git publication remains a separate reviewed action"
         [.provenance, .semantic, .humanReview],
       recovery := "do not make a known-red audit fatal before the owner-authorized regeneration",
       progress := .planned } ]

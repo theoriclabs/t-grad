@@ -180,7 +180,7 @@ cast_hash="$(shasum -a 256 "$L1_CAST" | awk '{print $1}')"
 shape_hash="$(shasum -a 256 "$L1_SHAPE" | awk '{print $1}')"
 mv_hash="$(shasum -a 256 "$L1_MV" | awk '{print $1}')"
 sym_hash="$(shasum -a 256 "$L1_SYM" | awk '{print $1}')"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L1.json" <<EOF
+cat >"$TGRAD_EVIDENCE_DIR/L1.json" <<EOF
 {
   "gate": "L1",
   "ts_utc": "$ts",

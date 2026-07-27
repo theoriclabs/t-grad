@@ -32,7 +32,7 @@
 #             + register + rank-back + raw_buffer-back all succeed
 #       * D5: this gate script actually invokes L11.sh, L13.sh, L13_F.sh
 #             (sabotage row 7+8 catches removing the regression calls)
-#   - Layer E : evidence to fixtures/gate_evidence/L14_A.json
+#   - Layer E : evidence to the run-owned L14_A.json
 set -euo pipefail
 if [[ -z "${REPO_ROOT:-}" ]]; then
   export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -214,11 +214,11 @@ echo "  ✓ L14_A.sh references L11.json + L13.json + L13_F.json (regression evi
 
 # ─── LAYER C: regression check — L11+L13+L13_F evidence intact ────────
 # Per `GOAL_L14_A.md` §1(e) the binary done condition is:
-#   $ jq '.pairs_passed' fixtures/gate_evidence/L11.json
+#   $ jq '.pairs_passed' "$TGRAD_EVIDENCE_DIR/L11.json"
 #   50
-#   $ jq '.pinned_pass' fixtures/gate_evidence/L13.json
+#   $ jq '.pinned_pass' "$TGRAD_EVIDENCE_DIR/L13.json"
 #   45
-#   $ jq '.tc_general_wmma, .random_tc_wmma' fixtures/gate_evidence/L13_F.json
+#   $ jq '.tc_general_wmma, .random_tc_wmma' "$TGRAD_EVIDENCE_DIR/L13_F.json"
 #   8
 #   10
 # i.e. the *evidence files* show the prior pass-counts. That's the
@@ -240,7 +240,7 @@ echo "  [C] evidence-file regression check + 64×64 correctness smoke"
 
 L11_PAIRS_PASSED="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])
+print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])
 ')"
 [[ "$L11_PAIRS_PASSED" -eq 50 ]] || {
   echo "  ✗ L11.json.pairs_passed = $L11_PAIRS_PASSED (need 50)"
@@ -250,7 +250,7 @@ echo "  ✓ L11.json records 50/50 pairs passing"
 
 L13_SUBS_GREEN="$("$PY" -c '
 import json
-d = json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L13.json"'"))
+d = json.load(open("'"$TGRAD_EVIDENCE_DIR/L13.json"'"))
 print(d["sub_gates_green"])
 ')"
 [[ "$L13_SUBS_GREEN" -eq 5 ]] || {
@@ -261,7 +261,7 @@ echo "  ✓ L13.json records 5/5 sub-gates green"
 
 L13F_WMMA="$("$PY" -c '
 import json
-d = json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L13_F.json"'"))
+d = json.load(open("'"$TGRAD_EVIDENCE_DIR/L13_F.json"'"))
 print(d["tc_general_wmma"], d["random_tc_wmma"], d["tc_general_scalar_routes"])
 ')"
 read L13F_TC_PIN L13F_TC_RAND L13F_SCALAR <<< "$L13F_WMMA"
@@ -289,11 +289,11 @@ tensor_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Tensor.lean" | awk '{print $1}')"
 uop_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/UOp.lean" | awk '{print $1}')"
 ffi_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/PythonFFI.lean" | awk '{print $1}')"
 python_wrapper_hash="$(shasum -a 256 "$TGRAD_DIR/python/tgrad.py" | awk '{print $1}')"
-l11_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L11.json" | awk '{print $1}')"
-l13_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13.json" | awk '{print $1}')"
-l13_f_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_F.json" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_A.json" <<EOF
+l11_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L11.json" | awk '{print $1}')"
+l13_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13.json" | awk '{print $1}')"
+l13_f_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_F.json" | awk '{print $1}')"
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_A.json" <<EOF
 {
   "gate": "L14_A",
   "ts_utc": "$ts",

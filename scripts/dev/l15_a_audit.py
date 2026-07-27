@@ -48,6 +48,10 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+_evidence_raw = os.environ.get("TGRAD_EVIDENCE_DIR")
+if not _evidence_raw or not Path(_evidence_raw).is_absolute():
+    raise RuntimeError("TGRAD_EVIDENCE_DIR must be an explicit absolute run-owned path")
+EVIDENCE = Path(_evidence_raw)
 
 
 def run_artifact(name: str) -> Path:
@@ -154,7 +158,7 @@ def check_symbolic_graph() -> dict:
 # -------- Criterion 3: Rewrite/codegen ----------------------------------
 
 def check_rewrite_codegen() -> dict:
-    ev = REPO / "fixtures" / "gate_evidence"
+    ev = EVIDENCE
     pipeline = REPO / "Tgrad" / "Pipeline.lean"
     def _load(name):
         p = ev / name
@@ -197,8 +201,9 @@ def check_rewrite_codegen() -> dict:
         "criterion": "rewrite_codegen",
         "verdict": verdict,
         "artifact_paths": ["Tgrad/Pipeline.lean", "Tgrad/Codegen/Opt/Heuristic.lean",
-                           "fixtures/gate_evidence/L13.json", "L13_D.json",
-                           "L13_F.json", "L14_B.json", "L14_B_3.json", "L14_C.json"],
+                           "run-evidence/L13.json", "run-evidence/L13_D.json",
+                           "run-evidence/L13_F.json", "run-evidence/L14_B.json",
+                           "run-evidence/L14_B_3.json", "run-evidence/L14_C.json"],
         "evidence": (
             f"L13.D.random_pass={l13d_pass}/30, "
             f"L13_F.wmma_pinned={tc_wmma_pinned}/8 random={tc_wmma_random}/10 "
@@ -256,7 +261,7 @@ def static_check_no_python_owned_view_graph() -> bool:
 
 
 def static_check_no_tc_general_scalar_route() -> bool:
-    l13f = REPO / "fixtures" / "gate_evidence" / "L13_F.json"
+    l13f = EVIDENCE / "L13_F.json"
     if not l13f.exists():
         return False
     data = json.loads(l13f.read_text())

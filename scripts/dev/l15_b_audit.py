@@ -14,16 +14,21 @@ strong-done predicates.
 """
 from __future__ import annotations
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+_evidence_raw = os.environ.get("TGRAD_EVIDENCE_DIR")
+if not _evidence_raw or not Path(_evidence_raw).is_absolute():
+    raise RuntimeError("TGRAD_EVIDENCE_DIR must be an explicit absolute run-owned path")
+EVIDENCE = Path(_evidence_raw)
 
 
 def _load(name: str) -> dict:
-    p = REPO / "fixtures" / "gate_evidence" / name
+    p = EVIDENCE / name
     if not p.exists():
         return {}
     return json.loads(p.read_text())
@@ -80,8 +85,8 @@ def check_renderer() -> dict:
             "Tgrad/Renderer/MatmulTc.lean",
             "Tgrad/Pipeline.lean",
             "scripts/differential_codegen.sh",
-            "fixtures/gate_evidence/L12.json",
-            "fixtures/gate_evidence/L13_F.json",
+            "run-evidence/L12.json",
+            "run-evidence/L13_F.json",
         ],
         "evidence": (
             f"L12.semantic={semantic_pass}/{semantic_total}, "
@@ -110,6 +115,11 @@ def check_runtime() -> dict:
     env = {**os.environ,
            "REPO_ROOT": str(REPO),
            "TGRAD_DIR": str(REPO)}
+    for key in (
+        "TGRAD_RUN_DIR", "TGRAD_RUN_OWNER_PID", "TGRAD_RUN_OWNER_TOKEN",
+        "TGRAD_EVIDENCE_DIR", "TGRAD_KEEP_RUN_DIR", "TGRAD_GLOBAL_PREFLIGHT_DONE",
+    ):
+        env.pop(key, None)
     static_ok = static_script.exists() and subprocess.run(
         ["bash", str(static_script)], cwd=REPO, capture_output=True, env=env,
         timeout=60,
@@ -175,8 +185,9 @@ def check_benchmark_validation() -> dict:
         "criterion": "benchmark_validation",
         "verdict": verdict,
         "artifact_paths": [
-            "fixtures/gate_evidence/L11.json", "L13.json", "L13_F.json",
-            "L14.json", "L14_B_3.json", "L14_C.json",
+            "run-evidence/L11.json", "run-evidence/L13.json",
+            "run-evidence/L13_F.json", "run-evidence/L14.json",
+            "run-evidence/L14_B_3.json", "run-evidence/L14_C.json",
         ],
         "evidence": (
             f"L11.pairs={l11_pass}/50, L13.sub_gates={l13_sub_count}/>=5, "

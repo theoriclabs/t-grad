@@ -36,12 +36,14 @@ _tgrad_run_canonical_root() {
 }
 
 tgrad_run_context_is_owner() {
+  [[ "${_TGRAD_RUN_CREATED_HERE:-0}" == "1" ]] || return 1
   [[ -n "${TGRAD_RUN_DIR:-}" ]] || return 1
   [[ -n "${TGRAD_RUN_OWNER_PID:-}" ]] || return 1
   [[ -n "${TGRAD_RUN_OWNER_TOKEN:-}" ]] || return 1
   [[ "${BASHPID:-$$}" == "$TGRAD_RUN_OWNER_PID" ]] || return 1
   [[ -f "$TGRAD_RUN_DIR/.tgrad-run-owner" ]] || return 1
   [[ "$(<"$TGRAD_RUN_DIR/.tgrad-run-owner")" == "$TGRAD_RUN_OWNER_TOKEN" ]] || return 1
+  [[ "${_TGRAD_RUN_CREATED_CANONICAL:-}" == "$TGRAD_RUN_DIR" ]] || return 1
 }
 
 _tgrad_run_validate_shared_root() {
@@ -81,6 +83,12 @@ tgrad_run_context_cleanup() {
 
   local root
   root="$(_tgrad_run_canonical_root "$TGRAD_RUN_DIR")" || return 1
+  local temp_parent
+  temp_parent="$(cd -P -- "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)" || return 1
+  case "$root" in
+    "$temp_parent"/tgrad_run.*) ;;
+    *) _tgrad_run_error "refusing cleanup outside an owned tgrad_run temp root: $root"; return 1 ;;
+  esac
   [[ "$root" == "$TGRAD_RUN_DIR" ]] || {
     _tgrad_run_error "run root changed before cleanup"
     return 1
@@ -100,14 +108,23 @@ _tgrad_run_context_on_exit() {
 }
 
 tgrad_run_context_init() {
-  local root created=0
-  if [[ -z "${TGRAD_RUN_DIR:-}" ]]; then
+  # Re-sourcing in the same shell preserves private ownership but still
+  # revalidates a newly selected evidence directory.
+  local root created=0 was_owner=0
+  if tgrad_run_context_is_owner; then
+    was_owner=1
+    root="$TGRAD_RUN_DIR"
+  else
+    _TGRAD_RUN_CREATED_HERE=0
+    _TGRAD_RUN_CREATED_CANONICAL=""
+  fi
+  if [[ "$was_owner" == "0" && -z "${TGRAD_RUN_DIR:-}" ]]; then
     root="$(mktemp -d -t tgrad_run)" || {
       _tgrad_run_error "mktemp failed"
       return 1
     }
     created=1
-  else
+  elif [[ "$was_owner" == "0" ]]; then
     root="$TGRAD_RUN_DIR"
   fi
 
@@ -117,7 +134,11 @@ tgrad_run_context_init() {
   }
   export TGRAD_RUN_DIR="$root"
 
-  if [[ "$created" == "1" ]]; then
+  if [[ "$was_owner" == "1" ]]; then
+    : # private ownership was established by this shell's earlier initialization
+  elif [[ "$created" == "1" ]]; then
+    _TGRAD_RUN_CREATED_HERE=1
+    _TGRAD_RUN_CREATED_CANONICAL="$root"
     export TGRAD_RUN_OWNER_PID="${BASHPID:-$$}"
     export TGRAD_RUN_OWNER_TOKEN="${TGRAD_RUN_OWNER_PID}.${RANDOM}.${RANDOM}"
     printf '%s\n' "$TGRAD_RUN_OWNER_TOKEN" >"$TGRAD_RUN_DIR/.tgrad-run-owner"
@@ -138,9 +159,68 @@ tgrad_run_context_init() {
     _tgrad_run_validate_shared_root "$TGRAD_RUN_DIR" || return 1
   fi
 
-  if tgrad_run_context_is_owner && [[ "${_TGRAD_RUN_TRAP_PID:-}" != "${BASHPID:-$$}" ]]; then
+  if [[ "$created" == "1" && "${_TGRAD_RUN_TRAP_PID:-}" != "${BASHPID:-$$}" ]]; then
     _TGRAD_RUN_TRAP_PID="${BASHPID:-$$}"
     trap _tgrad_run_context_on_exit EXIT
+  fi
+
+  # Evidence is a run artifact until an explicit, complete-green promotion.
+  # Child gates inherit this absolute path, so umbrella gates see one coherent
+  # candidate set without ever mutating the committed release snapshot.
+  if [[ -z "${TGRAD_EVIDENCE_DIR:-}" ]]; then
+    export TGRAD_EVIDENCE_DIR="$TGRAD_RUN_DIR/gate_evidence"
+  fi
+  case "$TGRAD_EVIDENCE_DIR" in
+    /*) ;;
+    *) _tgrad_run_error "evidence root must be absolute: $TGRAD_EVIDENCE_DIR"; return 1 ;;
+  esac
+  [[ "$TGRAD_EVIDENCE_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]] || {
+    _tgrad_run_error "evidence root contains characters unsafe for legacy gate writers: $TGRAD_EVIDENCE_DIR"
+    return 1
+  }
+  case "/$TGRAD_EVIDENCE_DIR/" in
+    */../*) _tgrad_run_error "evidence root contains a parent traversal"; return 1 ;;
+  esac
+  if [[ -n "${TGRAD_DIR:-}" ]]; then
+    case "$TGRAD_EVIDENCE_DIR" in
+      "$TGRAD_DIR"/*)
+        _tgrad_run_error "gate execution may not write evidence inside the repository: $TGRAD_EVIDENCE_DIR"
+        return 1
+        ;;
+    esac
+  fi
+  case "$TGRAD_EVIDENCE_DIR" in
+    /|/tmp|/private/tmp|"${TGRAD_DIR:-/__tgrad_dir_unset__}"|"$TGRAD_RUN_DIR")
+      _tgrad_run_error "refusing broad evidence root: $TGRAD_EVIDENCE_DIR"
+      return 1
+      ;;
+  esac
+  [[ ! -L "$TGRAD_EVIDENCE_DIR" ]] || {
+    _tgrad_run_error "evidence root must not be a symlink: $TGRAD_EVIDENCE_DIR"
+    return 1
+  }
+  mkdir -p "$TGRAD_EVIDENCE_DIR" || {
+    _tgrad_run_error "cannot create evidence root: $TGRAD_EVIDENCE_DIR"
+    return 1
+  }
+  local evidence_canonical
+  evidence_canonical="$(cd -P -- "$TGRAD_EVIDENCE_DIR" 2>/dev/null && pwd -P)" || {
+    _tgrad_run_error "cannot resolve evidence root: $TGRAD_EVIDENCE_DIR"
+    return 1
+  }
+  [[ "$evidence_canonical" == "$TGRAD_EVIDENCE_DIR" ]] || {
+    _tgrad_run_error "evidence root traverses a symlink: $TGRAD_EVIDENCE_DIR -> $evidence_canonical"
+    return 1
+  }
+  if [[ -n "${TGRAD_DIR:-}" ]]; then
+    local tgrad_canonical
+    tgrad_canonical="$(cd -P -- "$TGRAD_DIR" 2>/dev/null && pwd -P)" || return 1
+    case "$evidence_canonical" in
+      "$tgrad_canonical"/*)
+        _tgrad_run_error "resolved evidence root is inside the repository: $evidence_canonical"
+        return 1
+        ;;
+    esac
   fi
 }
 

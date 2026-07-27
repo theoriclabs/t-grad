@@ -112,8 +112,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 emit_hash="$(shasum -a 256 "$EMIT_OUT" | awk '{print $1}')"
 fixture_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/codegen/copy_kernel.msl" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L8.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L8.json" <<EOF
 {
   "gate": "L8",
   "ts_utc": "$ts",

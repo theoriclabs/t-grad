@@ -134,8 +134,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 lin_hash="$(shasum -a 256 "$L3_LIN" | awk '{print $1}')"
 tc_hash="$(shasum -a 256 "$L3_TC" | awk '{print $1}')"
 msl_hash="$(shasum -a 256 "$L3_MSL" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L3.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L3.json" <<EOF
 {
   "gate": "L3",
   "ts_utc": "$ts",

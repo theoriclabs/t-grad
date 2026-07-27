@@ -164,8 +164,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 bench_hash="$(shasum -a 256 "$L6_BENCH" | awk '{print $1}')"
 dylib_hash="$(shasum -a 256 "$DYLIB" | awk '{print $1}')"
 expected_sha="$(shasum -a 256 "$TGRAD_DIR/fixtures/pipeline/matmul_64x64_bf16_seed42_expected.bin" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L6.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L6.json" <<EOF
 {
   "gate": "L6",
   "ts_utc": "$ts",

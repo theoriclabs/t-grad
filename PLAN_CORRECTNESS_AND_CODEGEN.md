@@ -87,21 +87,19 @@ bound everything below.
 |---|---|---|
 | **One GPU** | `c/metal_alloc.m:26,167` — `g_device`, `g_queue` are process-global statics | All timing work is serial. Never run two benchmarks concurrently; a parallel agent doing an unrelated build will also perturb timings. |
 | **No locks on device state** | `g_device`, `g_queue`, `g_lru`, `g_lru_count` have no mutex; `NSMutableDictionary` pipeline cache is not thread-safe | Correctness runs in *separate processes* are safe. Threads within one process are not. |
-| **141 hardcoded `/tmp/tgrad_*` paths** | `grep -rhoE '/tmp/tgrad_[a-z_.]+' scripts/` → 141 distinct, only 7 files use `mktemp` | Two concurrent gate/devcheck runs clobber each other. **Parallel implementation is safe; parallel verification is not.** |
+| **Run artifacts are now namespaced** | `scripts/lib/run_context.sh`; gate/devcheck consumers use `tgrad_run_path` | Separate CPU-oriented script runs no longer clobber fixed `/tmp` names. Shared build trees, evidence integration, and Metal work still serialize. |
 | **~239 MB `.lake` per worktree**, 3.5 GB free | `du -sh .lake` | Caps concurrent worktrees at ~3. Prefer shared-checkout + serialized builds over many worktrees. |
-| **Gates rewrite committed fixtures** | `scripts/gate.sh` writes `fixtures/gate_evidence/` | No agent may run `gate.sh` unsupervised. Verification uses `tgrad-tests` + targeted Python checks. |
+| **Evidence publication is staged and audited** | gates write `TGRAD_EVIDENCE_DIR`; `scripts/evidence/candidate.py` requires exact green cover before promotion | Red and partial runs remain external candidates. Canonical fixtures change only through explicit reviewed filesystem promotion followed by a separate Git commit. |
 
-**Design rule that follows:** parallelism is applied to *authoring*,
-not to *verification*. Agents write concurrently; a single integrator
-builds and verifies serially. This is the opposite of the usual
-default and is forced by the GPU and the `/tmp` collisions.
+**Design rule that follows:** parallelism is applied primarily to *authoring*.
+CPU-only run-scoped checks may overlap, but a single integrator serializes
+shared builds, Metal execution, timing, and evidence publication.
 
-**Prerequisite W0** (unblocks parallel verification, optional): give
-every gate script a run-scoped temp dir (`TGRAD_TMP="$(mktemp -d)"`)
-instead of the 141 fixed paths. Mechanical, ~35 files, but it cannot
-be verified without running the gates it edits — so it is only worth
-doing if parallel verification actually becomes the bottleneck. Not on
-the critical path.
+**Completed W0 authoring**: gate and devcheck artifacts use an inherited
+run-scoped root. The migration cannot be considered verified until the
+owner's serial suite runs. Even afterward, only independent CPU observers may
+overlap; shared builds, Metal work, timing, and evidence publication remain
+serialized by their own resource constraints.
 
 ## 3. Checked work graph
 

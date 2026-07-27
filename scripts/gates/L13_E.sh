@@ -166,8 +166,8 @@ ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 bench_hash="$(shasum -a 256 "$L13E_LOG" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_E.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L13_E.json" <<EOF
 {
   "gate": "L13_E",
   "ts_utc": "$ts",

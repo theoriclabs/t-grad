@@ -157,6 +157,20 @@ budgets, pass/fail verdicts, or frozen baseline numbers. Results describe the
 recorded run on its recorded machine and software state. Policy decisions, if
 any, belong outside this measurement tool.
 
+Release policy is deliberately a second stage. `VARIANCE_MODEL.md` requires
+independent calibration runs and independent evaluation runs; the paired
+operator cannot certify itself. `repeatability_decision.json` currently says
+`calibration_required`, so the evidence publisher rejects every purported
+prepared-runtime certificate. After the owner serially records calibration,
+derives a variance-sensitive rule from calibration only, and reviews that rule,
+evaluation artifacts and their external certificate can be supplied to
+`scripts/gate.sh --regenerate-evidence`. Candidate collection copies those
+files into the release closure; they are not frozen baseline files read by the
+timed path. A certificate only enumerates completed artifact sets. The release
+validator re-parses their raw observations, re-derives the per-run hierarchy
+and maximum upper interval, and applies the reviewed threshold; authored
+`run_count`, `session_count`, and `passed` fields are not part of the schema.
+
 ## Focused tests
 
 The focused tests validate the operator contract, scheduling, correctness

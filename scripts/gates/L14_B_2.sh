@@ -15,7 +15,7 @@ echo "[L14_B_2] umbrella — index-UOp-driven matmul codegen + rangeify wiring"
 run_preflight
 
 for sub in L14_B_2_a L14_B_2_b L14_B_2_c; do
-  ev="$TGRAD_DIR/fixtures/gate_evidence/${sub}.json"
+  ev="$TGRAD_EVIDENCE_DIR/${sub}.json"
   [[ -f "$ev" ]] || { echo "  ✗ missing sub-gate evidence: $ev"; exit 1; }
   echo "  ✓ $sub evidence present"
 done
@@ -23,11 +23,11 @@ done
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-sha_a="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L14_B_2_a.json" | awk '{print $1}')"
-sha_b="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L14_B_2_b.json" | awk '{print $1}')"
-sha_c="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L14_B_2_c.json" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_2.json" <<EOF
+sha_a="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L14_B_2_a.json" | awk '{print $1}')"
+sha_b="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L14_B_2_b.json" | awk '{print $1}')"
+sha_c="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L14_B_2_c.json" | awk '{print $1}')"
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_B_2.json" <<EOF
 {
   "gate": "L14_B_2",
   "ts_utc": "$ts",

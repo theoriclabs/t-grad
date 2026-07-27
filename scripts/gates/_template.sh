@@ -102,8 +102,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 # Example:
 #   x_hash="$(shasum -a 256 "$gate_output" | awk '{print $1}')"
 
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/${GATE_NAME}.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/${GATE_NAME}.json" <<EOF
 {
   "gate": "$GATE_NAME",
   "ts_utc": "$ts",

@@ -171,15 +171,24 @@ Release gates:
 bash scripts/gate.sh --list
 bash scripts/gate.sh L7
 bash scripts/gate.sh
+bash scripts/gate.sh --regenerate-evidence \
+  /private/tmp/tgrad-evidence-COMMIT \
+  /private/tmp/tgrad-performance/prepared_runtime_certificate.json
+bash scripts/gate.sh --verify-evidence
 ```
 
-`scripts/gate.sh` runs the historical 37-gate suite and writes evidence JSON to
-`fixtures/gate_evidence/`. Run it only serially: many scripts share fixed
-`/tmp/tgrad_*` paths and the performance cases share one GPU. The committed
-JSON is a mixed audit snapshot, not a release certificate for the current
-tree. Eleven early gates were regenerated honestly; the remaining 26 still
-name an absent commit, and the snapshot as a whole contains stale hashes and
-roll-ups. L11 remains deliberately red and its old evidence was not replaced.
+`scripts/gate.sh` runs the historical 37-gate suite against a private,
+run-owned evidence directory. Temporary filenames are namespaced, but builds,
+Metal execution, timing, and evidence integration remain serial resources.
+`--regenerate-evidence` retains every gate outcome, artifact producer record,
+and exact hash closure without modifying committed evidence; only an exact
+all-green candidate with a same-source prepared-runtime certificate can be
+promoted. Promotion is audited before and after a same-filesystem replacement;
+committing that replacement remains a separate reviewed Git operation. The
+committed JSON predates this protocol and is not a release certificate: 26
+files still name an absent commit, and the snapshot contains stale hashes and
+roll-ups. L11 remains deliberately red, and the variance-derived performance
+decision rule is explicitly `calibration_required` rather than tuned green.
 
 ## Performance Evidence
 

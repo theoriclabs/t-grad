@@ -121,8 +121,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$PROFILE"; plat="$(uname -srm)"
 timing_hash="$(shasum -a 256 "$L7_TIMING" | awk '{print $1}')"
 baseline_hash="$(shasum -a 256 "$BASELINE" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L7.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L7.json" <<EOF
 {
   "gate": "L7",
   "ts_utc": "$ts",

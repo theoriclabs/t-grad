@@ -13,16 +13,21 @@ Emits a single JSON document on stdout with:
 from __future__ import annotations
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 MEMO = REPO / "EXPERIMENT_RESULT.md"
+_evidence_raw = os.environ.get("TGRAD_EVIDENCE_DIR")
+if not _evidence_raw or not Path(_evidence_raw).is_absolute():
+    raise RuntimeError("TGRAD_EVIDENCE_DIR must be an explicit absolute run-owned path")
+EVIDENCE = Path(_evidence_raw)
 
 
 def _load(name: str) -> dict:
-    p = REPO / "fixtures" / "gate_evidence" / name
+    p = EVIDENCE / name
     if not p.exists():
         return {}
     return json.loads(p.read_text())

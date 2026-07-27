@@ -88,7 +88,7 @@ print(sum(1 for r in rows if r.get("movement_count_in", 0) > 0))
 echo "  ✓ rangeify trace: $N_TRACE total rows, $N_NONTRIVIAL with movement_count_in > 0"
 
 # Layer C3 — regression evidence
-L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
+L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS"; exit 1; }
 echo "  ✓ L11.json shows 50/50 pairs"
 
@@ -100,8 +100,8 @@ manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/view_manifest.json" | 
 bench_hash="$(shasum -a 256 "$TGRAD_DIR/python/tgrad_bench.py" | awk '{print $1}')"
 pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1}')"
 trace_hash="$(shasum -a 256 "$TRACE" 2>/dev/null | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_3.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_B_3.json" <<EOF
 {
   "gate": "L14_B_3",
   "ts_utc": "$ts",

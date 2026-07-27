@@ -111,11 +111,11 @@ SEED_LOGGED="$(grep -oE 'py_random_views_seed: [0-9a-f]+' "$LOG" | awk '{print $
 echo "  ✓ D1 seed matches HEAD prefix"
 
 # Layer C2 — regression evidence
-L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
+L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS"; exit 1; }
 echo "  ✓ L11 50/50 still holds"
 for sub in L13 L13_F L14_A L14_B; do
-  ev="$TGRAD_DIR/fixtures/gate_evidence/${sub}.json"
+  ev="$TGRAD_EVIDENCE_DIR/${sub}.json"
   [[ -f "$ev" ]] || { echo "  ✗ regression evidence missing: $ev"; exit 1; }
 done
 echo "  ✓ L13 / L13_F / L14_A / L14_B evidence present"
@@ -128,8 +128,8 @@ random_jsonl_hash="$(shasum -a 256 "$OUT_JSONL" | awk '{print $1}')"
 bench_hash="$(shasum -a 256 "$TGRAD_DIR/python/tgrad_bench.py" | awk '{print $1}')"
 script_hash="$(shasum -a 256 "$TGRAD_DIR/scripts/gates/L14_C.sh" | awk '{print $1}')"
 ops_used_json="$("$PY" -c "import json; print(json.dumps(sorted('${OPS_USED}'.split(','))))")"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_C.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_C.json" <<EOF
 {
   "gate": "L14_C",
   "ts_utc": "$ts",

@@ -117,14 +117,14 @@ fi
 echo "  ✓ synthetic-tg-kernel: fn_count: 1 (ffi-compile-smoke)"
 
 # ─── LAYER C2: regression checks ──────────────────────────────────────
-bash "$TGRAD_DIR/scripts/gates/L13_F.sh" >"$STRICT_A_L13F" 2>&1 || {
+run_gate_isolated "$TGRAD_DIR/scripts/gates/L13_F.sh" >"$STRICT_A_L13F" 2>&1 || {
   echo "  ✗ L13_F regression failed"
   tail -40 "$STRICT_A_L13F" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F regression gate still green under §1.RELAX"
 
-bash "$TGRAD_DIR/scripts/gates/L12.sh" >"$STRICT_A_L12" 2>&1 || {
+run_gate_isolated "$TGRAD_DIR/scripts/gates/L12.sh" >"$STRICT_A_L12" 2>&1 || {
   echo "  ✗ L12 regression failed"
   tail -40 "$STRICT_A_L12" | sed 's/^/      /'
   exit 1
@@ -137,8 +137,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 renderer_hash="$(shasum -a 256 "$METAL" | awk '{print $1}')"
 fixture_hash="$(shasum -a 256 "$FIXTURE" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_F_STRICT_A.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L13_F_STRICT_A.json" <<EOF
 {
   "gate": "L13_F_STRICT_A",
   "ts_utc": "$ts",

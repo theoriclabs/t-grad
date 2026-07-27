@@ -105,8 +105,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 matmul_hash="$(shasum -a 256 "$L5_MATMUL" | awk '{print $1}')"
 verify_hash="$(shasum -a 256 "$L5_VERIFY" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L5.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L5.json" <<EOF
 {
   "gate": "L5",
   "ts_utc": "$ts",

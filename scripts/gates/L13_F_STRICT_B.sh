@@ -208,14 +208,14 @@ PY
 echo "  ✓ random manual-load sweep correct=$RANDOM_COUNT/$RANDOM_COUNT tc_route=$RANDOM_COUNT/$RANDOM_COUNT"
 
 # ─── LAYER C2: regressions ────────────────────────────────────────────
-bash "$TGRAD_DIR/scripts/gates/L13_F.sh" >"$STRICT_B_L13F" 2>&1 || {
+run_gate_isolated "$TGRAD_DIR/scripts/gates/L13_F.sh" >"$STRICT_B_L13F" 2>&1 || {
   echo "  ✗ L13_F regression failed"
   tail -40 "$STRICT_B_L13F" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F regression gate still green"
 
-bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >"$STRICT_B_A" 2>&1 || {
+run_gate_isolated "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >"$STRICT_B_A" 2>&1 || {
   echo "  ✗ L13_F_STRICT_A regression failed"
   tail -40 "$STRICT_B_A" | sed 's/^/      /'
   exit 1
@@ -231,7 +231,7 @@ matmul_hash="$(shasum -a 256 "$MATMUL_TC" | awk '{print $1}')"
 metal_hash="$(shasum -a 256 "$METAL" | awk '{print $1}')"
 pinned_hash="$(shasum -a 256 "$PINNED" | awk '{print $1}')"
 random_hash="$(shasum -a 256 "$RANDOM_OUT" | awk '{print $1}')"
-simd_ratio="$("$PY" - "$TGRAD_DIR/fixtures/gate_evidence/L13_F.json" <<'PY'
+simd_ratio="$("$PY" - "$TGRAD_EVIDENCE_DIR/L13_F.json" <<'PY'
 import json, sys
 try:
     v = json.load(open(sys.argv[1])).get("ratio_max")
@@ -240,7 +240,7 @@ except FileNotFoundError:
     print("null")
 PY
 )"
-"$PY" - "$PINNED_STATS" "$RANDOM_STATS" "$simd_ratio" "$ts" "$host" "$plat" "$HEAD_SHA" "$matmul_hash" "$metal_hash" "$pinned_hash" "$random_hash" "$TGRAD_DIR/fixtures/gate_evidence/L13_F_STRICT_B.json" <<'PY'
+"$PY" - "$PINNED_STATS" "$RANDOM_STATS" "$simd_ratio" "$ts" "$host" "$plat" "$HEAD_SHA" "$matmul_hash" "$metal_hash" "$pinned_hash" "$random_hash" "$TGRAD_EVIDENCE_DIR/L13_F_STRICT_B.json" <<'PY'
 import json, sys
 pinned = json.loads(sys.argv[1])
 random = json.loads(sys.argv[2])

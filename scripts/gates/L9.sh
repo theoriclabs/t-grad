@@ -106,8 +106,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 l1_hash="$(shasum -a 256 "$L9_BASE" | awk '{print $1}')"
 l9_hash="$(shasum -a 256 "$L9_NEW" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L9.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L9.json" <<EOF
 {
   "gate": "L9",
   "ts_utc": "$ts",

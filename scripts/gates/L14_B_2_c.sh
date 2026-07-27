@@ -30,7 +30,7 @@
 #              Tgrad call (anti-self-comparison)
 #       * D4 — `movement_count_in` is computed via UOp.countMovementNodes,
 #              not hardcoded
-#   - Layer E : evidence to fixtures/gate_evidence/L14_B_2_c.json
+#   - Layer E : evidence to the run-owned L14_B_2_c.json
 set -euo pipefail
 if [[ -z "${REPO_ROOT:-}" ]]; then
   export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -222,14 +222,14 @@ echo "  ✓ smoke rangeify trace movement_count_in = $SMOKE_MC_IN (>= 1, C2)"
 # ─── LAYER C3: regression evidence — L11/L12/L13/L13_F/L14_B_* ──────
 L11_PAIRS="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])
+print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])
 ' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS"; exit 1; }
 echo "  ✓ L11.json shows 50/50 pairs"
 
 L13F_TC="$("$PY" -c '
 import json
-d = json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L13_F.json"'"))
+d = json.load(open("'"$TGRAD_EVIDENCE_DIR/L13_F.json"'"))
 print(d["tc_general_wmma"], d["random_tc_wmma"], d["tc_general_scalar_routes"])
 ' 2>/dev/null || echo "0 0 1")"
 read L13F_PIN L13F_RAND L13F_SCALAR <<< "$L13F_TC"
@@ -257,7 +257,7 @@ ffi_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/PythonFFI.lean" | awk '{print $1}')"
 rangeify_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Schedule/Rangeify.lean" | awk '{print $1}')"
 scalar_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulScalar.lean" | awk '{print $1}')"
 trace_hash="$(shasum -a 256 "$L14B2C_TRACE" 2>/dev/null | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
+mkdir -p "$TGRAD_EVIDENCE_DIR"
 "$PY" -c "
 import json, sys
 ev = json.loads(sys.argv[1])
@@ -285,7 +285,7 @@ ev.update({
         'rangeify_trace_sha256': '$trace_hash'
     }
 })
-json.dump(ev, open('$TGRAD_DIR/fixtures/gate_evidence/L14_B_2_c.json', 'w'), indent=2)
+json.dump(ev, open('$TGRAD_EVIDENCE_DIR/L14_B_2_c.json', 'w'), indent=2)
 " "$SMOKE_JSON"
 check_evidence_for L14_B_2_c || exit 1
 check_falsifiability_verified L14_B_2_c || exit 1

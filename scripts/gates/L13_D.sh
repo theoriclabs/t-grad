@@ -97,8 +97,8 @@ ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$HEAD_SHA"
 host="$(hostname)"; plat="$(uname -srm)"
 bench_hash="$(shasum -a 256 "$L13D_BENCH" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_D.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L13_D.json" <<EOF
 {
   "gate": "L13_D",
   "ts_utc": "$ts",

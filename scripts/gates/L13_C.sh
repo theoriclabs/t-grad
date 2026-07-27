@@ -130,8 +130,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 bench_hash="$(shasum -a 256 "$L13C_BENCH" | awk '{print $1}')"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/general_shape_manifest.json" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_C.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L13_C.json" <<EOF
 {
   "gate": "L13_C",
   "ts_utc": "$ts",

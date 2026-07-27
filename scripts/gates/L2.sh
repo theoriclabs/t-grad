@@ -133,8 +133,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 rangeify_hash="$(shasum -a 256 "$L2_RANGEIFY" | awk '{print $1}')"
 mem_hash="$(shasum -a 256 "$L2_MEM" | awk '{print $1}')"
 sched_hash="$(shasum -a 256 "$L2_SCHED" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L2.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L2.json" <<EOF
 {
   "gate": "L2",
   "ts_utc": "$ts",

@@ -26,22 +26,22 @@ PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 
 # Layer A.2 — L15.A must already be green (this gate consumes its evidence).
-[[ -f "$TGRAD_DIR/fixtures/gate_evidence/L15_A.json" ]] \
+[[ -f "$TGRAD_EVIDENCE_DIR/L15_A.json" ]] \
   || { echo "  ✗ L15.A evidence missing — run L15_A first"; exit 1; }
 echo "  ✓ L15.A evidence present"
 
 # Layer B — required evidence files (the sub-gate inputs to L15.B).
 required=(
-  fixtures/gate_evidence/L11.json
-  fixtures/gate_evidence/L12.json
-  fixtures/gate_evidence/L13.json
-  fixtures/gate_evidence/L13_F.json
-  fixtures/gate_evidence/L14.json
-  fixtures/gate_evidence/L14_B_3.json
-  fixtures/gate_evidence/L14_C.json
+  "$TGRAD_EVIDENCE_DIR/L11.json"
+  "$TGRAD_EVIDENCE_DIR/L12.json"
+  "$TGRAD_EVIDENCE_DIR/L13.json"
+  "$TGRAD_EVIDENCE_DIR/L13_F.json"
+  "$TGRAD_EVIDENCE_DIR/L14.json"
+  "$TGRAD_EVIDENCE_DIR/L14_B_3.json"
+  "$TGRAD_EVIDENCE_DIR/L14_C.json"
 )
 for m in "${required[@]}"; do
-  [[ -f "$REPO_ROOT/$m" ]] || { echo "  ✗ missing: $m"; exit 1; }
+  [[ -f "$m" ]] || { echo "  ✗ missing: $m"; exit 1; }
 done
 echo "  ✓ all ${#required[@]} sub-gate evidence files present"
 
@@ -127,7 +127,7 @@ N_HARDCODED="$(grep -cE '"verdict"[[:space:]]*:[[:space:]]*"pass"' "$TGRAD_DIR/s
 echo "  ✓ D3 no hardcoded verdicts in gate script"
 
 # Layer C2 — regression evidence
-L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
+L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS"; exit 1; }
 echo "  ✓ L11 50/50 still holds"
 
@@ -136,16 +136,16 @@ ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
 
-l11_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L11.json" | awk '{print $1}')"
-l13_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13.json" | awk '{print $1}')"
-l13f_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_F.json" | awk '{print $1}')"
-l14_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L14.json" | awk '{print $1}')"
-l12_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L12.json" | awk '{print $1}')"
+l11_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L11.json" | awk '{print $1}')"
+l13_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13.json" | awk '{print $1}')"
+l13f_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_F.json" | awk '{print $1}')"
+l14_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L14.json" | awk '{print $1}')"
+l12_hash="$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L12.json" | awk '{print $1}')"
 shapes_hash="$(shasum -a 256 "$OUT_S" | awk '{print $1}')"
 views_hash="$(shasum -a 256 "$OUT_V" | awk '{print $1}')"
 audit_hash="$(shasum -a 256 "$TGRAD_DIR/scripts/dev/l15_b_audit.py" | awk '{print $1}')"
 
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
+mkdir -p "$TGRAD_EVIDENCE_DIR"
 "$PY" -c "
 import json
 audit = json.load(open('$AUDIT_OUT'))
@@ -176,7 +176,7 @@ out = {
         'audit_module_sha256':   '$audit_hash',
     },
 }
-json.dump(out, open('$TGRAD_DIR/fixtures/gate_evidence/L15_B.json', 'w'), indent=2)
+json.dump(out, open('$TGRAD_EVIDENCE_DIR/L15_B.json', 'w'), indent=2)
 print('  ✓ evidence written')
 "
 check_evidence_for L15_B || exit 1

@@ -68,14 +68,14 @@ fi
 echo "  ✓ tinygrad TC-general baseline capture synchronizes measured work"
 
 # ─── LAYER C: strict behavioural gate ─────────────────────────────────
-bash "$L13F_GATE" >"$STRICT_C_L13F" 2>&1 || {
+run_gate_isolated "$L13F_GATE" >"$STRICT_C_L13F" 2>&1 || {
   echo "  ✗ strict L13_F regression failed"
   tail -60 "$STRICT_C_L13F" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F strict gate passes"
 
-L13F_EVID="$TGRAD_DIR/fixtures/gate_evidence/L13_F.json"
+L13F_EVID="$TGRAD_EVIDENCE_DIR/L13_F.json"
 "$PY" - "$L13F_EVID" <<'PY'
 import json, sys
 p = sys.argv[1]
@@ -91,14 +91,14 @@ PY
 echo "  ✓ L13_F evidence records strict perf + manual production"
 
 # ─── LAYER C2: focused regressions ────────────────────────────────────
-bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >"$STRICT_C_A" 2>&1 || {
+run_gate_isolated "$TGRAD_DIR/scripts/gates/L13_F_STRICT_A.sh" >"$STRICT_C_A" 2>&1 || {
   echo "  ✗ L13_F_STRICT_A regression failed"
   tail -40 "$STRICT_C_A" | sed 's/^/      /'
   exit 1
 }
 echo "  ✓ L13_F_STRICT_A regression gate still green"
 
-bash "$TGRAD_DIR/scripts/gates/L13_F_STRICT_B.sh" >"$STRICT_C_B" 2>&1 || {
+run_gate_isolated "$TGRAD_DIR/scripts/gates/L13_F_STRICT_B.sh" >"$STRICT_C_B" 2>&1 || {
   echo "  ✗ L13_F_STRICT_B regression failed"
   tail -60 "$STRICT_C_B" | sed 's/^/      /'
   exit 1
@@ -140,8 +140,8 @@ grep -qF 'simdgroup_multiply_accumulate' "$EMIT" || {
 echo "  ✓ rendered production manual TC source exposes manual WMMA markers"
 
 # ─── LAYER E: evidence ────────────────────────────────────────────────
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-"$PY" - "$REPO_ROOT" "$TGRAD_DIR" "$L13F_EVID" "$TGRAD_DIR/fixtures/gate_evidence/L13_F_STRICT_C.json" <<'PY'
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+"$PY" - "$REPO_ROOT" "$TGRAD_DIR" "$L13F_EVID" "$TGRAD_EVIDENCE_DIR/L13_F_STRICT_C.json" <<'PY'
 import datetime as dt, hashlib, json, os, platform, subprocess, sys
 from pathlib import Path
 

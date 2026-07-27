@@ -207,8 +207,8 @@ bench_hash="$(shasum -a 256 "$BENCH_JSONL" | awk '{print $1}')"
 diff_hash="$(shasum -a 256 "$REPO_ROOT/scripts/differential_codegen.sh" | awk '{print $1}')"
 tc_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulTc.lean" | awk '{print $1}')"
 pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L12.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L12.json" <<EOF
 {
   "gate": "L12",
   "ts_utc": "$ts",

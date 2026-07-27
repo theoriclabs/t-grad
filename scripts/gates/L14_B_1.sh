@@ -23,7 +23,7 @@
 #       * D2 — view methods don't reference Runtime.Metal.metalAlloc / etc.
 #       * D3 — Tensor.shape body explicitly matches each movement op kind
 #       * D4 — MatmulOnNonBufferUop class is defined as a typed exception
-#   - Layer E : evidence to fixtures/gate_evidence/L14_B_1.json
+#   - Layer E : evidence to the run-owned L14_B_1.json
 set -euo pipefail
 if [[ -z "${REPO_ROOT:-}" ]]; then
   export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -303,21 +303,21 @@ sed 's/^/  /' "$SMOKE_LOG"
 # active and would create perf flakiness.
 L11_PAIRS="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])
+print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])
 ' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS (need 50)"; exit 1; }
 echo "  ✓ L11.json shows 50/50 (regression evidence)"
 
 L13_SUBS="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L13.json"'"))["sub_gates_green"])
+print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L13.json"'"))["sub_gates_green"])
 ' 2>/dev/null || echo 0)"
 [[ "$L13_SUBS" -eq 5 ]] || { echo "  ✗ L13.json.sub_gates_green = $L13_SUBS (need 5)"; exit 1; }
 echo "  ✓ L13.json shows 5/5 sub-gates"
 
 L13F_TC="$("$PY" -c '
 import json
-d = json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L13_F.json"'"))
+d = json.load(open("'"$TGRAD_EVIDENCE_DIR/L13_F.json"'"))
 print(d["tc_general_wmma"], d["random_tc_wmma"], d["tc_general_scalar_routes"])
 ' 2>/dev/null || echo "0 0 1")"
 read L13F_PIN L13F_RAND L13F_SCALAR <<< "$L13F_TC"
@@ -337,8 +337,8 @@ ffi_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/PythonFFI.lean" | awk '{print $1}')"
 c_hash="$(shasum -a 256 "$TGRAD_DIR/c/tgrad_python.c" | awk '{print $1}')"
 py_hash="$(shasum -a 256 "$TGRAD_DIR/python/tgrad.py" | awk '{print $1}')"
 graph_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/GraphRewrite.lean" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_1.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_B_1.json" <<EOF
 {
   "gate": "L14_B_1",
   "ts_utc": "$ts",

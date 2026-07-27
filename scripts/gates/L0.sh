@@ -34,8 +34,8 @@ commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"
 plat="$(uname -srm)"
 build_hash="$(shasum -a 256 .lake/build/bin/tgrad-tests 2>/dev/null | awk '{print $1}' || echo unknown)"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L0.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L0.json" <<EOF
 {
   "gate": "L0",
   "ts_utc": "$ts",

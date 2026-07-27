@@ -108,7 +108,7 @@ echo "  ✓ production 64³ FFI path remains numerically exact"
 # rejects wrong-but-distinct placements such as c ↦ c+2.
 read L12_EQ L12_DIFF L12_TRANS <<<"$("$PY" -c '
 import json
-d=json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L12.json"'"))
+d=json.load(open("'"$TGRAD_EVIDENCE_DIR/L12.json"'"))
 print(d.get("semantic_bit_identical", 0), d.get("sources_differ", 0), d.get("transcription_files_present", -1))
 ' 2>/dev/null || echo '0 0 -1')"
 if [[ "$L12_EQ" -ne 11 || "$L12_DIFF" -ne 11 || "$L12_TRANS" -ne 0 ]]; then
@@ -126,8 +126,8 @@ tc_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulTc.lean" | awk '{print
 scalar_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/MatmulScalar.lean" | awk '{print $1}')"
 metal_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/Metal.lean" | awk '{print $1}')"
 pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_2_b.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L14_B_2_b.json" <<EOF
 {
   "gate": "L14_B_2_b",
   "ts_utc": "$ts",

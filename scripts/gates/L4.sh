@@ -112,8 +112,8 @@ avail_hash="$(shasum -a 256 "$L4_AVAIL" | awk '{print $1}')"
 alloc_hash="$(shasum -a 256 "$L4_ALLOC" | awk '{print $1}')"
 compile_hash="$(shasum -a 256 "$L4_COMPILE" | awk '{print $1}')"
 disp_hash="$(shasum -a 256 "$L4_DISPATCH" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L4.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L4.json" <<EOF
 {
   "gate": "L4",
   "ts_utc": "$ts",

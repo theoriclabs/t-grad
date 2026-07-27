@@ -95,7 +95,7 @@ N_HARDCODED="$(grep -cE '"verdict"[[:space:]]*:[[:space:]]*"pass"' "$TGRAD_DIR/s
 echo "  ✓ D2 no hardcoded verdicts in gate script"
 
 # Layer C2 — regression evidence
-L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
+L11_PAIRS="$("$PY" -c 'import json; print(json.load(open("'"$TGRAD_EVIDENCE_DIR/L11.json"'"))["pairs_passed"])' 2>/dev/null || echo 0)"
 [[ "$L11_PAIRS" -eq 50 ]] || { echo "  ✗ L11.json.pairs_passed = $L11_PAIRS"; exit 1; }
 echo "  ✓ L11 50/50 still holds"
 
@@ -109,7 +109,7 @@ pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1
 trace_hash="$(shasum -a 256 "$TRACE" 2>/dev/null | awk '{print $1}')"
 audit_hash="$(shasum -a 256 "$TGRAD_DIR/scripts/dev/l15_a_audit.py" | awk '{print $1}')"
 
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
+mkdir -p "$TGRAD_EVIDENCE_DIR"
 "$PY" -c "
 import json, sys
 audit = json.load(open('$AUDIT_OUT'))
@@ -142,7 +142,7 @@ out = {
         'audit_module_sha256':    '$audit_hash',
     },
 }
-json.dump(out, open('$TGRAD_DIR/fixtures/gate_evidence/L15_A.json', 'w'), indent=2)
+json.dump(out, open('$TGRAD_EVIDENCE_DIR/L15_A.json', 'w'), indent=2)
 print('  ✓ evidence written')
 "
 check_evidence_for L15_A || exit 1

@@ -167,7 +167,7 @@ ensure_dylib "$L13A_DYLIB" || exit 1
 
 # L11 — full benchmark sweep (50 pairs)
 echo "  [D4] re-running L11.sh inline (~3 min) ..."
-(cd "$REPO_ROOT" && bash "$TGRAD_DIR/scripts/gates/L11.sh") \
+(cd "$REPO_ROOT" && run_gate_isolated "$TGRAD_DIR/scripts/gates/L11.sh") \
     >"$L13A_L11" 2>&1 || {
   echo "  ✗ L11 broken by L13.A refactor"
   tail -20 "$L13A_L11" | sed 's/^/      /'
@@ -177,7 +177,7 @@ echo "  ✓ L11 still green after L13.A refactor"
 
 # L12 — algebraic emit sweep
 echo "  [D4] re-running L12.sh inline (~3 min) ..."
-(cd "$REPO_ROOT" && bash "$TGRAD_DIR/scripts/gates/L12.sh") \
+(cd "$REPO_ROOT" && run_gate_isolated "$TGRAD_DIR/scripts/gates/L12.sh") \
     >"$L13A_L12" 2>&1 || {
   echo "  ✗ L12 broken by L13.A refactor"
   tail -20 "$L13A_L12" | sed 's/^/      /'
@@ -192,8 +192,8 @@ host="$(hostname)"; plat="$(uname -srm)"
 heuristic_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Codegen/Opt/Heuristic.lean" | awk '{print $1}')"
 pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1}')"
 metal_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Renderer/Metal.lean" | awk '{print $1}')"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13_A.json" <<EOF
+mkdir -p "$TGRAD_EVIDENCE_DIR"
+cat >"$TGRAD_EVIDENCE_DIR/L13_A.json" <<EOF
 {
   "gate": "L13_A",
   "ts_utc": "$ts",

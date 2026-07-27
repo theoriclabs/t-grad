@@ -159,6 +159,18 @@ ensure_dylib() {
   fi
 }
 
+# Execute a nested regression gate without allowing it to overwrite the
+# top-level candidate evidence already bound to an earlier process outcome.
+# Run artifacts still share the serial run root and are preserved by content
+# hash after each top-level gate; evidence documents get a private namespace.
+run_gate_isolated() {
+  local script="$1"
+  local nested_root
+  nested_root="$(tgrad_run_subdir nested_gate)" || return 1
+  mkdir -p "$nested_root/evidence"
+  TGRAD_EVIDENCE_DIR="$nested_root/evidence" bash "$script"
+}
+
 # -----------------------------------------------------------------------
 # check_no_gate_regression — verify GREEN_GATES never shrinks vs git HEAD.
 #
@@ -166,15 +178,17 @@ ensure_dylib() {
 # unblock themselves on an unrelated issue.
 # -----------------------------------------------------------------------
 check_no_gate_regression() {
-  if [[ ! -f "$REPO_ROOT/.git/HEAD" ]]; then return 0; fi
-  local committed_green current_green
+  git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  local committed_green current_green committed_tokens current_tokens
   committed_green="$(git -C "$REPO_ROOT" show HEAD:scripts/gate.sh 2>/dev/null | \
                      grep -o 'GREEN_GATES=([^)]*)' | head -1 || true)"
   current_green="$(grep -o 'GREEN_GATES=([^)]*)' "$TGRAD_DIR/scripts/gate.sh" | head -1 || true)"
   # Each green gate in HEAD must still appear in the current version.
   if [[ -z "$committed_green" ]]; then return 0; fi
-  for g in $(echo "$committed_green" | tr -d '()' | sed 's/GREEN_GATES=//' | tr -d "\""); do
-    if ! echo "$current_green" | grep -q "$g"; then
+  committed_tokens="$(echo "$committed_green" | tr -d '()' | sed 's/GREEN_GATES=//' | tr -d "\"")"
+  current_tokens="$(echo "$current_green" | tr -d '()' | sed 's/GREEN_GATES=//' | tr -d "\"")"
+  for g in $committed_tokens; do
+    if [[ " $current_tokens " != *" $g "* ]]; then
       echo "  ✗ check_no_gate_regression: gate $g was green in HEAD but is missing now"
       echo "      committed: $committed_green"
       echo "      current:   $current_green"
@@ -186,14 +200,14 @@ check_no_gate_regression() {
 # -----------------------------------------------------------------------
 # check_evidence_for <gate>
 #
-# Each gate writes an evidence file recording (timestamp, machine/profile,
-# commit, computation hashes) when it passes. Re-running a gate must
-# produce the same hashes for the same inputs — guarantees the verification
-# did something deterministic.
+# Each gate writes a run-owned evidence file recording timestamp,
+# machine/profile, commit, and computation hashes. This local check only
+# confirms the legacy common fields; release publication separately resolves
+# every hash against the reviewed locator contract and retained artifact set.
 # -----------------------------------------------------------------------
 check_evidence_for() {
   local gate="$1"
-  local file="$TGRAD_DIR/fixtures/gate_evidence/$gate.json"
+  local file="$TGRAD_EVIDENCE_DIR/$gate.json"
   if [[ ! -f "$file" ]]; then
     echo "  ✗ check_evidence_for $gate: $file missing — gate hasn't produced evidence"
     return 1

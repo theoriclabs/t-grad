@@ -28,7 +28,7 @@ SUBGATES=("L13_A" "L13_B" "L13_C" "L13_D" "L13_E")
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 for sg in "${SUBGATES[@]}"; do
-  file="$TGRAD_DIR/fixtures/gate_evidence/$sg.json"
+  file="$TGRAD_EVIDENCE_DIR/$sg.json"
   if [[ ! -f "$file" ]]; then
     echo "  ✗ sub-gate $sg evidence missing: $file"
     exit 1
@@ -56,14 +56,14 @@ echo "  ✓ all 5 sub-gates in GREEN_GATES"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 host="$(hostname)"; plat="$(uname -srm)"
-mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
+mkdir -p "$TGRAD_EVIDENCE_DIR"
 # Sub-gate evidence sha256s (pin the entire L13 ecosystem in one umbrella).
-HASH_A=$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_A.json" | awk '{print $1}')
-HASH_B=$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_B.json" | awk '{print $1}')
-HASH_C=$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_C.json" | awk '{print $1}')
-HASH_D=$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_D.json" | awk '{print $1}')
-HASH_E=$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L13_E.json" | awk '{print $1}')
-cat >"$TGRAD_DIR/fixtures/gate_evidence/L13.json" <<EOF
+HASH_A=$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_A.json" | awk '{print $1}')
+HASH_B=$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_B.json" | awk '{print $1}')
+HASH_C=$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_C.json" | awk '{print $1}')
+HASH_D=$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_D.json" | awk '{print $1}')
+HASH_E=$(shasum -a 256 "$TGRAD_EVIDENCE_DIR/L13_E.json" | awk '{print $1}')
+cat >"$TGRAD_EVIDENCE_DIR/L13.json" <<EOF
 {
   "gate": "L13",
   "ts_utc": "$ts",

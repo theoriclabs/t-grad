@@ -322,6 +322,27 @@ def workItems : List WorkItem :=
         [.semantic, .provenance],
       recovery := "keep the auditor nonfatal until evidence regeneration is owner-authorized",
       progress := .complete "bdc01b0" },
+    { id := ew "spec.record-regeneration-observation",
+      title := "record failed regeneration and performance repeatability",
+      phase := .promote, authority := .evidence,
+      closesFindings := [], dependsOn := [ew "evidence.audit-tool"],
+      runtimeScope := [rw "verify.performance-repeatability",
+        rw "verify.evidence-audit", rw "spec.check-growth-loop"],
+      touches := [.specification, .evidenceStore, .gateHarness],
+      writes := ["EXPERIMENT_RESULT.md", "GROWING_TGRAD.md",
+        "PLAN_CORRECTNESS_AND_CODEGEN.md", "PLAN_TINYGRAD_COMPAT.md",
+        "README.md", "Tgrad/Spec/Findings.lean",
+        "Tgrad/Spec/RuntimeWork.lean", "Tgrad/Spec/Work.lean"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .evidenceStore],
+      cost := 2, goalDistance := 0,
+      validation := plannedValidation
+        "checked distinction between bounded repeatability diagnosis, bypassed parity validation, and an abandoned partial-regeneration candidate"
+        "build TgradSpec; replay tgrad-spec; require the exact current provenance failure; inspect the revision-scoped public narrative"
+        "25 capabilities; 2 open findings; 73 events at the candidate tree; perf.rebaseline remains the sole frontier; 26/37, 76/115, 28, and 17 provenance defects are reproduced"
+        [.build, .semantic, .provenance],
+      recovery := "retain the direct observations but revert any prose or state transition that implies performance parity or complete evidence promotion",
+      progress := .complete "0f4d594" },
     { id := ew "perf.rebaseline", title := "measure symmetric generated-kernel performance",
       phase := .verify, authority := .evidence,
       closesFindings := ["F-performance-methodology"],
@@ -546,7 +567,8 @@ def growthCases : List Growth.Case :=
           "both runtimes execute the same timed work boundary live in one interleaved session"
           "measure paired dispatch-only and end-to-end distributions serially, then repeat complete sessions"
           "paired raw samples, cache/JIT and boundary metadata, uncertainty, throughput, and thermal context"],
-      evolutionWork := [ew "perf.rebaseline"],
+      evolutionWork := [ew "spec.record-regeneration-observation",
+        ew "perf.rebaseline"],
       deltas := [delta "verify.performance" .replaceBypass
         [.performance, .observability, .provenance] .bypassed .loadBearing
         "replace asymmetric frozen-baseline ratios with a paired experiment whose decision rule is derived from measured variance"],
@@ -570,7 +592,8 @@ def growthCases : List Growth.Case :=
           "every commit and hash resolves against the shipped tree"
           "recompute source, child-evidence, baseline, and memo hashes"
           "fatal structured provenance validation report"],
-      evolutionWork := [ew "evidence.audit-tool", ew "evidence.regenerate",
+      evolutionWork := [ew "evidence.audit-tool",
+        ew "spec.record-regeneration-observation", ew "evidence.regenerate",
         ew "evidence.enforce-provenance"],
       deltas := [
         delta "verify.evidence-audit" .improveObservability
@@ -1412,7 +1435,83 @@ def liveEvolutionEvents : List Event :=
         artifactDigest := "sha256:029ce9086b149fdfce30e023c8a09007e2818f4283c9746a388e0208d26ffae7" },
     .attemptAbandoned
       { value := "attempt-evidence-regeneration-20260726" }
-      "perf.rebaseline is still unresolved and L11 is empirically non-repeatable; retain the 11 reproducible files and gate repairs as diagnostic progress, but do not promote a partial or threshold-tuned snapshot" ]
+      "perf.rebaseline is still unresolved and L11 is empirically non-repeatable; retain the 11 reproducible files and gate repairs as diagnostic progress, but do not promote a partial or threshold-tuned snapshot",
+    .attemptStarted
+      { id := { value := "attempt-record-regeneration-observation-20260726" },
+        intent := ew "spec.record-regeneration-observation",
+        actor := "codex-primary",
+        base :=
+          { commit := "7c7dc0ffe3a9c48b64c1b326509bb23c9f874056",
+            tree := "5ccb293d45874a5cde3f47d1d0516dce51359f1c",
+            dirty := false },
+        authorizedEffects :=
+          [ { kind := .modify, target := "EXPERIMENT_RESULT.md" },
+            { kind := .modify, target := "GROWING_TGRAD.md" },
+            { kind := .modify, target := "PLAN_CORRECTNESS_AND_CODEGEN.md" },
+            { kind := .modify, target := "PLAN_TINYGRAD_COMPAT.md" },
+            { kind := .modify, target := "README.md" },
+            { kind := .modify, target := "Tgrad/Spec/Findings.lean" },
+            { kind := .modify, target := "Tgrad/Spec/RuntimeWork.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" } ],
+        lease :=
+          { token := "codex-primary-record-regeneration-observation",
+            resources := [.sourceTree], validThroughEpoch := 3000 } },
+    .candidateProduced
+      { id := { value := "candidate-record-regeneration-c4bcee8" },
+        attempt := { value := "attempt-record-regeneration-observation-20260726" },
+        tree := "c4bcee871fe94edc99a37de2d71514036af7fa55",
+        observedEffects :=
+          [ { kind := .modify, target := "EXPERIMENT_RESULT.md" },
+            { kind := .modify, target := "GROWING_TGRAD.md" },
+            { kind := .modify, target := "PLAN_CORRECTNESS_AND_CODEGEN.md" },
+            { kind := .modify, target := "PLAN_TINYGRAD_COMPAT.md" },
+            { kind := .modify, target := "README.md" },
+            { kind := .modify, target := "Tgrad/Spec/Findings.lean" },
+            { kind := .modify, target := "Tgrad/Spec/RuntimeWork.lean" },
+            { kind := .modify, target := "Tgrad/Spec/Work.lean" } ],
+        summary := "separate failed repeatability diagnosis from performance validation, preserve the partial evidence attempt, and update the public account" },
+    .checkRecorded
+      { id := { value := "check-record-regeneration-build-0f4d594" },
+        candidate := { value := "candidate-record-regeneration-c4bcee8" },
+        tree := "c4bcee871fe94edc99a37de2d71514036af7fa55",
+        validator := rw "verify.lean-build", obligation := .build,
+        outcome := .passed,
+        command := "lake build TgradSpec tgrad-spec",
+        artifactDigest := "sha256:66366e930aa6dc15c8a350eac434f10f14fbc8107227faf8ba52677f0365a46c" },
+    .checkRecorded
+      { id := { value := "check-record-regeneration-semantic-0f4d594" },
+        candidate := { value := "candidate-record-regeneration-c4bcee8" },
+        tree := "c4bcee871fe94edc99a37de2d71514036af7fa55",
+        validator := rw "spec.check-growth-loop", obligation := .semantic,
+        outcome := .passed,
+        command := ".lake/build/bin/tgrad-spec: 25 capabilities, two open findings, no active work, perf.rebaseline sole frontier, 73 replayed events",
+        artifactDigest := "sha256:6b027885a7a0f104fbe20e01d1ae0c624408ef9fba1108eb773a367c52cd5b88" },
+    .checkRecorded
+      { id := { value := "check-record-regeneration-provenance-0f4d594" },
+        candidate := { value := "candidate-record-regeneration-c4bcee8" },
+        tree := "c4bcee871fe94edc99a37de2d71514036af7fa55",
+        validator := rw "verify.evidence-audit", obligation := .provenance,
+        outcome := .passed,
+        command := "require evidence_provenance to fail with the exact current tuple 26/37 absent, 76/115 unresolved, 28 roll-up, 17 writer mismatch",
+        artifactDigest := "sha256:b79b7ad39140abb95b83cba7007ec5541558bcf205d8bc18fb77c4bb6cfc3f64" },
+    .promoted
+      { growthCase := "G-evidence-provenance",
+        candidate := { value := "candidate-record-regeneration-c4bcee8" },
+        checkRuns :=
+          [ { value := "check-record-regeneration-build-0f4d594" },
+            { value := "check-record-regeneration-semantic-0f4d594" },
+            { value := "check-record-regeneration-provenance-0f4d594" } ],
+        requiredObligations := [.build, .semantic, .provenance],
+        acceptedBy := ["harsh", "codex-primary"],
+        target :=
+          { commit := "0f4d594d7a1112eb11d43130b7b88e47c9d0d9a5",
+            tree := "c4bcee871fe94edc99a37de2d71514036af7fa55",
+            dirty := false },
+        residualRisks :=
+          [ "raw timing samples from the three L11 repeats were not committed",
+            "verify.performance remains bypassed until both sides are paired live",
+            "26 evidence files still name the phantom commit",
+            "the current commit adds the promotion record after the promoted candidate tree" ] } ]
 
 def liveEvolutionState : Except TransitionError State :=
   replay itemIds liveEvolutionEvents
@@ -1420,8 +1519,8 @@ def liveEvolutionState : Except TransitionError State :=
 def liveEvolutionStateValid : Bool :=
   match liveEvolutionState with
   | .ok state =>
-      state.activeAttempts.length == 0 && state.candidates.length == 10 &&
-      state.checks.length == 43 && state.promotions.length == 7 &&
+      state.activeAttempts.length == 0 && state.candidates.length == 11 &&
+      state.checks.length == 46 && state.promotions.length == 8 &&
       state.abandoned.length == 3
   | .error _ => false
 
@@ -1663,6 +1762,14 @@ theorem diagnostic_regeneration_did_not_satisfy_promotion_dependencies :
           attempt.id.value == "attempt-evidence-regeneration-20260726")) &&
       !(dependencyReadyItems.map (·.id)).contains
         (ew "evidence.regenerate") = true := by
+  native_decide
+
+theorem regeneration_observation_record_is_promoted_and_released :
+    (livePromotedIntentIds.contains
+        (ew "spec.record-regeneration-observation") &&
+      completedIds.contains (ew "spec.record-regeneration-observation") &&
+      !(liveActiveIntentIds.contains
+        (ew "spec.record-regeneration-observation"))) = true := by
   native_decide
 
 theorem warp_parameterization_is_promoted_and_released :

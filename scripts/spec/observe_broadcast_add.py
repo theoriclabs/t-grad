@@ -1779,6 +1779,19 @@ def observe(args: argparse.Namespace) -> tuple[dict, dict[str, bytes]]:
                     "outcome": item["outcome"],
                     "expected": item["expected"],
                     "evaluations": item["evaluations"],
+                    "baseline_targets": [
+                        {
+                            "scenario_id": scenario["id"],
+                            "trace": scenario["trace"],
+                            "terminal": scenario["terminal"],
+                        }
+                        for scenario in protocol["scenarios"]
+                        if scenario["id"] in next(
+                            declaration["target_scenarios"]
+                            for declaration in manifest["mutations"]
+                            if declaration["id"] == item["mutation_id"]
+                        )
+                    ],
                 }
                 for item in calibrations
                 if item["outcome"] != "validator_rejected_mutant"

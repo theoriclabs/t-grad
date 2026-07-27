@@ -203,6 +203,41 @@ for name in "${required_msls[@]}"; do
 done
 echo "  ✓ all 10 emitted MSLs compile via ffi-compile-smoke (fn_count=1)"
 
+# ─── LAYER C3: semantic differential — successor to Layer C ──────────
+#
+# Layer C asserts renderKernel's output == the captured .msl bytes. But
+# Tgrad/Renderer/MatmulDecls.lean is a transcription OF those captures,
+# so Layer C is a round trip: it proves a transpiler and a renderer are
+# mutual inverses. It says nothing about whether a *generated* kernel
+# computes the right thing, and it cannot survive the transcription
+# being deleted.
+#
+# This layer asserts what the kernels DO. The captured kernel and the
+# Lean-generated parametric kernel execute on one pair of seeded bf16
+# inputs, and their output buffers must be bit-identical — while their
+# sources must NOT be byte-equal, or the transcription has simply been
+# re-vendored.
+#
+# Added while Layer C is still green on purpose: the predicate is
+# strengthened before the deletion that retires Layer C, rather than
+# rewritten at the moment it turns red and blocks someone.
+DIFF_LOG="$(mktemp -t tgrad_L12_diff)"
+if ! bash "$REPO_ROOT/scripts/differential_codegen.sh" >"$DIFF_LOG" 2>&1; then
+  echo "  ✗ L12 RED via Layer C3: captured and generated kernels are not bit-identical"
+  sed 's/^/      /' "$DIFF_LOG"
+  rm -f "$DIFF_LOG"
+  exit 1
+fi
+N_DIFF_OK="$(grep -c 'bit-identical over' "$DIFF_LOG" || true)"
+if [[ "$N_DIFF_OK" -ne 11 ]]; then
+  echo "  ✗ L12 RED via Layer C3: expected 11 bit-identical sentinels, got $N_DIFF_OK"
+  sed 's/^/      /' "$DIFF_LOG"
+  rm -f "$DIFF_LOG"
+  exit 1
+fi
+rm -f "$DIFF_LOG"
+echo "  ✓ semantic differential: 11/11 sentinels bit-identical vs captured kernels (sources differ)"
+
 # ─── LAYER C2: bench-full --use-algebraic-emit sweep ─────────────────
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-full \
     --use-algebraic-emit \

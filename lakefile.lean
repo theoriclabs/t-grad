@@ -9,6 +9,17 @@ package tgrad where
 lean_lib Tgrad where
   precompileModules := true
 
+/-- Checked software and work specification. This is a separate root from
+`Tgrad`, so roadmap/findings data is compiled by its own build/query targets
+but is not linked into `Tgrad:shared`. -/
+lean_lib TgradSpec where
+  roots := #[`TgradSpec]
+  precompileModules := true
+
+/-- Human/agent query surface for the checked specification. -/
+lean_exe «tgrad-spec» where
+  root := `Tgrad.Spec.Work
+
 -- CLI entry: `tgrad <subcommand>` per design doc §9.
 -- L4 (FFI runtime) links the Metal Obj-C bridge from c/.
 -- The .o files are produced by `c/Makefile` and must exist before

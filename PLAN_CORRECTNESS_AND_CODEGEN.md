@@ -1,28 +1,79 @@
-# Plan: correctness tier + real codegen
+# Plan: finish view correctness + real codegen
 
-Covers the two remaining items from the post-review roadmap:
+This document explains rationale and recovery strategy. It is **not the
+current-state database**. The checked source of truth is
+`Tgrad/Spec/Work.lean`, whose dependency, readiness, validation, and
+parallel-frontier predicates are proved by `native_decide` in the separate
+`TgradSpec` library.
 
-- **Item 3 — correctness tier.** Three defects that produce wrong
-  answers or crashes silently.
-- **Item 4 — real codegen.** Route the sentinel shapes through the
-  parametric WMMA generator and delete the transcribed decls.
+Current state:
 
-Companion documents: `PLAN_TINYGRAD_COMPAT.md` (the longer arc) and
-`Tgrad/Ontology.lean` (the sorts and their gaps). Prerequisite work
-landed in `f679bf7`.
+- **The immediate correctness tier landed in `e1d5760`.** Payload length is
+  checked against shape, views retain their base tensor, and view readback
+  fails explicitly instead of returning the wrong values.
+- **View materialization landed in `e6241bd`.** Exact tree `790d413…`
+  makes `.numpy()` and `.to_bytes()` rangeify and materialize supported views,
+  and passed isolated build/API/safety/numerical/differential checks on base
+  `bdc01b0`. Earlier `995eb7e…` and `ac393d2…` checks remain attached to
+  abandoned stale-base attempts.
+- **The semantic codegen harness landed in `a6d5958`.** All 11 generated
+  sentinels differ textually from their captures but are bit-identical in
+  execution across 240 MB of output.
+- **Real codegen remains open.** Route the 11 sentinels through the parametric
+  WMMA generator, replace source-byte equality with semantic differential
+  evidence, then delete the transcribed declarations.
+
+Companion documents: `PLAN_TINYGRAD_COMPAT.md` (the longer arc),
+`Tgrad/Ontology.lean` (stable product vocabulary), and `Tgrad/Spec/*`
+(runtime work, mutable findings, growth cases, evolution events, live
+conditions, and current work). `GROWING_TGRAD.md` records the full design and
+the migration from mutable progress flags to exact-tree promotion evidence.
+
+## 0. Shape of the codebase
+
+The project now has two build roots with different responsibilities:
+
+| Root | Owns | Must not own |
+|---|---|---|
+| `Tgrad` | product datatypes, compiler passes, renderer, runtime, FFI | roadmap state, maturity judgments, audit prose |
+| `TgradSpec` | ontology pins, epistemic claims, architecture, findings, resource policies, work graph | runtime behavior or production dispatch |
+
+Within `TgradSpec`, the separation is deliberate:
+
+- `Ontology.lean` contains stable sorts and morphisms. It changes when the
+  domain language changes, not whenever a bug is fixed.
+- `Spec/Findings.lean` contains mutable claims with evidence and upgrade paths.
+- `Spec/LiveConditions.lean` contains re-observable machine/repository limits,
+  such as the single GPU and fixed `/tmp` namespace.
+- `Spec/RuntimeWork.lean` describes repeatable product, verification, and
+  specification work performed by the codebase.
+- `Spec/Growth.lean` connects observations and findings to intended capability
+  deltas, validators, acceptance, and rollback.
+- `Spec/Evolution.lean` checks the intent → attempt → candidate → exact-tree
+  checks → promotion event protocol.
+- `Spec/Work.lean` is the current roadmap projection. It computes readiness,
+  priority, file conflicts, and the authoring frontier, but its historical
+  `Progress.complete` values are not durable promotion certificates.
+
+This replaces the previous failure mode where fixed bugs remained as
+constructors of an ontology and therefore continued to compile as if they
+were current facts. The older `Tgrad/Model/*` modules are no longer imported by
+the product or specification roots; they remain historical material until a
+separate deletion change.
 
 ## 1. Why this ordering
 
-Item 3 is small, high-severity, and touches the *host* layer. Item 4
-is large, lower-severity, and touches the *compiler* layer. They share
-almost no files, which is what makes them the natural parallel split —
-see §4.
+The three safety fixes landed first because they were small, critical, and
+host-local. View materialization then crossed Python, Lean FFI, the renderer,
+the scheduler, and Metal while deliberately reusing the existing two-handle C
+trampoline (`bHandle = 0` is the unary operation). Codegen can proceed beside
+it only while their write sets are disjoint.
 
-Item 4 is deliberately second because it is the one that will move the
-performance numbers. Landing correctness first means that when the
-codegen swap regresses throughput, the regression is measured against
-a runtime that is already known-correct, and the two effects don't
-have to be disentangled after the fact.
+Codegen promotion is ordered by evidence, not by deletion: first build a
+differential oracle, then broaden the generator, then type its stores, then
+route production, then change the gates, and only then remove the
+transcription. Performance is measured last because any earlier number still
+measures the old implementation or perturbs the one-GPU verification queue.
 
 ## 2. Hard constraints on parallel execution
 
@@ -49,146 +100,121 @@ be verified without running the gates it edits — so it is only worth
 doing if parallel verification actually becomes the bottleneck. Not on
 the critical path.
 
-## 3. Workstreams
+## 3. Checked work graph
 
-Single-writer file ownership is the organising principle: **no two
-concurrent workstreams may write the same file.** Where a file is
-genuinely shared, the plan serialises rather than coordinating.
+Single-writer file ownership is the organising principle: **parallel authors
+must have disjoint `writes` sets.** Verification is independently constrained
+by the resource policies in `Tgrad/Spec/LiveConditions.lean`.
 
-### Item 3 — correctness tier
+Completed nodes:
 
-All three defects live predominantly in `python/tgrad.py`. That file
-is the contended resource, so **item 3 does not parallelise
-internally** — one owner does all three, in this order:
+- `foundation.renderer-runtime` (`f679bf7`)
+- `foundation.view-algebra` (`f679bf7`)
+- `correctness.buffer-shape` (`e1d5760`)
+- `correctness.view-lifetime` (`e1d5760`)
+- `correctness.view-readback-safety` (`e1d5760`)
+- `view.materialize` (`e6241bd`)
+- `codegen.typed-stores` (`1787c83`)
+- `codegen.warp-parameter` (`75f856b`)
+- `codegen.differential-harness` (`a6d5958`)
+- `gates.semantic-codegen` (`aa67497`)
+- `evidence.audit-tool` (`bdc01b0`)
 
-**W1. Shape/allocation invariant** (`from_bf16_bytes` and friends).
-Smallest, and it establishes the validation chokepoint the other two
-build on. Enforce `numel(shape) * dtype.sizeBytes <= buffer.size` at
-one place. Do this first: it converts a class of silent OOB GPU reads
-into a clean `TgradError`, and it is the guard that makes W2 and W3
-debuggable rather than mysterious.
+`codegen.warp-parameter` is landed and its renderer lease is released. It
+deliberately widened generation through `tcMatmulKernelDeclManualLoadWide`
+without widening production eligibility: `PythonFFI.matmulTc` still assumes a
+128-wide tile and would produce a zero grid dimension for `N=64`.
 
-**W2. View parent lifetime.** Add `_base` to `__slots__`, thread it
-through the five view constructors, so a view keeps its parent
-alive. Closes the recycled-buffer read. Confirm whether the Lean-side
-append-only `tensorRegistry` (`PythonFFI.lean:371`) independently
-pins the pointer — if it does, the Python fix is sufficient for
-safety but the registry remains a leak to be tracked separately.
+Two disjoint attempts were claimed:
 
-**W3. `.numpy()` / `.to_bytes()` on views.** Two candidate designs:
-  - *(a) Fail loudly* — raise `TgradError` when the uop is not a
-    plain buffer. One-line-ish, immediately correct, removes the
-    silent-wrong-answer. Strictly better than today.
-  - *(b) Materialize* — emit an indexed copy kernel driven by the new
-    `Schedule.View`, so `a.T.numpy()` returns the right numbers.
-    Correct and complete, but needs a new kernel, a new `@[export]`,
-    a C trampoline, and a ctypes binding.
+1. `view.materialize`: indexed copy kernel plus Python/Lean readback route;
+   exact candidate `790d413…` landed as `e6241bd` and its lease is released.
+2. `codegen.differential-harness`: execute captured and generated kernels on
+   identical inputs and preserve both outputs/source hashes on divergence;
+   landed as `a6d5958` and its lease is released.
 
-  **Ship (a) first regardless.** It is a strict improvement, lands in
-  hours, and is independently useful. (b) becomes its own workstream
-  and is the first real customer of the `View` sort added in
-  `f679bf7` — which is a good architectural signal that the
-  abstraction is load-bearing rather than decorative.
+The frontier changed during planning: typed-store work initially occupied
+`MatmulTc.lean`, `Metal.lean`, `UOp.lean`, and `L14_B_2_b.sh`, which correctly
+excluded warp parameterization. Once that work landed as `1787c83`, the active
+write set disappeared and the checked frontier widened back to three. The warp
+worker then claimed and completed one slot; its lease closed. The differential
+harness subsequently landed as `a6d5958`, making `codegen.route-sentinels`
+dependency-ready. That route still writes `Pipeline.lean` and
+`PythonFFI.lean`, so it remained excluded while materialization was active.
+After exact-tree promotion at `e6241bd`, the computed safe frontier becomes
+exactly `codegen.route-sentinels`. This is the intended behavior of a live
+work model.
 
-### Item 4 — real codegen
+The next dependency chain is:
 
-This one *does* parallelise, because the work is spread across Lean
-renderer code, routing code, and gate scripts.
-
-**W4. Generator coverage.** Parameterise the warp count
-(`W = min(4, N/32)`) so `64x64x64` is covered, and relax the guard to
-`M%32=0 ∧ K%8=0 ∧ N%32=0`. Files: `Tgrad/Renderer/MatmulTc.lean`,
-`Tgrad/Renderer/Metal.lean`, and the two inlined guard copies in
-`Tgrad/PythonFFI.lean`. Also delete the dead `tg_a`/`tg_b` allocations
-and the `if (false)` barrier while here.
-
-**W5. Routing swap.** Point sentinel dispatch at the parametric
-generator instead of `matmulKernelDeclFor`. Files:
-`Tgrad/PythonFFI.lean`, `Tgrad/Pipeline.lean`.
-**Blocked by W4** — there is nothing to route to until coverage is
-settled. Also collides with item 3's (b) variant on `PythonFFI.lean`.
-
-**W6. Verification predicate replacement.** This is the subtle one.
-L12's entire predicate is byte-equality against the captured `.msl`.
-Once kernels are *computed*, that predicate is gone and must be
-replaced by **differential numerical equivalence**: run the captured
-kernel and the generated kernel on identical inputs and compare
-outputs bitwise. This is a strictly stronger check than byte-equal
-source, and it is the thing that makes the whole migration safe.
-Files: `scripts/gates/L12.sh`, `L14_B_2_b.sh`, `L3.sh`.
-**Can start immediately, in parallel with W4** — the harness can be
-built and tested against today's kernels, where it must trivially
-pass, before any generator change exists.
-
-**W7. Deletion.** Remove `Tgrad/Renderer/MatmulDecls.lean` (1549
-lines) and `scripts/dev/lower_matmul.py`. Files: those two, plus
-`Tgrad.lean`, `Main.lean`. **Blocked by W5 and W6.** Strictly last —
-the transcribed decls are the differential reference W6 needs, so
-they cannot be deleted until W6 has been run green against them.
-
-**W8. Perf re-baseline.** Serial, exclusive GPU, after W7. Expect a
-regression; that is the point. Do not run concurrently with anything.
-
-## 4. The parallel schedule
-
-```
-wave 1   [W1 -> W2 -> W3a]          (owner A: python/tgrad.py)
-         [W4]                        (owner B: Renderer/*.lean)
-         [W6 harness]                (owner C: scripts/gates/*)
-              |
-wave 2   [W3b materialize]           (owner A, needs View + new FFI)
-         [W5 routing swap]           (owner B, needs W4)
-              |   <-- PythonFFI.lean contention: serialize A and B here
-wave 3   [W7 deletion]               (needs W5 + W6 green)
-              |
-wave 4   [W8 perf re-baseline]       (exclusive, serial, one GPU)
+```text
+codegen.warp-parameter ---------\
+codegen.typed-stores -----------+-> codegen.route-sentinels
+codegen.differential-harness ---/
+codegen.differential-harness -> gates.semantic-codegen [landed aa67497]
+codegen.route-sentinels + gates.semantic-codegen
+                                   -> codegen.delete-transcription
+                                   -> perf.rebaseline
+                                   -> evidence.regenerate
+                                   -> evidence.enforce-provenance
 ```
 
-**Genuine concurrency is three-wide in wave 1**, and that is the real
-answer to "how parallel is this": the correctness tier, the generator,
-and the verification harness touch disjoint file sets and have no
-ordering relationship. Everything after wave 1 narrows.
+`codegen.delete-transcription` is proved not ready. This is intentional: the
+transcribed kernels remain the reference implementation until generated
+kernels have passed differential execution and the semantic gate is live.
 
-**Contention points, named.** `Tgrad/PythonFFI.lean` is the hottest
-file in the repo for this work — W3b appends a new export, W4 relaxes
-the two inlined eligibility guards, W5 rewrites the three
-compile-or-cache functions, W7 deletes the import. Different regions,
-but three concurrent editors will collide on the import block and on
-`matmul64x64`. `Main.lean` is wanted by W5, W6 and W7; W6's addition
-is append-only and low-risk. `scripts/gates/L12.sh`,
-`L14_B_2_b.sh` and `scripts/dev/l15_b_audit.py` are each wanted by
-both W6 and W7 in overlapping regions — **merge those into a single
-workstream rather than attempting two branches.**
+## 4. Parallel schedule
 
-**Revised track split**, given the above:
+```text
+landed      [view.materialize] e6241bd; write lease released
+landed      [codegen.differential-harness] a6d5958
+landed      [codegen.warp-parameter] 75f856b; renderer lease released
+landed      [gates.semantic-codegen] aa67497; additive C3
+landed      [evidence.audit-tool] bdc01b0; diagnostic, not fatal
 
-- **T1 = W4 → W5 → W7(Lean side)** — one owner, the whole Lean chain.
-- **T2 = W6 harness** — starts immediately, lands *first*. It is
-  testable today against the existing transcribed emit, where it must
-  trivially pass. Building it first proves the sentinels are already
-  equivalent before anything changes, which is the single
-  highest-value ordering decision in this plan.
-- **T3 = W6 gate rewrites + W7(script side)** — written concurrently,
-  lands after T1.
-- **W8** last, alone, exclusive GPU.
+integrate   one shared-build/test run at a time
+
+then        route-sentinels -> deletion (retire old byte-equality Layer C)
+
+last        performance rebaseline -> evidence regeneration -> fatal audit
+            (exclusive GPU, clean tree, serial)
+```
+
+The safe authoring frontier is currently exactly `codegen.route-sentinels`.
+That does not authorize more worktrees blindly:
+`LiveConditions.sourceTree` is tentative and must be re-probed against free
+disk and current writers. Nor does it authorize parallel verification: route
+and materialization checks require the Metal GPU, and Lean build artifacts are
+shared. The differential harness itself now uses `mktemp`, but the historical
+gates around it still contain fixed paths.
+
+The highest-contention file is `Tgrad/PythonFFI.lean`. Materialization writes
+it now; sentinel routing writes it later, after generator/store work. Encoding
+that dependency avoids asking agents to coordinate overlapping edits by prose.
 
 ## 5. Verification protocol
 
 Per workstream, before integration:
 
-- **W1/W2/W3**: extend the numpy differential script used in `f679bf7`
-  (13 view forms, currently all passing). Add negative cases —
-  mismatched shape must raise, view-of-temporary must not corrupt.
-  Every new assertion must be shown to **fail** against the old code
-  before it is trusted; a test that has never been red is not evidence.
-- **W4/W5**: `tgrad-tests` plus numeric equivalence against numpy on
-  every sentinel shape.
-- **W6**: must pass against today's transcribed kernels *first*. A
-  differential harness that has only ever seen one implementation
-  proves nothing.
-- **Integration**: single owner, serial, `lake build` +
-  `.lake/build/bin/tgrad-tests` + the numpy suite + `devcheck.sh
-  --all`. Never two at once.
+- **View materialization (passed on `790d413…`, landed as `e6241bd`):** contiguous control,
+  transpose, multi-axis/partial/strided slice, reshape, expansion on both axes,
+  chained movement, repeated readback, zero-size/invalid rejection, and
+  temporary-parent lifetime matched numpy. Raw bf16 checks included NaNs,
+  infinities, signed zero, and subnormals; the copy is `ushort`, not a numeric
+  bf16 round-trip.
+- **Generator/store/routing:** build `TgradSpec` and `Tgrad`, run
+  `tgrad-tests`, then compare every sentinel numerically against both the
+  captured kernel and numpy.
+- **Differential harness (passed in `a6d5958`):** 11/11 sources differ and
+  11/11 outputs are bit-identical. Changing one store from `c` to `c+2`
+  preserved pairwise distinctness but produced 727,933 differing bytes. This
+  proves `tileStoreOffsets_nodup` and execution differential are complementary:
+  the theorem catches collisions; the harness catches wrong-but-distinct
+  placement. The semantic gate must require both.
+- **Integration:** one owner, serial, clean tree, `lake build TgradSpec
+  Tgrad:shared tgrad-tests`, then `.lake/build/bin/tgrad-tests`, then targeted
+  Python/Metal checks. Run the full gate sweep only after namespacing its
+  temporary files or under an explicit single-run lock.
 
 ## 6. Scoping answers
 
@@ -218,39 +244,43 @@ changes the dispatch dims; the scalar fallback would put 4096
 single-thread threadgroups on the shape L7 times and would likely turn
 both L5 (bit-exactness) and L7 (ratio ≤ 1.5) red.
 
-### Equivalence: verified symbolically, all ten, zero divergences
+### Equivalence: promoted execution evidence
 
-The generated and captured kernels were compared by substituting every
+The review compared generated and captured kernels by substituting every
 `alu` definition and evaluating each load/store as a concrete address,
-resolving WMMA calls to operand-address tuples so variable renaming
-doesn't matter. **384 index points per shape, 10 shapes, 0
-divergences** — identical tile decomposition, identical WMMA wiring,
-identical 32-entry accumulator permutation and store map.
+resolving WMMA calls to operand-address tuples so variable renaming did not
+matter: 384 index points per shape, 10 shapes, zero observed divergences.
+That design input is now superseded by committed evidence. `a6d5958` executes
+both routes and compares 240 MB over all 11 sentinels bit-for-bit;
+`aa67497` makes it a mandatory additive L12 C3 layer while the old green
+byte-equality layer remains. The latter is retired only with transcription
+deletion, so verification was strengthened before migration pressure arrived.
 
 Divergences found are all non-semantic: store emission order (all 32
 addresses distinct, no aliasing), kernel and buffer names, and two
-dead statements the generator emits *only to satisfy gate greps* —
+dead structures the generator emits *only to satisfy gate greps* —
 `threadgroup bfloat tg_a[256]` / `tg_b[1024]`, never referenced, plus
 `if (false) { threadgroup_barrier(...); }`. Those allocate 2.5 KB of
 threadgroup memory per threadgroup and should be deleted before
 benchmarking; they are already priced into today's numbers, so
 removing them is upside-only.
 
-### Perf: near-parity, and the evidence is already on disk
+### Perf: unknown until the symmetric rebaseline
 
-The only real difference is address arithmetic: the capture hoists 16
-`alu` temporaries and uses shifts, the generator computes 4 and uses
-multiplies — but every multiplier is a compile-time power of two, so
-InstCombine lowers them to shifts, and the loop-invariant terms are
-LICM'd. Register pressure is arguably *lower* in the generated form.
+The source-level hypothesis is favorable: the capture hoists 16 `alu`
+temporaries and uses shifts, while the generator computes fewer expressions
+whose power-of-two multipliers should lower to shifts. That is a compiler
+hypothesis, not performance evidence.
 
-Decisively: `L13_F.json` already measures this exact generator at
-`ratio_max = 0.8786` across 18 TC-eligible shapes, while `L12.json`
-measures the transcription at `ratio_max = 1.23`. **The parametric
-generator's measured tail is better than the transcription's.**
-Untested: `8192³`, the most bandwidth-bound sentinel.
+The committed `L13_F.json` ratio cannot settle the question. Its tinygrad
+baseline is noisy, its evidence hashes do not match the shipped tree, and the
+two runtimes are not measured across a symmetric boundary. Therefore the
+performance state is **unknown**, including for `8192³`. The first admissible
+number is the serial, same-session, dispatch-boundary-matched run represented
+by `perf.rebaseline`; a regression is an acceptable result and must be
+reported rather than hidden behind the old fixture.
 
-### `.numpy()` materialization: buildable, but nothing existing fits
+### `.numpy()` materialization: validated candidate, with bounded debt
 
 `copy_kernel.msl` is `float`, rank-1, and carries its body as two
 string literals with no index UOp — strides cannot enter it. The
@@ -259,37 +289,64 @@ index. Neither is reusable. The real template is
 `scalarMatmulKernelDeclWithIdx` + `Pipeline.realizeView`, which
 already proves the mechanism end to end.
 
-What's missing is ~25 lines of `KernelDecl` builder plus a
-`realizeContiguous` modelled on `realizeView`, then a new `@[export]`,
-a C trampoline copied from `tgrad_matmul_view`, and a ctypes binding.
-So W3b is **days, not a week** — and it is the first real consumer of
-the `View` sort.
+Commit `e6241bd` adds the missing declaration and realization path without
+a C edit: handle zero is impossible in the registry, so
+`tgrad_matmul_view(viewHandle, 0)` is reserved as the unary materialization
+operation. The copy consumes rangeify's index UOp, delinearizes one flat output
+thread into canonical scheduler coordinates, copies through `ushort` so all
+bf16 payload bits survive, validates source bounds/allocation/index width, and
+returns a contiguous Tensor.
+
+This is the first runtime operation whose addressing is governed directly by
+the scheduler's rangeified output. Remaining debt is lifecycle and naming:
+the overloaded matmul symbol should eventually become
+`tgrad_tensor_materialize`, repeated readback recompiles and registers a fresh
+temporary, and the append-only registry/cache policy needs its own work item.
 
 ### Two corrections to the original framing
 
 - `check_fixture_drift.sh` is **not** in the blast radius; it tracks
   six dtype/shape/symbolic JSONs, no `.msl`.
-- `L14_B_2_b.sh` requires `.storeIndexed` occurrences ≥ 6.
-  `MatmulDecls` supplies ~320 of them; `MatmulTc` supplies **zero**
-  (its stores are raw strings). Deleting the decls drops the count to
-  1 and turns the gate red. The honest fix is to refactor
-  `tcManualLoadMatmulBody`'s 32 stores to emit via `Stmt.storeIndexed`
-  with real index UOps — which is also a down payment on the "typed
-  expression sort in `KernelDecl`" goal in `PLAN_TINYGRAD_COMPAT.md`.
+- Before `1787c83`, `L14_B_2_b.sh` counted source occurrences and
+  `MatmulDecls` supplied nearly all of them while `MatmulTc` supplied none.
+  That pressure is gone: `tcManualLoadMatmulBody` now emits 32
+  `Stmt.storeIndexed` and 16 typed loads, the gate checks emitted output, and
+  `tileStoreOffsets_nodup` is a checked non-aliasing obligation. Deleting the
+  transcription therefore no longer weakens the typed-addressing predicate.
 
 ### L12's successor predicate
 
-Byte-equality dies with the transcription. Replace it with
-**differential result equivalence**: in one process, compile both the
-captured MSL and the generated kernel, dispatch both over one pair of
-random bf16 inputs, and assert the output buffers are bit-identical.
+Byte-equality dies with the transcription. Its successor is already additive
+Layer C3: **differential result equivalence**. In one process it compiles both
+the captured MSL and the generated kernel, dispatches both over one pair of
+random bf16 inputs, and asserts the output buffers are bit-identical.
 That is strictly stronger than comparing source bytes, and stronger
 than the existing `allclose`-vs-numpy check, because it compares
 against tinygrad's actual kernel. Add the anti-cheat inverse too —
-assert the rendered source is *not* byte-equal to the capture, so the
-transcription cannot be quietly re-vendored. Keep a ULP-tolerance
-fallback: `metal_alloc.m:134` compiles with `options:nil`, i.e.
-fast-math on.
+asserts the rendered source is *not* byte-equal to the capture, so the
+transcription cannot be quietly re-vendored. The harness supports a
+ULP-tolerance fallback because `metal_alloc.m:134` compiles with
+`options:nil`, but all 11 current sentinels pass bit-identically.
+
+### Evidence provenance: observable before enforceable
+
+`bdc01b0` turns the manual provenance review into a calibrated auditor. The
+committed set reports 37/37 files naming an absent commit, 73/115 unresolved
+non-transient hashes, 28 roll-up disagreements, and 27 writer-key mismatches;
+synthetic evidence tied to HEAD passes. The audit is deliberately diagnostic.
+Making a known-red check fatal would create a blocker without repairing its
+subject.
+
+The checked graph therefore separates three items:
+
+```text
+evidence.audit-tool [landed]
+perf.rebaseline -> evidence.regenerate -> evidence.enforce-provenance
+```
+
+Regeneration is an owner-authorized serial GPU operation that rewrites all 37
+evidence files. Only after that succeeds does the one-line fatal integration
+become honest.
 
 ## 7. Risks
 

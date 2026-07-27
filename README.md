@@ -25,8 +25,14 @@ Read the background post: [We Rewrote tinygrad in Lean](https://theoric.com/blog
   for the supported range.
 - View-composed matmul tests for transpose, reshape, permute, expand,
   and slice cases covered by the release gates.
-- Committed release evidence for correctness, runtime independence, and
-  performance parity against captured tinygrad baselines.
+- Bounded view `.numpy()`/`.to_bytes()` materialization through a
+  rangeified, bit-preserving Metal copy kernel.
+- An execution differential for all 11 captured/generated sentinel kernels;
+  sources intentionally differ and 240 MB of outputs match bit-for-bit.
+- A separate checked specification for runtime capabilities, findings,
+  growth cases, resource constraints, and repository evolution.
+- Historical gate artifacts retained for audit; their performance and
+  provenance claims are not treated as current promoted evidence.
 
 ## What Tgrad Is
 
@@ -63,9 +69,35 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 
 make -C c
-lake build Tgrad:shared tgrad-cli tgrad-tests
+lake build Tgrad:shared TgradSpec tgrad-spec tgrad-cli tgrad-tests
 make -C c dylib
 ```
+
+Inspect the checked product/work specification:
+
+```sh
+.lake/build/bin/tgrad-spec
+```
+
+`Tgrad` and `TgradSpec` are separate build roots. The former is the product
+library linked into the runtime; the latter contains the stable ontology,
+runtime-work inventory, evidence-bearing findings, growth cases, live resource
+constraints, event-based evolution protocol, and executable work graph. The
+specification is checked without becoming part of
+`libtgrad_Tgrad.dylib`.
+
+## Growing Tgrad
+
+[Growing Tgrad](GROWING_TGRAD.md) separates repeatable work performed **by**
+the codebase from repository-evolution work performed **on** it. The checked
+model connects runtime observations to findings, growth cases, attempts,
+immutable candidate trees, exact-tree checks, and promotion certificates.
+
+The current `tgrad-spec` report also states the migration limit explicitly:
+warp parameterization, the codegen differential, its additive L12 layer, the
+provenance auditor, and view materialization have replayable promotion
+histories. Older `Progress.complete` entries predate the protocol and are not
+themselves promotion certificates.
 
 ## Quickstart: Run A Matmul
 
@@ -94,6 +126,7 @@ b = tgrad.Tensor.from_numpy(np.random.randn(64, 64).astype(np.float32))
 c = a @ b
 
 print(c.numpy().shape)
+print(a.T.numpy().shape)  # supported views materialize before host readback
 ```
 
 Run with the dylib path in the environment:
@@ -111,6 +144,17 @@ bash scripts/check_no_tinygrad_deps.sh
 bash scripts/devcheck.sh --all
 ```
 
+Audit the committed evidence provenance separately:
+
+```sh
+python3 scripts/dev/evidence_provenance_audit.py
+```
+
+It currently exits nonzero by design: 37/37 files name an absent commit,
+73/115 non-transient hashes are unresolved, 28 roll-ups disagree, and 27
+files use a host key their own gate script does not emit. The auditor becomes
+a fatal release predicate only after an owner-authorized serial regeneration.
+
 Release gates:
 
 ```sh
@@ -119,29 +163,29 @@ bash scripts/gate.sh L7
 bash scripts/gate.sh
 ```
 
-`scripts/gate.sh` runs the 37-gate ratchet and writes evidence JSON to
-`fixtures/gate_evidence/`. Those evidence files are committed as a demo
-snapshot; CI smoke checks avoid rewriting them.
+`scripts/gate.sh` runs the historical 37-gate suite and writes evidence JSON to
+`fixtures/gate_evidence/`. Run it only serially: many scripts share fixed
+`/tmp/tgrad_*` paths and the performance cases share one GPU. The committed
+JSON is an audit snapshot, not evidence for the current tree: it names a
+commit absent from this repository and contains stale recorded hashes.
 
 ## Performance Evidence
 
-Performance numbers are profile-specific. The committed public profile
-is `apple_m4_mini_release`; tinygrad baselines are dev-time fixtures
-captured on Metal with `USE_TC=1`, `BEAM=0`, and `NOOPT=0`.
+Tgrad currently makes no promoted performance-parity claim. The historical
+L7/L11/L12/L13_F ratios are not a valid kernel/runtime comparison:
 
-The checked-in gate-evidence snapshot records:
+- the Tgrad and tinygrad timed regions enclose different work;
+- tinygrad was measured without `TinyJit` while Tgrad used cached,
+  pre-selected kernels;
+- the results compare live Tgrad measurements with frozen baselines;
+- the committed evidence hashes do not match the committed baselines;
+- the smallest reported sweep ratios are impossible for byte-identical
+  kernels dispatched with identical geometry.
 
-| Gate | Claim | Evidence |
-|---|---|---|
-| L7 | Single bf16 `64x64x64` timing | Tgrad median `0.2362 ms`, tinygrad median `0.731 ms`, ratio `0.3231` |
-| L11 | Full 50 shape/distribution sweep | `50/50` correct, `50/50` within `ratio <= 1.5`, ratio min/median/max `0.3582 / 0.9354 / 1.284` |
-| L12 | Algebraic MSL emit for captured shapes | `10/10` captured kernels byte-equal, algebraic sweep `50/50`, `alg_ratio_max = 1.23` |
-| L13_F | TC-general manual-load WMMA route | `8/8` pinned rows correct and routed through WMMA, `10/10` random TC rows correct, `ratio_max = 0.8786` |
-
-Timings are synchronized wall-clock measurements around dispatched Metal
-work, not isolated GPU counter timings. Re-capture tinygrad baselines
-and re-run the gates under the same `TGRAD_PERF_PROFILE` before
-publishing machine-specific comparisons.
+The next admissible experiment will route sentinels through the parametric
+generator, measure both runtimes in one session with symmetric boundaries,
+retain raw distributions and provenance, and report an honest regression if
+that is the result. Timings remain serial because this machine has one GPU.
 
 ## Regenerating Baselines
 
@@ -183,12 +227,15 @@ In scope:
 - bf16 input/output with fp32 accumulation.
 - Apple Silicon Metal backend.
 - Contiguous 2-D matmul.
-- Captured sentinel matmul kernels.
-- Algebraic MSL emit for the captured matmul set.
+- Sentinel matmul declarations transcribed from captured kernels and rendered
+  by Lean; these remain reference-backed production scaffolding pending the
+  generated-route migration.
 - TC-general manual-load WMMA kernels.
 - Scalar fallback paths for supported smaller or non-TC shapes.
-- View-composed matmul cases covered by the committed transpose,
-  reshape, permute, expand, and slice gates.
+- View-composed matmul cases covered by transpose, reshape, permute, expand,
+  and slice differential tests. Supported view `.numpy()`/`.to_bytes()` uses
+  indexed materialization; unsupported non-contiguous reshape and empty views
+  reject explicitly before Metal allocation/dispatch.
 
 ## Not Claimed
 

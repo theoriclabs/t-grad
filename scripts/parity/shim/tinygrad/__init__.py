@@ -8,13 +8,25 @@ not turn into tinygrad capability.
 """
 from __future__ import annotations
 
-from tgrad import Tensor as Tensor
+from importlib import import_module
 
-__all__ = ("Tensor",)
+from tgrad import Tensor as Tensor
+from .device import Device as Device
+from .dtype import dtypes as dtypes
+from .engine.jit import TinyJit as TinyJit
+from .helpers import Context as Context, GlobalCounters as GlobalCounters, getenv as getenv
+from .uop.ops import UOp as UOp
+from ._unsupported import missing_attribute, unsupported, unsupported_type
+
+nn = import_module("tinygrad.nn")
+Variable = unsupported_type("tinygrad.Variable")
+function = unsupported("tinygrad.function")
+
+__all__ = (
+    "Tensor", "Device", "dtypes", "TinyJit", "Context", "GlobalCounters",
+    "getenv", "UOp", "nn", "Variable", "function",
+)
 
 
 def __getattr__(name: str):
-    raise AttributeError(
-        f"Tgrad's strict tinygrad shim does not provide {name!r}; "
-        "refusing to fall back to upstream tinygrad"
-    )
+    missing_attribute("tinygrad", name)

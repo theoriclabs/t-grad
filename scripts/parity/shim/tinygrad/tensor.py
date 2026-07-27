@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from tgrad import Tensor as Tensor
+from .dtype import _to_np_dtype as _to_np_dtype
 
-__all__ = ("Tensor",)
+__all__ = ("Tensor", "_to_np_dtype")
 
 
 def __getattr__(name: str):

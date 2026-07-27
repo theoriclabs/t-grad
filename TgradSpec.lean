@@ -9,6 +9,7 @@ import Tgrad.Spec.Evolution
 import Tgrad.Spec.Work
 import Tgrad.Spec.Parity
 import Tgrad.Spec.ParityCoverage
+import Tgrad.Spec.ParityCalibration
 
 /-! # TgradSpec — checked specification, separate from the product runtime
 

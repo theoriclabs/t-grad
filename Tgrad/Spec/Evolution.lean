@@ -106,11 +106,18 @@ structure PromotionCertificate where
   residualRisks : List String
   deriving Repr, Inhabited
 
+structure PromotionRevocation where
+  candidate : CandidateId
+  reason : String
+  discoveredBy : String
+  deriving Repr, Inhabited
+
 inductive Event where
   | attemptStarted (attempt : Attempt)
   | candidateProduced (candidate : Candidate)
   | checkRecorded (run : CheckRun)
   | promoted (certificate : PromotionCertificate)
+  | promotionRevoked (revocation : PromotionRevocation)
   | attemptAbandoned (attempt : AttemptId) (reason : String)
   deriving Repr, Inhabited
 
@@ -120,6 +127,7 @@ structure State where
   candidates : List Candidate := []
   checks : List CheckRun := []
   promotions : List PromotionCertificate := []
+  revokedPromotions : List PromotionRevocation := []
   abandoned : List AttemptId := []
   deriving Repr, Inhabited
 
@@ -141,6 +149,9 @@ inductive TransitionError where
   | inadmissibleValidator
   | malformedCheck
   | duplicatePromotion
+  | unknownPromotion
+  | duplicateRevocation
+  | malformedRevocation
   | incompleteCertificate
   | missingRequiredObligation
   | promotionTreeMismatch
@@ -160,6 +171,11 @@ def State.attemptWasPromoted (state : State) (id : AttemptId) : Bool :=
     match state.candidateFor? certificate.candidate with
     | some candidate => candidate.attempt == id
     | none => false)
+
+def State.activePromotions (state : State) : List PromotionCertificate :=
+  state.promotions.filter (fun certificate =>
+    !state.revokedPromotions.any (fun revocation =>
+      revocation.candidate == certificate.candidate))
 
 def State.attemptClosed (state : State) (id : AttemptId) : Bool :=
   state.abandoned.contains id || state.attemptWasPromoted id
@@ -294,6 +310,18 @@ def applyEvent
               .error .promotionTreeMismatch
             else
               .ok (tick { state with promotions := state.promotions ++ [certificate] })
+  | .promotionRevoked revocation =>
+      if !state.promotions.any (fun certificate =>
+          certificate.candidate == revocation.candidate) then
+        .error .unknownPromotion
+      else if state.revokedPromotions.any (fun existing =>
+          existing.candidate == revocation.candidate) then
+        .error .duplicateRevocation
+      else if revocation.reason.isEmpty || revocation.discoveredBy.isEmpty then
+        .error .malformedRevocation
+      else
+        .ok (tick { state with
+          revokedPromotions := state.revokedPromotions ++ [revocation] })
   | .attemptAbandoned attemptId reason =>
       match state.attemptFor? attemptId with
       | none => .error .unknownAttempt
@@ -399,6 +427,25 @@ theorem exact_tree_complete_certificate_is_promotable :
     (match applyEvent [sampleIntent] stateWithRegressionCheck
       (.promoted sufficientCertificate) with
      | .ok state => state.promotions.length == 1
+     | .error _ => false) = true := by
+  native_decide
+
+private def stateWithPromotion : State :=
+  match applyEvent [sampleIntent] stateWithRegressionCheck
+      (.promoted sufficientCertificate) with
+  | .ok state => state
+  | .error _ => {}
+
+theorem a_falsified_promotion_can_be_revoked_without_erasing_history :
+    (match applyEvent [sampleIntent] stateWithPromotion
+      (.promotionRevoked
+        { candidate := sampleCandidate.id,
+          reason := "adversarial replay check failed",
+          discoveredBy := "independent reviewer" }) with
+     | .ok state =>
+         state.promotions.length == 1 &&
+         state.revokedPromotions.length == 1 &&
+         state.activePromotions.isEmpty
      | .error _ => false) = true := by
   native_decide
 

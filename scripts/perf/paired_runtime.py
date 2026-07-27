@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TINYGRAD_SOURCE = Path("/tmp/tgrad-upstream-19c4d736")
 EXPECTED_TINYGRAD_COMMIT = "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
@@ -85,6 +85,22 @@ class AdapterProvenance:
 
 
 @dataclass(frozen=True)
+class RuntimeBinaryProvenance:
+    path: str
+    sha256: str
+    size_bytes: int
+    source_commit: str | None
+    source_tree: str | None
+    build_validation: str
+    build_commands: tuple[tuple[str, ...], ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["build_commands"] = [list(command) for command in self.build_commands]
+        return value
+
+
+@dataclass(frozen=True)
 class BoundarySpec:
     id: str
     category: str
@@ -119,6 +135,12 @@ class PhaseObservation:
     measurement: Measurement
 
 
+@dataclass(frozen=True)
+class PreparedCorrectness:
+    output: bytes
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
 class AdapterSession(Protocol):
     """One logical session.  Implementations may share process-global caches."""
 
@@ -127,6 +149,8 @@ class AdapterSession(Protocol):
     def correctness_output(self) -> bytes: ...
 
     def prepare(self) -> Iterable[PhaseObservation]: ...
+
+    def prepared_correctness(self) -> PreparedCorrectness: ...
 
     def measure(self, boundary_id: str) -> Measurement: ...
 
@@ -196,6 +220,10 @@ class HarnessConfig:
     run_instance_id: str | None = None
     captured_at_utc: str | None = None
 
+    @property
+    def completion_output(self) -> Path:
+        return self.summary_output.with_name(self.summary_output.name + ".complete.json")
+
     def validate(self) -> None:
         if self.sessions <= 0:
             raise HarnessError("sessions must be positive")
@@ -213,6 +241,8 @@ class HarnessConfig:
             raise HarnessError("captured_at_utc must not be blank")
         if self.raw_output.resolve() == self.summary_output.resolve():
             raise HarnessError("raw and summary output paths must differ")
+        if self.raw_output.resolve().parent != self.summary_output.resolve().parent:
+            raise HarnessError("raw and summary outputs must share one run directory")
 
 
 def _canonical_json(value: Any) -> str:
@@ -221,6 +251,14 @@ def _canonical_json(value: Any) -> str:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _sha256_json(value: Any) -> str:
@@ -361,6 +399,72 @@ def validate_tgrad_checkout(
         )
     validation = "clean_attributed" if not diagnostics else "diagnostic_override"
     return state, validation, tuple(diagnostics)
+
+
+def build_and_attest_tgrad_runtime(
+    repository: Path,
+    source: GitState,
+    *,
+    diagnostic_override: bool = False,
+) -> RuntimeBinaryProvenance:
+    """Build the measured dylib from the inspected subject and bind its bytes to it.
+
+    A path and source revision alone do not establish which native code Python
+    loaded.  Promotable runs therefore rebuild through the repository build
+    graph, reject an alternate ``TGRAD_LIB``, re-check the source afterwards,
+    and hash the exact dylib that the adapter will import.
+    """
+    resolved_repository = repository.resolve()
+    expected = (resolved_repository / ".lake" / "build" / "lib" / "libtgrad.dylib").resolve()
+    configured = Path(os.environ.get("TGRAD_LIB", str(expected))).expanduser().resolve()
+    if configured != expected and not diagnostic_override:
+        raise RevisionError(
+            f"TGRAD_LIB resolves to {configured}, but promotable measurements require {expected}"
+        )
+
+    commands: tuple[tuple[str, ...], ...] = (
+        ("lake", "build", "Tgrad:shared", "tgrad-cli", "tgrad-tests"),
+        ("make", "-C", "c", "dylib"),
+    )
+    if not diagnostic_override:
+        for command in commands:
+            try:
+                subprocess.run(
+                    command,
+                    cwd=resolved_repository,
+                    check=True,
+                    stdout=sys.stderr,
+                    stderr=sys.stderr,
+                )
+            except (OSError, subprocess.CalledProcessError) as exc:
+                raise HarnessError(
+                    f"Tgrad runtime build failed for {' '.join(command)}: {exc}"
+                ) from exc
+        validation = "rebuilt_from_clean_subject"
+    else:
+        validation = "diagnostic_existing_binary"
+
+    after = inspect_git_checkout(resolved_repository)
+    if (
+        not diagnostic_override
+        and (after.commit != source.commit or after.tree != source.tree or after.dirty is not False)
+    ):
+        raise RevisionError(
+            "Tgrad source identity changed while building the measured runtime: "
+            f"before=({source.commit}, {source.tree}, {source.dirty}) "
+            f"after=({after.commit}, {after.tree}, {after.dirty})"
+        )
+    if not configured.is_file():
+        raise HarnessError(f"measured Tgrad dylib does not exist: {configured}")
+    return RuntimeBinaryProvenance(
+        path=str(configured),
+        sha256=_sha256_file(configured),
+        size_bytes=configured.stat().st_size,
+        source_commit=source.commit,
+        source_tree=source.tree,
+        build_validation=validation,
+        build_commands=commands if not diagnostic_override else (),
+    )
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -529,11 +633,15 @@ def analyze_pairs(
                 name: _quantile(durations, probability)
                 for name, probability in probabilities
             },
-            "throughput_tflops_quantiles": {
+            "effective_operational_rate_tflops_quantiles": {
                 name: _quantile(throughputs, probability)
                 for name, probability in probabilities
             },
             "arithmetic_convention": "2*M*K*N floating-point operations",
+            "rate_scope": (
+                "effective operation count divided by the observed boundary duration; "
+                "not isolated kernel throughput"
+            ),
         }
 
     return {
@@ -603,14 +711,23 @@ def _open_atomic_text(path: Path) -> tuple[Any, Path]:
     return handle, Path(handle.name)
 
 
-def _write_summary_atomic(path: Path, summary: Mapping[str, Any]) -> None:
+def _write_json_temporary(path: Path, value: Mapping[str, Any]) -> Path:
     handle, temporary = _open_atomic_text(path)
     try:
         with handle:
-            json.dump(summary, handle, sort_keys=True, indent=2)
+            json.dump(value, handle, sort_keys=True, indent=2)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
+        return temporary
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _write_json_atomic(path: Path, value: Mapping[str, Any]) -> None:
+    temporary = _write_json_temporary(path, value)
+    try:
         os.replace(temporary, path)
     except BaseException:
         temporary.unlink(missing_ok=True)
@@ -750,8 +867,12 @@ def run_harness(
     config.validate()
     if len(adapters) < 2:
         raise HarnessError("paired measurement requires at least two adapters")
-    if config.raw_output.exists() or config.summary_output.exists():
-        raise HarnessError("refusing to overwrite an existing output file")
+    if (
+        config.raw_output.exists()
+        or config.summary_output.exists()
+        or config.completion_output.exists()
+    ):
+        raise HarnessError("refusing to overwrite an existing run artifact")
     a_payload, b_payload, manifest, workload_hash = workload_material(workload)
     provenance: dict[str, dict[str, Any]] = {}
     for name, adapter in sorted(adapters.items()):
@@ -833,6 +954,28 @@ def run_harness(
                                 "duration_ns": phase.measurement.duration_ns,
                                 "metadata": dict(phase.measurement.metadata),
                             })
+                        prepared = sessions[adapter_name].prepared_correctness()
+                        prepared_sha256 = _sha256_bytes(prepared.output)
+                        expected = correctness[adapter_name]
+                        if (
+                            len(prepared.output) != expected["bytes"]
+                            or prepared_sha256 != expected["sha256"]
+                        ):
+                            raise CorrectnessError(
+                                f"prepared timed route for {adapter_name} disagrees with preflight: "
+                                f"bytes={len(prepared.output)} sha256={prepared_sha256}; "
+                                f"expected bytes={expected['bytes']} sha256={expected['sha256']}"
+                            )
+                        emit({
+                            "record_type": "prepared_correctness",
+                            "phase": "preparation",
+                            "included_in_analysis": False,
+                            "session_index": session_index,
+                            "adapter": adapter_name,
+                            "output_bytes": len(prepared.output),
+                            "output_sha256": prepared_sha256,
+                            "metadata": dict(prepared.metadata),
+                        })
                     except BaseException as exc:
                         error = {
                             "session_index": session_index,
@@ -957,7 +1100,8 @@ def run_harness(
         raw_handle.flush()
         os.fsync(raw_handle.fileno())
         raw_handle.close()
-        os.replace(raw_temporary, config.raw_output)
+
+    raw_sha256 = _sha256_file(raw_temporary)
 
     analyses = {
         comparison.id: analyze_pairs(pairs, comparison, config, workload)
@@ -976,6 +1120,12 @@ def run_harness(
         "timing_boundaries": boundaries,
         "comparisons": [comparison.to_dict() for comparison in comparisons],
         "correctness_preflight": correctness,
+        "raw_artifact": {
+            "file": config.raw_output.name,
+            "sha256": raw_sha256,
+            "observation_count": raw_count,
+        },
+        "completion_marker": config.completion_output.name,
         "raw_observation_count": raw_count,
         "complete_pair_count": len(pairs),
         "analysis": analyses,
@@ -988,7 +1138,42 @@ def run_harness(
             "policy": "descriptive observations only; no threshold or performance conclusion",
         },
     }
-    _write_summary_atomic(config.summary_output, summary)
+    summary_temporary: Path | None = None
+    try:
+        summary_temporary = _write_json_temporary(config.summary_output, summary)
+        summary_sha256 = _sha256_file(summary_temporary)
+        artifact_identity = {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": run_id,
+            "raw": {
+                "file": config.raw_output.name,
+                "sha256": raw_sha256,
+                "observation_count": raw_count,
+            },
+            "summary": {
+                "file": config.summary_output.name,
+                "sha256": summary_sha256,
+            },
+        }
+        completion_manifest = {
+            **artifact_identity,
+            "artifact_set_id": _sha256_json(artifact_identity),
+            "state": "complete",
+        }
+        os.replace(raw_temporary, config.raw_output)
+        os.replace(summary_temporary, config.summary_output)
+        summary_temporary = None
+        # This marker is the commit record for the two-file artifact set. A
+        # raw or summary file without this marker is incomplete evidence.
+        _write_json_atomic(config.completion_output, completion_manifest)
+    except BaseException:
+        raw_temporary.unlink(missing_ok=True)
+        if summary_temporary is not None:
+            summary_temporary.unlink(missing_ok=True)
+        if not config.completion_output.exists():
+            config.raw_output.unlink(missing_ok=True)
+            config.summary_output.unlink(missing_ok=True)
+        raise
     if completion != "complete":
         raise MeasurementRunError("paired measurement ended with an error", summary) from unexpected_failure
     return summary
@@ -1039,6 +1224,13 @@ class _TgradSession:
     def prepare(self) -> Sequence[PhaseObservation]:
         return ()
 
+    def prepared_correctness(self) -> PreparedCorrectness:
+        output = self.correctness_output()
+        return PreparedCorrectness(
+            output,
+            {"route": "repeated_synchronized_matmul", "prepared_state": "not_applicable"},
+        )
+
     def measure(self, boundary_id: str) -> Measurement:
         if boundary_id != "repeated_synchronized_matmul":
             raise HarnessError(f"unsupported Tgrad boundary: {boundary_id}")
@@ -1060,14 +1252,31 @@ class TgradAdapter:
     def __init__(
         self, repository: Path = REPO_ROOT, allow_dirty: bool = False,
         validated: tuple[GitState, str, tuple[str, ...]] | None = None,
+        runtime_binary: RuntimeBinaryProvenance | None = None,
     ):
         self._repository = repository.resolve()
         state, validation, diagnostics = (
             validated if validated is not None
             else validate_tgrad_checkout(self._repository, allow_dirty)
         )
+        binary = runtime_binary or build_and_attest_tgrad_runtime(
+            self._repository,
+            state,
+            diagnostic_override=validation == "diagnostic_override",
+        )
         python_root = self._repository / "python"
         self._module = _import_from_source("tgrad", python_root, python_root)
+        loaded_path = Path(self._module.LIB_PATH).resolve()
+        if loaded_path != Path(binary.path).resolve():
+            raise RevisionError(
+                f"Tgrad imported {loaded_path}, but the attested runtime is {binary.path}"
+            )
+        loaded_sha256 = _sha256_file(loaded_path)
+        if loaded_sha256 != binary.sha256:
+            raise RevisionError(
+                "Tgrad dylib changed between attestation and import: "
+                f"attested={binary.sha256} loaded={loaded_sha256}"
+            )
         self._provenance = AdapterProvenance(
             name=self.name,
             implementation="local Tgrad Python/Lean/Metal route",
@@ -1076,6 +1285,7 @@ class TgradAdapter:
             environment={
                 "DEV": os.environ.get("DEV"),
                 "METAL": os.environ.get("METAL"),
+                "runtime_binary": binary.to_dict(),
             },
             revision_validation=validation,
             revision_diagnostics=diagnostics,
@@ -1120,6 +1330,7 @@ class _TinygradSession:
             device="METAL", dtype=self._dtypes.bfloat16,
         ).realize()
         self._last = None
+        self._capture_verified = False
 
         def jit_body(a: Any, b: Any) -> Any:
             return (a @ b).cast(self._dtypes.bfloat16).realize()
@@ -1194,6 +1405,31 @@ class _TinygradSession:
             {"tinyjit_count_before": 1, "boundary_is_composite": True},
         )
         yield PhaseObservation("tinyjit_capture_call", "TinyJit capture call", capture)
+        if self._jit.cnt != 2 or self._jit.captured is None:
+            raise CorrectnessError(
+                "TinyJit did not enter captured replay state after preparation: "
+                f"cnt={self._jit.cnt}, captured={self._jit.captured is not None}"
+            )
+        self._capture_verified = True
+
+    def prepared_correctness(self) -> PreparedCorrectness:
+        if not self._capture_verified or self._jit.captured is None or self._jit.cnt < 2:
+            raise CorrectnessError("TinyJit replay correctness requested before verified capture")
+        count_before = self._jit.cnt
+        result = self._jit(self._a, self._b)
+        self._sync()
+        if self._jit.captured is None or self._jit.cnt != count_before + 1:
+            raise CorrectnessError("TinyJit replay state changed unexpectedly during correctness check")
+        return PreparedCorrectness(
+            _numpy_to_bf16_payload(result.numpy()),
+            {
+                "tinyjit_phase": "verified_replay",
+                "tinyjit_count_before": count_before,
+                "tinyjit_count_after": self._jit.cnt,
+                "captured": True,
+                "explicit_device_synchronize": True,
+            },
+        )
 
     def measure(self, boundary_id: str) -> Measurement:
         if boundary_id == "tinyjit_replay":
@@ -1241,7 +1477,9 @@ class TinygradAdapter:
             else (inherited_legacy_metal if inherited_legacy_metal is not None else "<unset>")
         )
         requested_python = os.environ.pop("TGRAD_PAIRED_REQUESTED_PYTHON", None)
+        inherited_jit = os.environ.get("JIT", "<unset>")
         os.environ["DEV"] = "METAL"
+        os.environ["JIT"] = "1"
         self._module = _import_from_source("tinygrad", self._source, self._source / "tinygrad")
         self._provenance = AdapterProvenance(
             name=self.name,
@@ -1254,6 +1492,9 @@ class TinygradAdapter:
                 "legacy_METAL_removed": original_legacy_metal != "<unset>",
                 "legacy_METAL_inherited_value": original_legacy_metal,
                 "METAL_effective": os.environ.get("METAL"),
+                "JIT_inherited": inherited_jit,
+                "JIT_effective": os.environ.get("JIT"),
+                "JIT_requirement": "capture object and replay output verified before timing",
                 "requested_python_executable": requested_python,
                 "effective_python_executable": str(Path(sys.executable).resolve()),
             },
@@ -1356,12 +1597,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         tgrad_validation = validate_tgrad_checkout(
             REPO_ROOT, args.allow_dirty_tgrad
         )
+        tgrad_binary = build_and_attest_tgrad_runtime(
+            REPO_ROOT,
+            tgrad_validation[0],
+            diagnostic_override=tgrad_validation[1] == "diagnostic_override",
+        )
         tinygrad_adapter = TinygradAdapter(
             args.tinygrad_source, args.allow_unknown_tinygrad_revision,
             validated=tinygrad_validation,
         )
         tgrad_adapter = TgradAdapter(
-            REPO_ROOT, args.allow_dirty_tgrad, validated=tgrad_validation
+            REPO_ROOT, args.allow_dirty_tgrad, validated=tgrad_validation,
+            runtime_binary=tgrad_binary,
         )
         summary = run_harness(
             HarnessConfig(
@@ -1389,6 +1636,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "completion": summary["completion"],
         "raw_output": str(args.raw_output),
         "summary_output": str(args.summary_output),
+        "completion_output": str(
+            args.summary_output.with_name(args.summary_output.name + ".complete.json")
+        ),
         "raw_observation_count": summary["raw_observation_count"],
     }))
     return 0

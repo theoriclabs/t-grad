@@ -71,6 +71,13 @@ class FakeSession:
             ),
         )
 
+    def prepared_correctness(self) -> Any:
+        self.adapter.prepared_correctness_calls += 1
+        return paired.PreparedCorrectness(
+            self.adapter.prepared_output,
+            {"fake_prepared_route": True},
+        )
+
     def measure(self, boundary_id: str) -> Any:
         if boundary_id != "repeated":
             raise AssertionError(f"unexpected fake boundary: {boundary_id}")
@@ -90,13 +97,16 @@ class FakeAdapter:
     def __init__(
         self, name: str, output: bytes, base_duration_ns: int,
         fail_measure_at: int | None = None,
+        prepared_output: bytes | None = None,
     ):
         self.name = name
         self.output = output
         self.base_duration_ns = base_duration_ns
         self.fail_measure_at = fail_measure_at
+        self.prepared_output = output if prepared_output is None else prepared_output
         self.correctness_calls = 0
         self.prepare_calls = 0
+        self.prepared_correctness_calls = 0
         self.measure_calls = 0
         self.close_calls = 0
 
@@ -202,7 +212,7 @@ class PairedRuntimeTests(unittest.TestCase):
                 ]
                 self.assertEqual(Counter(first_sides), Counter({"AB": 3, "BA": 3}))
             expected_raw_count = config.sessions * (
-                len(self.make_adapters())
+                2 * len(self.make_adapters())
                 + (config.warmup_pairs + config.samples_per_session) * 2
             )
             self.assertEqual(len(raw), expected_raw_count)
@@ -219,10 +229,19 @@ class PairedRuntimeTests(unittest.TestCase):
                 analysis["absolute"]["numerator"]["duration_ns_quantiles"]["p50"], 0
             )
             self.assertGreater(
-                analysis["absolute"]["denominator"]["throughput_tflops_quantiles"]["p50"], 0
+                analysis["absolute"]["denominator"]
+                ["effective_operational_rate_tflops_quantiles"]["p50"], 0
             )
             self.assertFalse(summary["comparisons"][0]["kernel_speed_claim_eligible"])
             self.assertEqual(forbidden_summary_keys(summary), set())
+            raw_sha256 = paired._sha256_file(config.raw_output)
+            self.assertEqual(summary["raw_artifact"]["sha256"], raw_sha256)
+            manifest = json.loads(config.completion_output.read_text())
+            self.assertEqual(manifest["state"], "complete")
+            self.assertEqual(manifest["raw"]["sha256"], raw_sha256)
+            self.assertEqual(
+                manifest["summary"]["sha256"], paired._sha256_file(config.summary_output)
+            )
 
     def test_deterministic_fake_reruns_match_exactly(self) -> None:
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
@@ -238,6 +257,10 @@ class PairedRuntimeTests(unittest.TestCase):
             )
             self.assertEqual(config_a.raw_output.read_bytes(), config_b.raw_output.read_bytes())
             self.assertEqual(summary_a, summary_b)
+            self.assertEqual(
+                config_a.completion_output.read_bytes(),
+                config_b.completion_output.read_bytes(),
+            )
             self.assertEqual(
                 summary_a["analysis"][comparison().id]["bootstrap"],
                 summary_b["analysis"][comparison().id]["bootstrap"],
@@ -293,6 +316,21 @@ class PairedRuntimeTests(unittest.TestCase):
             self.assertEqual(sum(a.prepare_calls for a in adapters.values()), 0)
             self.assertEqual(sum(a.measure_calls for a in adapters.values()), 0)
 
+    def test_prepared_route_mismatch_blocks_before_any_timed_measurement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            config = self.make_config(Path(temporary))
+            adapters = self.make_adapters()
+            adapters["tinygrad"].prepared_output = b"\x01" * 8
+            with self.assertRaises(paired.MeasurementRunError):
+                paired.run_harness(
+                    config, paired.Workload(m=2, k=2, n=2), adapters, [comparison()]
+                )
+            self.assertEqual(sum(a.measure_calls for a in adapters.values()), 0)
+            summary = json.loads(config.summary_output.read_text())
+            self.assertEqual(summary["completion"], "measurement_error")
+            self.assertIn("prepared timed route", summary["errors"][0]["error"]["message"])
+            self.assertTrue(config.completion_output.exists())
+
     def test_timed_failure_is_retained_without_performance_verdict(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             config = self.make_config(Path(temporary))
@@ -303,6 +341,7 @@ class PairedRuntimeTests(unittest.TestCase):
                 )
             self.assertTrue(config.raw_output.exists())
             self.assertTrue(config.summary_output.exists())
+            self.assertTrue(config.completion_output.exists())
             summary = json.loads(config.summary_output.read_text())
             raw = [json.loads(line) for line in config.raw_output.read_text().splitlines()]
             self.assertEqual(summary["completion"], "measurement_error")
@@ -376,6 +415,30 @@ class PairedRuntimeTests(unittest.TestCase):
         self.assertEqual(state, dirty)
         self.assertEqual(validation, "diagnostic_override")
         self.assertTrue(diagnostics)
+
+    def test_promotable_tgrad_binary_rejects_path_override(self) -> None:
+        source = paired.GitState(
+            path=str(REPO_ROOT), commit="current", tree="tree", dirty=False,
+            status_digest="0" * 64,
+        )
+        with mock.patch.dict("os.environ", {"TGRAD_LIB": "/tmp/not-the-subject.dylib"}):
+            with self.assertRaises(paired.RevisionError):
+                paired.build_and_attest_tgrad_runtime(REPO_ROOT, source)
+
+    def test_tinygrad_adapter_forces_and_records_jit_enabled(self) -> None:
+        source = paired.GitState(
+            path="/fake/upstream", commit=paired.EXPECTED_TINYGRAD_COMMIT,
+            tree=paired.EXPECTED_TINYGRAD_TREE, dirty=False, status_digest="0" * 64,
+        )
+        fake_module = type("FakeTinygradModule", (), {})()
+        with mock.patch.dict("os.environ", {"JIT": "0"}, clear=False):
+            with mock.patch.object(paired, "_import_from_source", return_value=fake_module):
+                adapter = paired.TinygradAdapter(
+                    Path("/fake/upstream"), validated=(source, "pinned_clean", ())
+                )
+            environment = adapter.provenance().environment
+            self.assertEqual(environment["JIT_inherited"], "0")
+            self.assertEqual(environment["JIT_effective"], "1")
 
 
 if __name__ == "__main__":

@@ -2007,7 +2007,7 @@ def liveActiveIntentIds : List Growth.EvolutionWorkId :=
 def livePromotedIntentIds : List Growth.EvolutionWorkId :=
   match liveEvolutionState with
   | .error _ => []
-  | .ok state => state.promotions.filterMap (fun certificate => do
+  | .ok state => state.activePromotions.filterMap (fun certificate => do
       let candidate ← state.candidateFor? certificate.candidate
       let attempt ← state.attemptFor? candidate.attempt
       pure attempt.intent)

@@ -39,6 +39,12 @@ The local Tgrad subject must also be a clean Git tree by default. A dirty or
 unattributed local tree fails before either runtime is imported. The
 `--allow-dirty-tgrad` and `--allow-unknown-tinygrad-revision` switches exist
 only for conspicuously labelled diagnostics; their output is not promotable.
+For a promotable run, the operator rebuilds `libtgrad.dylib` through the
+repository build graph before importing either runtime, rejects an alternate
+`TGRAD_LIB`, rechecks that the source revision stayed clean and unchanged, and
+records the exact loaded path, byte size, SHA-256, source commit/tree, and
+build commands. A diagnostic override may observe an existing binary but is
+labelled as such.
 
 Metal is not visible inside the project sandbox. Real sessions must therefore
 run unsandboxed and serially: they use one GPU and process-global runtime state.
@@ -52,10 +58,13 @@ process-level conditions instead of starting a subprocess per sample. This
 same-process design is part of the benchmark contract; there is no per-sample
 subprocess isolation.
 
-Correctness is checked before either output file is created. Both sides receive
-the same deterministic bfloat16 payloads, and their bf16 output bytes must
-match exactly. A correctness mismatch aborts with no timed evidence rather
-than allowing an invalid timing into the statistics.
+Correctness is checked before timing. Both sides receive the same deterministic
+bfloat16 payloads, and their bf16 output bytes must match exactly. Each timed
+session then prepares its real repeated-call route and byte-checks that route
+again before collecting a sample. On tinygrad this second check is an actual
+captured TinyJit replay, not the un-JIT reference call. The operator forces and
+records `JIT=1`, requires a non-null capture object and valid replay count, and
+rejects a disabled or failed capture before timing.
 
 Measurements are organized into sessions. Within each session, a seeded
 schedule interleaves the two implementations in both `AB` and `BA` order. The
@@ -63,12 +72,16 @@ seed and realized ordering are recorded so the pairing can be audited and
 reproduced. Pairing, interleaving, and keeping both implementations live in the
 same process reduce sensitivity to drift; they do not eliminate system noise.
 
-The operator writes raw, sample-level JSON Lines (`JSONL`) and a derived
-summary. The raw JSONL retains every attempted observation, pairing and session
+The operator writes raw, sample-level JSON Lines (`JSONL`), a derived summary,
+and a completion manifest in one directory. The raw JSONL retains every
+attempted observation, pairing and session
 identifier, realized order, timing-boundary label, error, and raw duration. Its
 `run_id` joins it to the summary, which records revision, environment,
 toolchain, workload, boundary availability, and configuration provenance. The
-derived statistics are a convenience view and must not replace the raw stream.
+summary records the raw byte hash and count. The completion manifest is written
+last and cryptographically joins the hashes of both artifacts; a raw or summary
+file without that marker is incomplete evidence. The derived statistics are a
+convenience view and must not replace the raw stream.
 Every invocation receives a fresh run-instance identifier and UTC capture
 timestamp, and both participate in `run_id`; two repeated runs with the same
 code and configuration therefore cannot alias as one evidence run.
@@ -113,8 +126,10 @@ session. Read central estimates
 together with dispersion, sample counts, availability, and the bootstrap
 interval; a single ratio or minimum time is not a sufficient interpretation of
 a noisy runtime comparison. The summary also retains absolute duration and
-TFLOP/s quantiles for both sides so physical plausibility can be checked
-without reverse-engineering a ratio.
+effective operational-rate quantiles for both sides so physical plausibility
+can be checked without reverse-engineering a ratio. The rate is
+`2*M*K*N / observed boundary time`; because the boundaries include host work,
+allocation, FFI, and synchronization, it is not isolated kernel throughput.
 
 The output also captures provenance needed to understand a run: current and
 reference revisions, the pinned reference tree, dirty-state information when

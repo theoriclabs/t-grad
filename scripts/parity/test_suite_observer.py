@@ -174,7 +174,10 @@ def valid_tgrad(root: Path, upstream_path: Path, baseline: dict) -> dict:
     document = {
         "schema_version": observer.SCHEMA_VERSION,
         "against": "tgrad", "identity": identity,
-        "observation": {"aggregate": observer.aggregate(cells), "cells": cells},
+        "observation": {
+            "aggregate": observer.aggregate(cells), "cells": cells,
+            "oracle_cases": observer.oracle_case_summary(cells, reference),
+        },
         "scenario_id": identity["scenario"]["sha256"],
     }
     document["result_id"] = observer.computed_result_id(document)

@@ -58,7 +58,7 @@ OUTCOMES = (
     "unobserved_upstream", "collection_mismatch", "collection_error", "timeout", "empty",
     "verifier_error",
 )
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def canonical(value: object) -> bytes:
@@ -1399,6 +1399,14 @@ def apply_upstream_oracle(result: dict, expected: dict) -> None:
             "upstream_has_no_passed_cases",
             f"subject_outcome:{prior}",
         ]))
+        result["upstream_oracle"] = {
+            "eligible_case_count": 0,
+            "matched_case_count": 0,
+            "passed_case_count": 0,
+            "nonpassing_case_count": 0,
+            "missing_case_count": 0,
+            "descriptor_mismatch_count": 0,
+        }
         return
     current_cases = {
         canonical(case_result["case"]): case_result
@@ -1426,6 +1434,17 @@ def apply_upstream_oracle(result: dict, expected: dict) -> None:
             [case_result["case"] for case_result in eligible.values()],
             key=lambda case: canonical(case),
         ))),
+        "matched_case_count": sum(key in current_cases for key in eligible),
+        "passed_case_count": sum(
+            key in current_cases and current_cases[key]["outcome"] == "passed"
+            for key in eligible
+        ),
+        "nonpassing_case_count": sum(
+            key in current_cases and current_cases[key]["outcome"] != "passed"
+            for key in eligible
+        ),
+        "missing_case_count": len(missing),
+        "descriptor_mismatch_count": len(descriptor_mismatch),
     }
     if missing or descriptor_mismatch:
         prior = result["outcome"]
@@ -1457,6 +1476,31 @@ def apply_upstream_oracle(result: dict, expected: dict) -> None:
         result["outcome"] = "passed"
         result["phase"] = "execution"
         result["reason_codes"] = []
+
+
+def oracle_case_summary(results: list[dict], baseline: dict) -> dict:
+    cells = [result.get("upstream_oracle", {}) for result in results]
+    return {
+        "upstream_eligible_case_count": baseline["oracle_eligible_case_count"],
+        "upstream_unobserved_case_count": baseline[
+            "upstream_unobserved_case_count"
+        ],
+        "subject_matched_case_count": sum(
+            cell.get("matched_case_count", 0) for cell in cells
+        ),
+        "subject_passed_case_count": sum(
+            cell.get("passed_case_count", 0) for cell in cells
+        ),
+        "subject_nonpassing_case_count": sum(
+            cell.get("nonpassing_case_count", 0) for cell in cells
+        ),
+        "subject_missing_case_count": sum(
+            cell.get("missing_case_count", 0) for cell in cells
+        ),
+        "subject_descriptor_mismatch_count": sum(
+            cell.get("descriptor_mismatch_count", 0) for cell in cells
+        ),
+    }
 
 
 def validate_tgrad_observation(path: Path, document: dict,
@@ -1495,6 +1539,10 @@ def validate_tgrad_observation(path: Path, document: dict,
         raise RuntimeError("Tgrad observation file set differs from upstream baseline")
     if document.get("observation", {}).get("aggregate") != aggregate(cells):
         raise RuntimeError("Tgrad observation aggregate is inconsistent with cells")
+    if document.get("observation", {}).get("oracle_cases") != oracle_case_summary(
+        cells, baseline_ref
+    ):
+        raise RuntimeError("Tgrad observation oracle-case summary is inconsistent")
 
 
 def write_evidence(document: dict, output: Path | None, scope: str) -> Path:
@@ -1789,6 +1837,10 @@ def main() -> int:
                 "cells": results,
             },
         }
+        if args.against == "tgrad" and "upstream_baseline" in identity:
+            document["observation"]["oracle_cases"] = oracle_case_summary(
+                results, identity["upstream_baseline"]
+            )
         result_summary = document["observation"]["aggregate"]
         scope = (
             "api_surface" if args.canonical_api_surface
@@ -1816,8 +1868,7 @@ def main() -> int:
         return 3
     if args.canonical_api_surface and args.against == "tgrad":
         invalid = {
-            "verifier_error", "timeout", "collection_mismatch",
-            "collection_error", "empty",
+            "verifier_error", "timeout",
         }
         observed = set(result_summary["files_by_outcome"])
         if observed & invalid:

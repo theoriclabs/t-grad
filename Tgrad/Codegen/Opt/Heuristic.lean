@@ -13,8 +13,8 @@ import Tgrad.Renderer.Metal
   `tinygrad/codegen/opt/heuristic.py`. The function is exhaustive over
   the 11 L11 sentinel shapes:
 
-  * `(64, 64, 64)`         : the L5.a sentinel — below the TC tile
-                              multiplier; uses `(grid=(2,1,1), tg=(32,2,1))`.
+  * `(64, 64, 64)`         : the L5.a sentinel — generated with two warps;
+                              uses `(grid=(2,1,1), tg=(32,2,1))`.
   * `(M, K, N) ≥ 1024`     : the production formula
                               `grid=(N/128, M/32, 1)`, `tg=(32, 4, 1)`.
   * else                    : `none` — L13.B/C will fill in.
@@ -50,9 +50,8 @@ def chooseOpts (ctx : ShapeDtypeContext) : List OptOps :=
     sentinels) to a pure function on `(M, K, N)`. -/
 structure DispatchPlan where
   dims  : Tgrad.Codegen.GpuDims
-  /-- Whether the plan uses the TC fast-path (true for the production
-      bf16 matmul ≥ 1024 case; false for the L5.a 64×64 sentinel which
-      is below the TC tile multiplier). -/
+  /-- Whether the plan uses the TC fast-path. All captured sentinels now use
+      the parametric TC generator, including the two-warp 64×64 case. -/
   useTc : Bool
   deriving Repr, Inhabited, DecidableEq
 
@@ -64,11 +63,9 @@ structure DispatchPlan where
 
     The two L13.A branches:
 
-    * **Small-shape (L5.a 64×64 sentinel)**: hard-coded to
-      `grid=(2,1,1), tg=(32,2,1), tt=128, useTc=false`. The 64×64
-      shape is below the TC tile multiplier (M < 1024 → distinct
-      heuristic regime in tinygrad's BEAM=0 path); the captured dims
-      come directly from the L11 fixture.
+    * **Small-shape (L5.a 64×64 sentinel)**: generated with two warps at
+      `grid=(2,1,1), tg=(32,2,1), tt=128, useTc=true`. The dimensions still
+      match tinygrad's capture, but the declaration is now parametric.
 
     * **Production (M, K, N ≥ 1024, all aligned)**: closed-form
       formula `grid=(N/128, M/32, 1), tg=(32, 4, 1)`. Derived from
@@ -90,7 +87,7 @@ def pickDispatchPlan
         dims := { grid        := { x := 2,  y := 1, z := 1 },
                   threadgroup := { x := 32, y := 2, z := 1 },
                   threadsTotal := 128 },
-        useTc := false
+        useTc := true
       }
     -- Production formula (all 10 L11 production shapes)
     else if M ≥ 1024 ∧ K ≥ 1024 ∧ N ≥ 1024 ∧
@@ -182,11 +179,8 @@ def dispatchDimsForSentinel : Tgrad.Renderer.Metal.ShapeSentinel → Tgrad.Codeg
         threadgroup := { x := 32, y := 4, z := 1 },
         threadsTotal := 16 * 32 * 1 * 32 * 4 * 1 }
 
-/-- The expected `useTc` flag per sentinel — `false` for the L5.a
-    64×64 below-TC-tile sentinel, `true` for the 10 production shapes. -/
-def useTcForSentinel : Tgrad.Renderer.Metal.ShapeSentinel → Bool
-  | .bf16_64x64 => false
-  | _           => true
+/-- Every captured sentinel now routes through the parametric TC generator. -/
+def useTcForSentinel (_ : Tgrad.Renderer.Metal.ShapeSentinel) : Bool := true
 
 /-- L13.A cross-check: for each of the 11 L11 sentinel shapes,
     `pickDispatchPlan` produces exactly the captured `dispatchDimsForSentinel`

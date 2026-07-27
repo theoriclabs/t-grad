@@ -1,28 +1,15 @@
 import Tgrad.Renderer.Metal
 import Tgrad.Codegen.Opt.Heuristic
 
-/-! # Tgrad.Renderer.MatmulTc — L13.F TC matmul KernelDecl for non-sentinel shapes
+/-! # Tgrad.Renderer.MatmulTc — parametric Metal tensor-core matmul
 
-  Non-sentinel TC-eligible shapes must route through a Lean-owned
-  WMMA path (NOT the scalar fallback, NOT the captured-MSL replay).
-  `tcMatmulKernelDecl` is the pure function on `(M, K, N, plan)`
-  that returns the `KernelDecl` for a WMMA-based matmul kernel. The
-  L13.F gate (`scripts/gates/L13_F.sh`) is the predicate this
-  module is built against.
+`tcMatmulKernelDeclManualLoadWide` is the production generator for both
+captured sentinels and aligned general shapes. It computes warp count, launch
+geometry, strides, loads, WMMA wiring, and typed stores from `(M,K,N)` over its
+explicit domain. Captured MSL remains only as a semantic differential oracle.
 
-  Eligibility (matches §3 scope):
-    M ≥ 128 ∧ K ≥ 128 ∧ N ≥ 128 ∧ M % 32 = 0 ∧ K % 8 = 0 ∧ N % 128 = 0
-    ∧ (M, K, N) ∉ L11 sentinel set.
-
-  Kernel structure (per `Stmt.tcMatmulBody`):
-    * dispatch grid = (M / 8, N / 8, 1), threadgroup = (32, 1, 1)
-    * each simdgroup (32 threads, 1 warp) computes one 8×8 output
-      tile via cooperative `simdgroup_load` + `simdgroup_multiply_accumulate`
-    * K-loop iterates K / 8 times
-    * final `simdgroup_store` writes the bf16-cast output back to data0
-
-  The generated source contains `simdgroup_multiply_accumulate`
-  (L13.F gate's Layer C1/C3 check).
+The older cooperative-load and strict-domain constructors remain temporarily
+for structural gate migration; they are not production route authorities.
 -/
 namespace Tgrad
 
@@ -179,6 +166,16 @@ theorem tcLaunchDims_matches_captured_64 :
 theorem tcLaunchDims_matches_captured_1024 :
     tcLaunchDims 1024 1024 = Codegen.Opt.dispatchDimsForSentinel .bf16_1024x1024 := by decide
 
+/-- Every captured sentinel and the parametric generator agree on launch
+geometry. This is stronger than checking only the two tiling regimes: adding a
+sentinel now creates a proof obligation before it can enter production. -/
+theorem tcLaunchDims_matches_all_captured :
+    ∀ s : ShapeSentinel,
+      tcLaunchDims s.toTriple.1 s.toTriple.2.2 =
+        Codegen.Opt.dispatchDimsForSentinel s := by
+  intro s
+  cases s <;> decide
+
 
 /-- Body construction shared by every warp count. -/
 def tcManualLoadBodyCore (_M K N W : Nat) (gridDecls : List Stmt)
@@ -286,21 +283,9 @@ def tcManualLoadBody (M K N : Nat) : List Stmt :=
     and `N` that divides evenly into `32 * W` tiles. This is what the
     kernel body can actually express, and it covers `64x64x64`.
 
-    Deliberately **separate** from `tcMatmulKernelDeclManualLoad`
-    below, whose result `PythonFFI.matmulTcEligible` routes on. Two
-    things still assume a 128-wide N tile and would break if the
-    routing predicate widened here:
-
-    * `PythonFFI.matmulTc` computes `totalX = (N / 128) * 32`, which
-      is **0** for `N = 64` — a zero grid dimension, which is invalid
-      Metal usage rather than a wrong answer.
-    * `devcheck.sh:148` asserts `tc_eligible(96, 128, 128) = 0`, which
-      this domain admits.
-
-    Both live in files owned by the sentinel-routing work, so widening
-    the routing predicate belongs there, in one change that fixes the
-    dispatch geometry at the same time. Until then this entry is for
-    generation and differential checking only. -/
+    Production now routes on this declaration and obtains geometry from
+    `tcLaunchDims`; eligibility and dispatch were widened together so narrow
+    shapes cannot be admitted into the old `N / 128` zero-grid formula. -/
 def tcMatmulKernelDeclManualLoadWide (M K N : Nat) : Except CodegenError KernelDecl :=
   if M < 32 ∨ K < 8 ∨ N < 32 then
     .error (.notTcEligible M K N "dim below tile floor")
@@ -328,14 +313,10 @@ def tcMatmulKernelDeclManualLoadWide (M K N : Nat) : Except CodegenError KernelD
       trailingNewline := false
     }
 
-/-- L13.F.STRICT.B: manual-load TC matmul KernelDecl generator. Pure
-    function on `(M, K, N)`.
-
-    This is the **routing** predicate — `PythonFFI.matmulTcEligible`
-    returns 1 exactly when this succeeds — so its domain stays at the
-    128-wide N tile that the dispatch geometry in `PythonFFI` assumes.
-    `tcMatmulKernelDeclManualLoadWide` above generates over everything
-    the kernel body can express. -/
+/-- Legacy strict-domain constructor retained while the old structural gates
+are migrated. Production eligibility is governed by
+`tcMatmulKernelDeclManualLoadWide`; callers must not use this narrower
+constructor as a route oracle. -/
 def tcMatmulKernelDeclManualLoad (M K N : Nat) : Except CodegenError KernelDecl :=
   if M < 128 ∨ K < 128 ∨ N < 128 then
     .error (.notTcEligible M K N "dim < 128")

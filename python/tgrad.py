@@ -66,20 +66,17 @@ _lib.tgrad_matmul_64x64.argtypes = [
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_64x64.restype  = ctypes.c_int32
 
-# L11: general matmul. (M, K, N) selects the captured kernel inside
-# the Lean side via ShapeSentinel.ofTriple. Same return-code mapping
-# as tgrad_matmul_64x64 plus -1 for "shape not in capture index."
+# L11: general sentinel matmul. ShapeSentinel.ofTriple bounds the accepted
+# set; Lean then generates the parametric TC declaration and launch geometry.
 _lib.tgrad_matmul.argtypes = [
     ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
 ]
 _lib.tgrad_matmul.restype  = ctypes.c_int32
 
-# L12: algebraic-emit matmul. Same contract as tgrad_matmul; the Lean
-# side compiles the kernel from `renderKernel (matmulKernelDeclFor s)`
-# (pure function on the renderer AST) instead of reading the captured
-# MSL file. Distinct symbol so the gate can confirm the dylib exports
-# both paths, and so `--use-algebraic-emit` routing is observable.
+# L12: alternate generated-emitter cache. Same generated declaration as
+# tgrad_matmul; the distinct symbol preserves legacy gate observability until
+# the transcription-specific layer is deleted.
 _lib.tgrad_matmul_alg.argtypes = [
     ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64,
@@ -179,16 +176,13 @@ _DTYPE_CODES = {"bf16": _DTYPE_BF16, "f32": _DTYPE_F32,
 def _dtype_code(name: str) -> int:
     return _DTYPE_CODES.get(name, _DTYPE_BF16)
 
-# Module-level toggle that `Tensor.__matmul__` honours. Default is the
-# capture path (L11 baseline); the L12 bench-full sets this to True via
-# `--use-algebraic-emit`.
+# Legacy L12 cache toggle. Both entries now execute the generated declaration;
+# the alternate symbol remains until the transcription-specific gate is retired.
 _USE_ALGEBRAIC: bool = False
 _USE_MANUAL_LOAD_TC: bool = False
 
 def set_use_algebraic(flag: bool) -> None:
-    """Switch Tgrad's matmul routing between the captured-MSL path
-    (False, default) and the algebraic-emit path (True). The L12 bench
-    flips this to True before timing; runs are otherwise capture-path."""
+    """Switch between the primary and alternate generated-sentinel caches."""
     global _USE_ALGEBRAIC
     _USE_ALGEBRAIC = bool(flag)
 
@@ -239,11 +233,9 @@ def _numel(shape: tuple[int, ...]) -> int:
 # L13.C+ scope: arbitrary 2D operand shapes are accepted. The
 # concrete shape support per matmul `(M, K) @ (K, N)` is decided at
 # __matmul__ time:
-#   - (M, K, N) in _TRIPLE_SET     → TC sentinel path (tgrad_matmul)
-#   - (M, K, N) in _SMALL_TRIPLE_SET → known below-TC-tile path
-#   - otherwise                     → catch-all scalar path
-#       (tgrad_matmul_small, which the Lean side accepts for any
-#        shape with useTc=false in pickDispatchPlan)
+#   - (M, K, N) in _TRIPLE_SET → generated TC sentinel path (tgrad_matmul)
+#   - otherwise, Lean wide eligibility → generated TC-general path
+#   - otherwise → scalar correctness fallback (tgrad_matmul_small)
 # `_SUPPORTED_SHAPES` is kept as a documentation set listing the
 # operand shapes the manifest fixtures exercise; from_numpy /
 # from_bf16_bytes now accept any 2D ndarray with dims ≥ 1.
@@ -599,7 +591,9 @@ class Tensor:
                 f"matmul: contraction dim mismatch ({self._shape} @ {other._shape})")
         K = K_a
         if (M, K, N) in _TRIPLE_SET:
-            # L11/L12 sentinel path (capture or algebraic).
+            # L11/L12 sentinel path. Both entry points render the parametric
+            # TC declaration; the alternate symbol keeps legacy gate/cache
+            # observability until transcription deletion.
             entry = _lib.tgrad_matmul_alg if _USE_ALGEBRAIC else _lib.tgrad_matmul
             entry_name = "tgrad_matmul_alg" if _USE_ALGEBRAIC else "tgrad_matmul"
         elif _lib.tgrad_matmul_tc_eligible(M, K, N) == 1:

@@ -2,6 +2,7 @@ import Tgrad.Tensor
 import Tgrad.Renderer.Metal
 import Tgrad.Renderer.MatmulDecls
 import Tgrad.Renderer.MatmulScalar
+import Tgrad.Renderer.MatmulTc
 import Tgrad.Runtime.MetalProgram
 import Tgrad.Codegen.GpuDims
 import Tgrad.Codegen.Opt.Heuristic
@@ -121,16 +122,17 @@ partial def viewIndexUOpForB (uop : UOp) (K N : Nat) : UOp :=
         panic! s!"viewIndexUOpForB: expected rank-2 view, got rank {v.rank}"
   | none => panic! s!"viewIndexUOpForB: uop chain has no View ({K}x{N})"
 
-/-- Dispatch dims for a shape sentinel. L13.A refactor: delegates to
+/-- Captured-reference dispatch dims for a shape sentinel. Delegates to
     `Codegen.Opt.pickDispatchPlan`, the pure heuristic function that
     handles the 11 L11 sentinels exhaustively (closed-form formula for
-    M,K,N ≥ 1024 + a 64×64 below-TC-tile branch).
+    M,K,N ≥ 1024 plus the capture-compatible 64×64 branch).
 
     The `panic!` arm is unreachable: the theorem
     `Codegen.Opt.pickDispatchPlan_matches_capture` proves that every
     `ShapeSentinel` produces `some _` under the formula. Lean's
     type-checker rejects the theorem if any sentinel doesn't match,
-    so a wrong formula can't reach runtime. -/
+    so a wrong formula cannot corrupt the differential reference. Production
+    uses `generatedDispatchDimsFor` below. -/
 def dispatchDimsFor (s : Renderer.Metal.ShapeSentinel) : Codegen.GpuDims :=
   let (M, K, N) := s.toTriple
   match Codegen.Opt.pickDispatchPlan M K N .bfloat16_ .bfloat16_ with
@@ -153,6 +155,54 @@ def kernelNameFor : Renderer.Metal.ShapeSentinel → String
   | .bf16_1024x1024x8192    => "r_32_64_32_4_2_4_4_128"
   | .bf16_1024x1024x4096    => "r_32_32_32_4_2_4_4_128"
   | .bf16_1024x1024x2048    => "r_32_16_32_4_2_4_4_128"
+
+/-! The captured names and dimensions above belong to the differential
+reference. Production sentinel execution uses the parametric declarations
+below. Keeping the two vocabularies separate prevents the semantic oracle from
+silently becoming the implementation under test. -/
+
+/-- Parametric tensor-core declaration for a captured sentinel. -/
+def generatedKernelDeclFor (s : Renderer.Metal.ShapeSentinel) :
+    Except Renderer.Metal.CodegenError Renderer.Metal.KernelDecl :=
+  let (M, K, N) := s.toTriple
+  Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N
+
+/-- Function name emitted by `generatedKernelDeclFor`. -/
+def generatedKernelNameFor (s : Renderer.Metal.ShapeSentinel) : String :=
+  let (M, K, N) := s.toTriple
+  s!"matmul_tc_manual_{M}x{K}x{N}"
+
+/-- Launch geometry required by the generated sentinel kernel. -/
+def generatedDispatchDimsFor (s : Renderer.Metal.ShapeSentinel) : Codegen.GpuDims :=
+  let (M, _K, N) := s.toTriple
+  Renderer.Metal.tcLaunchDims M N
+
+theorem generatedKernelDeclFor_accepts_all_sentinels :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      (generatedKernelDeclFor s).isOk = true := by
+  intro s
+  cases s <;> decide
+
+theorem generatedKernelNameFor_differs_from_capture :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      generatedKernelNameFor s != kernelNameFor s := by
+  intro s
+  cases s <;> decide
+
+theorem generatedDispatchDimsFor_matches_capture :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      generatedDispatchDimsFor s = dispatchDimsFor s := by
+  intro s
+  cases s <;> decide
+
+theorem generatedDispatchDimsFor_nonzero :
+    ∀ s : Renderer.Metal.ShapeSentinel,
+      let dims := generatedDispatchDimsFor s
+      dims.grid.x > 0 && dims.grid.y > 0 && dims.grid.z > 0 &&
+      dims.threadgroup.x > 0 && dims.threadgroup.y > 0 &&
+      dims.threadgroup.z > 0 := by
+  intro s
+  cases s <;> decide
 
 /-- L14.B.2.c: shared rangeify+trace hook. Called by both
     `Pipeline.realize` (matmul-verify path) and `Pipeline.realizeView`
@@ -192,12 +242,16 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- callers (`Pipeline.realizeView` via `tgrad_matmul_view`) can
   -- verify rangeify saw the chain.
   runRangeifyAndTrace a b
-  -- 1. Emit the kernel from the Lean renderer. This path previously
+  -- 1. Generate and emit the kernel from shape parameters. This path previously
   -- did `IO.FS.readFile shape.fixturePath`, which meant the captured
   -- tinygrad MSL — not `renderKernel` — was what actually ran. The
   -- fixtures are now a differential reference only (L12 diffs the
   -- rendered bytes against them); nothing reads them at runtime.
-  let msl := Renderer.Metal.renderKernel (Renderer.Metal.matmulKernelDeclFor shape)
+  let kernelDecl ← match generatedKernelDeclFor shape with
+    | .error e =>
+        return .error (.notInLeanScope s!"generated sentinel rejected: {repr e}")
+    | .ok decl => pure decl
+  let msl := Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then
     return .error (.notInLeanScope s!"renderKernel produced empty MSL for {shape.fixturePath}")
   -- 2. Compile.
@@ -217,8 +271,8 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- which takes TOTAL threads (not threadgroup count). The captured
   -- `dims.grid` is the threadgroup count (matches tinygrad's capture
   -- convention), so multiply through to get total threads.
-  let dims := dispatchDimsFor shape
-  let fnName := kernelNameFor shape
+  let dims := generatedDispatchDimsFor shape
+  let fnName := generatedKernelNameFor shape
   let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
   let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
   let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)

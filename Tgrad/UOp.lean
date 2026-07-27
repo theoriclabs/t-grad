@@ -422,13 +422,22 @@ partial def countIndexedLoadStore : UOp → Nat
     Pure (no IO). Handles:
       - `.var name _`          → `name`
       - `.const _ (.i n)`      → `toString n`
-      - `.binop op a b _`      → `({a} OP {b})` for ADD/SUB/MUL/FLOORDIV/FLOORMOD
+      - `.binop op a b _`      → `({a} OP {b})` for ADD/SUB/MUL/FLOORDIV/
+        FLOORMOD and the bitwise SHL/SHR/AND/OR/XOR
 
-    Panics on non-arithmetic UOp kinds (LOAD / CAST / matmul-sink / etc.)
-    so that a misused codegen surface is caught at runtime rather than
-    silently rendered as garbage. L14.B.2.b's kernel refactors are the
-    only legitimate callers; L14.B.2.c wires the rangeify-produced
-    index UOps through this. -/
+    The bitwise operators emit real `<<`/`>>`/`&`/`|`/`^` rather than
+    being emulated with `/` and `%`. For a non-negative value the two
+    agree, but these render as MSL `int` (signed), where a
+    power-of-two `/` obliges the compiler to emit sign-correction
+    instructions that a shift does not. Lane-decode arithmetic in the
+    tensor-core kernels is written in shifts and masks for exactly
+    that reason, so rendering it faithfully matters.
+
+    Panics on non-arithmetic UOp kinds (LOAD / CAST / matmul-sink /
+    etc.) so that a misused codegen surface is caught rather than
+    silently rendered as garbage. Note `panic!` in Lean returns
+    `default` rather than aborting, so the caller sees `""` — the
+    failure surfaces downstream as a Metal compile error. -/
 partial def renderIndexExpr : UOp → String
   | .var name _              => name
   | .const _ (.i n)          => toString n
@@ -437,6 +446,16 @@ partial def renderIndexExpr : UOp → String
   | .binop .mul a b _        => s!"({renderIndexExpr a}*{renderIndexExpr b})"
   | .binop .floordiv a b _   => s!"({renderIndexExpr a}/{renderIndexExpr b})"
   | .binop .floormod a b _   => s!"({renderIndexExpr a}%{renderIndexExpr b})"
+  | .binop .shl a b _        => s!"({renderIndexExpr a}<<{renderIndexExpr b})"
+  | .binop .shr a b _        => s!"({renderIndexExpr a}>>{renderIndexExpr b})"
+  | .binop .andB a b _       => s!"({renderIndexExpr a}&{renderIndexExpr b})"
+  | .binop .orB a b _        => s!"({renderIndexExpr a}|{renderIndexExpr b})"
+  | .binop .xor a b _        => s!"({renderIndexExpr a}^{renderIndexExpr b})"
+  -- `kind` reports the op-class tag (ALU/BINOP), so an unhandled
+  -- comparison operator was previously indistinguishable from an
+  -- unhandled `.load`. Name the operator when we have one.
+  | .binop op _ _ _ =>
+      panic! s!"UOp.renderIndexExpr: non-index binop {repr op}"
   | u =>
       panic! s!"UOp.renderIndexExpr: non-index UOp kind {u.kind.toStr}"
 

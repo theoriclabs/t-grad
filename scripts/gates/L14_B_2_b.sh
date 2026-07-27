@@ -82,18 +82,45 @@ if [[ "$n_data_calls" -ne 0 ]]; then
 fi
 echo "  ✓ 0 .dataStore/.dataLoad ctor calls remain in matmul kernel files"
 
-# Combined .storeIndexed + .loadIndexed count >= 6.
-n_indexed="$(grep -cE '\.(loadIndexed|storeIndexed)\b' \
-            "$TGRAD_DIR/Tgrad/Renderer/MatmulDecls.lean" \
-            "$TGRAD_DIR/Tgrad/Renderer/MatmulScalar.lean" \
-            "$TGRAD_DIR/Tgrad/Renderer/MatmulTc.lean" \
-            2>/dev/null \
-            | awk -F: '{s+=$NF} END {print s+0}')"
-if [[ "$n_indexed" -lt 6 ]]; then
-  echo "  ✗ combined .loadIndexed/.storeIndexed count is $n_indexed (need >= 6)"
-  exit 1
+# Typed addressing, checked on EMITTED OUTPUT rather than source text.
+#
+# This replaced a `grep -c '\.(loadIndexed|storeIndexed)'` >= 6 over the
+# three matmul kernel files. That predicate counted source *lines*, which
+# made it measure verbosity rather than typing: the TC generator emits 48
+# typed statements from three `.map` calls and therefore scored 3, while
+# writing the same 48 statements out longhand would have scored 48. It
+# also rested entirely on MatmulDecls.lean's 352 generated lines, so
+# deleting the transcription would have dropped it to 4 and created
+# pressure to lower the threshold.
+#
+# The replacement asserts what the renderer actually produces, which no
+# amount of source-level restructuring can fake, plus a type-checked
+# obligation that `lake build` discharges.
+TC_EMIT="$(mktemp -t tgrad_L14B2b_tc)"
+"$TGRAD_CLI" render-metal-algebraic matmul_tc_manual_1024x1024x3072 >"$TC_EMIT" 2>/dev/null || {
+  echo "  ✗ failed to render the manual-load TC kernel"; exit 1; }
+
+n_st="$(grep -cE '^[[:space:]]*\*\(data0\+.*\) = \(\(bfloat\)\(\(.*\)\)\);$' "$TC_EMIT" || true)"
+n_ld="$(grep -cE '^[[:space:]]*bfloat val[0-9]+ = \*\(data[12]\+.*\);$' "$TC_EMIT" || true)"
+if [[ "$n_st" -ne 32 ]]; then
+  echo "  ✗ TC kernel emits $n_st storeIndexed-form stores (expected 32)"; exit 1
 fi
-echo "  ✓ matmul kernel files contain $n_indexed loadIndexed/storeIndexed calls (>= 6)"
+if [[ "$n_ld" -ne 16 ]]; then
+  echo "  ✗ TC kernel emits $n_ld loadIndexed-form loads (expected 16)"; exit 1
+fi
+echo "  ✓ TC kernel emits 32 typed stores + 16 typed loads"
+
+# The property a string address could not express: a thread's 32 store
+# offsets are pairwise distinct, so no output element is written twice or
+# dropped. Proved by `decide` in MatmulTc.lean; `check_clean_rebuild`
+# already runs `lake build`, so the theorem existing here means it holds.
+for thm in tileStoreOffsets_nodup_128 tileStoreOffsets_nodup_1024 tileAccSlots_nodup; do
+  if ! grep -qE "^theorem ${thm}\b" "$TGRAD_DIR/Tgrad/Renderer/MatmulTc.lean"; then
+    echo "  ✗ missing checked obligation: $thm"; exit 1
+  fi
+done
+echo "  ✓ store-address distinctness is a type-checked obligation"
+rm -f "$TC_EMIT"
 
 # lower_matmul.py has the transpiler extension.
 if ! grep -qE '^def parse_offset_to_uop_lean' \

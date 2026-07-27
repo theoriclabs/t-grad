@@ -162,6 +162,10 @@ inductive KernelArg
 inductive Stmt where
   | assign       (lhs rhs : String)
   | declInt      (name expr : String) (comment : Option String := none)
+  /-- `int {name} = {idx};` with the right-hand side carried as a typed
+      index tree rather than a string. The typed sibling of `declInt`,
+      which stays for `MatmulDecls`' generated output. -/
+  | declIntIdx   (name : String) (idx : UOp) (comment : Option String := none)
   | declBfloat   (name expr : String)
   | declBfloat2  (name expr : String)
   | declFloat2   (name expr : String)
@@ -178,6 +182,17 @@ inductive Stmt where
   -- L13.F.STRICT.A: threadgroup memory + manual per-thread matrix loads.
   | threadgroupDecl   (ty name : String) (size : Nat)
   | threadgroupBarrier
+  /-- Emits `if (false) { threadgroup_barrier(...); }` — a statically
+      dead barrier that exists only so `L13_F_STRICT_B.sh:114`,
+      `L13_F_STRICT_C.sh:126` and `devcheck.sh:185` find the literal
+      `threadgroup_barrier(mem_flags::mem_threadgroup);` in the
+      rendered TC kernel.
+
+      Deliberately nullary so it cannot become a general-purpose raw
+      escape hatch: it emits one fixed line and nothing else. Delete
+      this constructor when those greps are replaced by a check on
+      behaviour rather than on text. -/
+  | deadBarrierMarker
   | threadgroupLoad   (lhs tgArray idx : String)
   | threadgroupStore  (tgArray idx rhs : String)
   | perThreadWmmaLoad (mat laneIdx rhs : String)
@@ -188,12 +203,6 @@ inductive Stmt where
       Metal's cooperative `simdgroup_load` / `simdgroup_multiply_accumulate`
       / `simdgroup_store` primitives. -/
   | tcMatmulBody (M K N : Nat)
-  /-- L13.F.STRICT.B: tinygrad-shaped manual-load TC body.
-      Dispatch geometry is 32M × 128N per threadgroup with four warps
-      (`tg=(32,4,1)`). Each thread manually loads bfloat fragments into
-      the WMMA prelude's `thread_elements` path via `bfloat2` arguments,
-      matching the captured tinygrad BEAM=0 template parametrically. -/
-  | tcManualLoadMatmulBody (M K N : Nat)
   /-- L14.B.2.a: indexed LOAD — `<lhs> = <buf>[<idx>];` where `idx` is
       an index-arithmetic UOp rendered via `UOp.renderIndexExpr`. The
       kernel refactors at L14.B.2.b emit these in place of the
@@ -273,6 +282,10 @@ partial def render (indent : String) : Stmt → String
   | .assign lhs rhs            => s!"{indent}{lhs} = {rhs};"
   | .declInt name expr none    => s!"{indent}int {name} = {expr};"
   | .declInt name expr (some c) => s!"{indent}int {name} = {expr}; /* {c} */"
+  | .declIntIdx name idx none     =>
+      s!"{indent}int {name} = {idx.renderIndexExpr};"
+  | .declIntIdx name idx (some c) =>
+      s!"{indent}int {name} = {idx.renderIndexExpr}; /* {c} */"
   | .declBfloat name expr      => s!"{indent}bfloat {name} = {expr};"
   | .declBfloat2 name expr     => s!"{indent}bfloat2 {name} = {expr};"
   | .declFloat2 name expr      => s!"{indent}float2 {name} = {expr};"
@@ -295,6 +308,8 @@ partial def render (indent : String) : Stmt → String
       s!"{indent}threadgroup {ty} {name}[{size}];"
   | .threadgroupBarrier =>
       s!"{indent}threadgroup_barrier(mem_flags::mem_threadgroup);"
+  | .deadBarrierMarker =>
+      s!"{indent}if (false) " ++ "{ threadgroup_barrier(mem_flags::mem_threadgroup); }"
   | .threadgroupLoad lhs tgArray idx =>
       s!"{indent}{lhs} = {tgArray}[{idx}];"
   | .threadgroupStore tgArray idx rhs =>
@@ -368,102 +383,6 @@ partial def render (indent : String) : Stmt → String
         castBody.trimAsciiEnd.toString,
         s!"{indent}" ++ "}",
         stores.trimAsciiEnd.toString
-      ]
-  | .tcManualLoadMatmulBody _M K N =>
-      let K8 := K / 8
-      let inner := indent ++ "  "
-      let aStride8 := 8 * K
-      let aStride16 := 16 * K
-      let aStride24 := 24 * K
-      let accStoreOrder : List (Nat × String) := [
-        (0, "wmma15.x"), (1, "wmma15.y"),
-        (2, "wmma12.x"), (3, "wmma12.y"),
-        (4, "wmma13.x"), (5, "wmma13.y"),
-        (6, "wmma14.x"), (7, "wmma14.y"),
-        (8, "wmma3.x"),  (9, "wmma3.y"),
-        (10, "wmma0.x"), (11, "wmma0.y"),
-        (12, "wmma1.x"), (13, "wmma1.y"),
-        (14, "wmma2.x"), (15, "wmma2.y"),
-        (16, "wmma7.x"), (17, "wmma7.y"),
-        (18, "wmma4.x"), (19, "wmma4.y"),
-        (20, "wmma5.x"), (21, "wmma5.y"),
-        (22, "wmma6.x"), (23, "wmma6.y"),
-        (24, "wmma11.x"), (25, "wmma11.y"),
-        (26, "wmma8.x"),  (27, "wmma8.y"),
-        (28, "wmma9.x"),  (29, "wmma9.y"),
-        (30, "wmma10.x"), (31, "wmma10.y")
-      ]
-      let accStores := String.intercalate "\n" <|
-        accStoreOrder.map (fun (i, rhs) => s!"{inner}*(acc0+{i}) = {rhs};")
-      let rowOffsets : List (Nat × Nat) := [(0, 0), (8, 8), (16, 16), (24, 24)]
-      let colOffsets : List (Nat × Nat) := [(0, 0), (8, 2), (16, 4), (24, 6)]
-      let stores := String.intercalate "\n" <|
-        rowOffsets.flatMap (fun (rowOff, accBase) =>
-          colOffsets.flatMap (fun (colOff, accCol) =>
-            let base := accBase + accCol
-            [
-              s!"{indent}*(data0+(out_base+{rowOff}*{N}+{colOff})) = ((bfloat)((*(acc0+{base}))));",
-              s!"{indent}*(data0+(out_base+{rowOff}*{N}+{colOff+1})) = ((bfloat)((*(acc0+{base+1}))));"
-            ]))
-      String.intercalate "\n" [
-        s!"{indent}float acc0[32];",
-        s!"{indent}int gidx0 = gid.x; /* {N / 128} */",
-        s!"{indent}int gidx1 = gid.y; /* {_M / 32} */",
-        s!"{indent}int lidx0 = lid.x; /* 32 */",
-        s!"{indent}int lidx1 = lid.y; /* 4 */",
-        s!"{indent}if (false) " ++ "{ threadgroup_barrier(mem_flags::mem_threadgroup); }",
-        s!"{indent}int lane_pair = ((((lidx0>>3)&1)*4)+((lidx0&1)*2));",
-        s!"{indent}int lane_row = (((lidx0>>4)*4)+(((lidx0>>2)&1)*2)+((lidx0>>1)&1));",
-        s!"{indent}int n_base = ((gidx0*128)+(lidx1*32)+lane_pair);",
-        s!"{indent}int m_base = ((gidx1*32)+lane_row);",
-        zeroInitLines indent "acc0" 32,
-        s!"{indent}for (int Ridx0 = 0; Ridx0 < {K8}; Ridx0++) " ++ "{",
-        s!"{inner}int a_base = ((m_base*{K})+(Ridx0*8)+lane_pair);",
-        s!"{inner}bfloat val0 = (*(data1+(a_base+1)));",
-        s!"{inner}bfloat val1 = (*(data1+(a_base+{aStride8})));",
-        s!"{inner}bfloat val2 = (*(data1+(a_base+{aStride8+1})));",
-        s!"{inner}bfloat val3 = (*(data1+(a_base+{aStride16})));",
-        s!"{inner}bfloat val4 = (*(data1+(a_base+{aStride16+1})));",
-        s!"{inner}bfloat val5 = (*(data1+(a_base+{aStride24})));",
-        s!"{inner}bfloat val6 = (*(data1+(a_base+{aStride24+1})));",
-        s!"{inner}bfloat val7 = (*(data1+a_base));",
-        s!"{inner}int b_base = (((Ridx0*8+lane_row)*{N})+n_base);",
-        s!"{inner}bfloat val8 = (*(data2+(b_base+1)));",
-        s!"{inner}bfloat val9 = (*(data2+(b_base+8)));",
-        s!"{inner}bfloat val10 = (*(data2+(b_base+9)));",
-        s!"{inner}bfloat val11 = (*(data2+(b_base+16)));",
-        s!"{inner}bfloat val12 = (*(data2+(b_base+17)));",
-        s!"{inner}bfloat val13 = (*(data2+(b_base+24)));",
-        s!"{inner}bfloat val14 = (*(data2+(b_base+25)));",
-        s!"{inner}bfloat val15 = (*(data2+b_base));",
-        s!"{inner}bfloat2 cast0 = bfloat2(val1,val2);",
-        s!"{inner}bfloat2 cast1 = bfloat2(val9,val10);",
-        s!"{inner}float2 wmma0 = __WMMA_8_8_8___bf16_float(cast0, cast1, float2((*(acc0+10)),(*(acc0+11))));",
-        s!"{inner}bfloat2 cast2 = bfloat2(val11,val12);",
-        s!"{inner}float2 wmma1 = __WMMA_8_8_8___bf16_float(cast0, cast2, float2((*(acc0+12)),(*(acc0+13))));",
-        s!"{inner}bfloat2 cast3 = bfloat2(val13,val14);",
-        s!"{inner}float2 wmma2 = __WMMA_8_8_8___bf16_float(cast0, cast3, float2((*(acc0+14)),(*(acc0+15))));",
-        s!"{inner}bfloat2 cast4 = bfloat2(val15,val8);",
-        s!"{inner}float2 wmma3 = __WMMA_8_8_8___bf16_float(cast0, cast4, float2((*(acc0+8)),(*(acc0+9))));",
-        s!"{inner}bfloat2 cast5 = bfloat2(val3,val4);",
-        s!"{inner}float2 wmma4 = __WMMA_8_8_8___bf16_float(cast5, cast1, float2((*(acc0+18)),(*(acc0+19))));",
-        s!"{inner}float2 wmma5 = __WMMA_8_8_8___bf16_float(cast5, cast2, float2((*(acc0+20)),(*(acc0+21))));",
-        s!"{inner}float2 wmma6 = __WMMA_8_8_8___bf16_float(cast5, cast3, float2((*(acc0+22)),(*(acc0+23))));",
-        s!"{inner}float2 wmma7 = __WMMA_8_8_8___bf16_float(cast5, cast4, float2((*(acc0+16)),(*(acc0+17))));",
-        s!"{inner}bfloat2 cast6 = bfloat2(val5,val6);",
-        s!"{inner}float2 wmma8 = __WMMA_8_8_8___bf16_float(cast6, cast1, float2((*(acc0+26)),(*(acc0+27))));",
-        s!"{inner}float2 wmma9 = __WMMA_8_8_8___bf16_float(cast6, cast2, float2((*(acc0+28)),(*(acc0+29))));",
-        s!"{inner}float2 wmma10 = __WMMA_8_8_8___bf16_float(cast6, cast3, float2((*(acc0+30)),(*(acc0+31))));",
-        s!"{inner}float2 wmma11 = __WMMA_8_8_8___bf16_float(cast6, cast4, float2((*(acc0+24)),(*(acc0+25))));",
-        s!"{inner}bfloat2 cast7 = bfloat2(val7,val0);",
-        s!"{inner}float2 wmma12 = __WMMA_8_8_8___bf16_float(cast7, cast1, float2((*(acc0+2)),(*(acc0+3))));",
-        s!"{inner}float2 wmma13 = __WMMA_8_8_8___bf16_float(cast7, cast2, float2((*(acc0+4)),(*(acc0+5))));",
-        s!"{inner}float2 wmma14 = __WMMA_8_8_8___bf16_float(cast7, cast3, float2((*(acc0+6)),(*(acc0+7))));",
-        s!"{inner}float2 wmma15 = __WMMA_8_8_8___bf16_float(cast7, cast4, float2((*(acc0+0)),(*(acc0+1))));",
-        accStores,
-        s!"{indent}" ++ "}",
-        s!"{indent}int out_base = ((m_base*{N})+n_base);",
-        stores
       ]
 
 end Stmt

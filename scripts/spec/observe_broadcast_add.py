@@ -35,6 +35,8 @@ import tarfile
 import tempfile
 from pathlib import Path
 
+from scripts.spec import broadcast_add_relation
+
 
 REPO = Path(__file__).resolve().parents[2]
 V2_LOCK = REPO / "fixtures/requirements/broadcast_add_trial_lock_v2.json"
@@ -50,6 +52,11 @@ V3_AMENDMENT = (
 V4_AMENDMENT = (
     REPO / "fixtures/requirements/broadcast_add_prospective_v4_tooling_amendment.json"
 )
+V6_AMENDMENT = (
+    REPO / "fixtures/requirements/broadcast_add_prospective_v6_identity_split.json"
+)
+RELATION_MODULE = REPO / "scripts/spec/broadcast_add_relation.py"
+RELATION_TESTS = REPO / "scripts/spec/test_broadcast_add_relation.py"
 SHIM_ROOT = REPO / "scripts/parity/shim"
 PRODUCT_PYTHON = REPO / "python"
 RUNTIME_DIR = REPO / ".lake/build/lib"
@@ -81,6 +88,11 @@ EXPECTED_V4_TRIAL = "TRIAL-BROADCAST-ADD-PROSPECTIVE-V4"
 EXPECTED_V4_EFFECTIVE_SHA256 = (
     "02229c32937df15704714282ee28754b8fed3938b9b4f33d1aba254b206b4c1e"
 )
+EXPECTED_V6_AMENDMENT_SHA256 = (
+    "1719e2f46ce29d8226cd3afb832dcd487aa126cc110979a7b5c871aad1f7cd26"
+)
+EXPECTED_V6_DEFINITION_REVISION = "78e4027b3011541f9dc8be73fe9d2d3e1a0b997f"
+EXPECTED_V6_TRIAL = "TRIAL-BROADCAST-ADD-PROSPECTIVE-V6"
 EXPECTED_SCENARIO_IDS = (
     "ADD-SAME-SHAPE-F32",
     "ADD-SINGLETON-AXIS-F32",
@@ -367,18 +379,35 @@ def validate_v4_definition(
     manifest["packet_id"] = v4["packet_id"]
     manifest["baseline_revision"] = v4["baseline_revision"]
     manifest["effective_manifest_sha256"] = effective_hash
+    v6_raw = V6_AMENDMENT.read_bytes()
+    if digest(v6_raw) != EXPECTED_V6_AMENDMENT_SHA256 or digest(git_bytes(
+        "show", f"{EXPECTED_V6_DEFINITION_REVISION}:"
+        "fixtures/requirements/broadcast_add_prospective_v6_identity_split.json"
+    )) != EXPECTED_V6_AMENDMENT_SHA256:
+        raise RuntimeError("V6 identity split is not the frozen definition")
+    v6 = json.loads(v6_raw)
+    if v6.get("trial_id") != EXPECTED_V6_TRIAL or v6.get("identity_split") != {
+        "subject_protocol_equivalence": ["probe_sha256", "schema_version",
+                                           "manifest_effective_sha256", "semantic_lock_sha256"],
+        "per_run_provenance_only": ["observer_sha256", "git.revision", "git.tree",
+                                     "git.files", "git.sha256"],
+        "relation_module": "scripts/spec/broadcast_add_relation.py",
+        "relation_tests": "scripts/spec/test_broadcast_add_relation.py",
+    }:
+        raise RuntimeError("V6 identity split changed")
     active = {
-        "trial_id": EXPECTED_V4_TRIAL,
-        "sha256": EXPECTED_V4_AMENDMENT_SHA256,
-        "definition_revision": EXPECTED_V4_DEFINITION_REVISION,
+        "trial_id": EXPECTED_V6_TRIAL,
+        "sha256": EXPECTED_V6_AMENDMENT_SHA256,
+        "definition_revision": EXPECTED_V6_DEFINITION_REVISION,
         "definition_tree": git_text(
-            "rev-parse", f"{EXPECTED_V4_DEFINITION_REVISION}^{{tree}}"
+            "rev-parse", f"{EXPECTED_V6_DEFINITION_REVISION}^{{tree}}"
         ),
         "upstream_revision": v3_lock["upstream_revision"],
         "execution_boundary": copy.deepcopy(v3_lock["execution_boundary"]),
         "semantic_lock_sha256": EXPECTED_V3_LOCK_SHA256,
+        "predecessor_definition_sha256": EXPECTED_V4_AMENDMENT_SHA256,
     }
-    return active, {"v3": v3_amendment, "v4": v4}, manifest
+    return active, {"v3": v3_amendment, "v4": v4, "v6": v6}, manifest
 
 
 # This one source string is used for both subjects.  Subject-specific behavior
@@ -1690,8 +1719,13 @@ def validate_upstream_baseline(
         raise RuntimeError("upstream baseline used another manifest")
     if identity.get("source", {}).get("revision") != lock["upstream_revision"]:
         raise RuntimeError("upstream baseline used another upstream revision")
-    if identity.get("verifier") != verifier:
-        raise RuntimeError("upstream baseline used another verifier")
+    candidate_identity = {"identity": {
+        "verifier": verifier,
+        "manifest": {"effective_sha256": manifest["effective_manifest_sha256"]},
+        "lock": {"semantic_lock_sha256": lock["semantic_lock_sha256"]},
+    }}
+    if not broadcast_add_relation.equivalent(document, candidate_identity):
+        raise RuntimeError("upstream baseline used another subject protocol")
     if identity.get("environment") != environment:
         raise RuntimeError("upstream baseline environment/hardware differs")
     replay_observation(path, document, manifest)
@@ -1761,10 +1795,11 @@ def build_identity(lock: dict, amendment: dict, manifest: dict, mode: str,
         }
     return {
         "lock": {
-            "trial_id": lock["trial_id"], "sha256": EXPECTED_V4_AMENDMENT_SHA256,
+            "trial_id": lock["trial_id"], "sha256": lock["sha256"],
             "definition_revision": lock["definition_revision"],
             "definition_tree": lock["definition_tree"],
             "semantic_lock_sha256": lock["semantic_lock_sha256"],
+            "predecessor_definition_sha256": lock["predecessor_definition_sha256"],
         },
         "manifest": {
             "packet_id": amendment["v4"]["packet_id"],
@@ -1783,6 +1818,19 @@ def build_identity(lock: dict, amendment: dict, manifest: dict, mode: str,
             "git": verifier_git,
         },
         "environment": environment,
+        "comparison_relation": {
+            "trial_id": amendment["v6"]["trial_id"],
+            "amendment_sha256": file_hash(V6_AMENDMENT),
+            "module_sha256": file_hash(RELATION_MODULE),
+            "tests_sha256": file_hash(RELATION_TESTS),
+            "subject_protocol_fields": amendment["v6"]["identity_split"][
+                "subject_protocol_equivalence"
+            ],
+            "provenance_only_fields": amendment["v6"]["identity_split"][
+                "per_run_provenance_only"
+            ],
+            "fault_model": amendment["v6"]["relation_fault_model"],
+        },
     }
 
 

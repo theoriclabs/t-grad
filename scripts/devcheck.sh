@@ -102,6 +102,7 @@ cheap_preflight() {
     scripts.spec.test_broadcast_add_amendment_v3 \
     scripts.spec.test_broadcast_add_trial_lock_v3 \
     scripts.spec.test_broadcast_add_v4_tooling_amendment \
+    scripts.spec.test_broadcast_add_relation \
     scripts.spec.test_broadcast_add_manifest || return 1
 
   if [[ -f "$TGRAD_DIR/c/Makefile" ]]; then

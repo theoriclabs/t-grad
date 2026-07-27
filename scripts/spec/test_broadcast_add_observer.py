@@ -242,13 +242,16 @@ def probe_payloads(probe: dict) -> tuple[dict, dict[str, bytes]]:
 
 
 class DefinitionTests(unittest.TestCase):
-    def test_v4_inherits_v2_behavior_and_v3_trace_contract(self) -> None:
+    def test_v6_inherits_v4_observation_and_splits_identity(self) -> None:
         lock, amendment, manifest = definition()
-        self.assertEqual(observer.EXPECTED_V4_TRIAL, lock["trial_id"])
+        self.assertEqual(observer.EXPECTED_V6_TRIAL, lock["trial_id"])
         self.assertEqual(2, len(amendment["v3"]["trace_footprint_amendments"]))
         self.assertEqual("frozen_git_object_at_v3_definition_revision",
                          amendment["v4"]["tooling_amendment"]["to"])
         self.assertEqual("METAL", lock["execution_boundary"]["backend"])
+        self.assertNotIn("observer_sha256", amendment["v6"]["identity_split"][
+            "subject_protocol_equivalence"
+        ])
         mutations = {item["id"]: item for item in manifest["mutations"]}
         for mutation_id in observer.EXPECTED_MUTATION_IDS[1:3]:
             self.assertNotIn("dtype", mutations[mutation_id]["must_not_change"])

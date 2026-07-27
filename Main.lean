@@ -681,6 +681,178 @@ def matmul (args : List String) : IO UInt32 := do
           return 0
 
 -- ============================================================================
+-- ----------------------------------------------------------------------
+-- matmul-differential — behavioural equivalence between two kernels.
+--
+-- L12's predicate is byte-equality between `renderKernel`'s output and
+-- the captured `.msl`. But `MatmulDecls.lean` is a transcription OF
+-- those captures, so that check is a round trip: it proves a
+-- transpiler and a renderer are mutual inverses, not that anything is
+-- generated correctly. The moment kernels are genuinely computed the
+-- bytes legitimately differ and the predicate has to be retired.
+--
+-- This is its successor. It runs both kernels on identical seeded
+-- inputs and compares the OUTPUT BUFFERS bit-for-bit, which is
+-- strictly stronger: it compares against tinygrad's actual kernel
+-- rather than against a numpy reference that would share a tiling bug
+-- with the thing under test.
+-- ----------------------------------------------------------------------
+
+/-- One kernel to execute: source, entry point, and its own launch
+    geometry. The two sides genuinely differ in geometry, which is why
+    this is carried per kernel rather than shared. -/
+structure DiffKernel where
+  label : String
+  src   : String
+  fn    : String
+  dims  : Codegen.GpuDims
+
+/-- LCG step (Knuth's MMIX constants). -/
+private def lcgStep (s : UInt64) : UInt64 :=
+  s * 6364136223846793005 + 1442695040888963407
+
+/-- `n` bf16 elements as little-endian bytes, deterministic in `seed`.
+
+    Each value is `±m` with `m ∈ [1, 2)` — mantissa bits are random but
+    the exponent is pinned. That range is exactly representable in
+    bf16, so the inputs themselves introduce no rounding, and products
+    stay well-conditioned enough that a genuine divergence in the
+    kernels shows up rather than hiding under accumulation noise. -/
+private def seededBf16 (seed : UInt64) (n : Nat) : ByteArray := Id.run do
+  let mut out : ByteArray := ByteArray.empty
+  let mut s := lcgStep (seed + 0x9E3779B97F4A7C15)
+  for _ in [:n] do
+    s := lcgStep s
+    let r := (s >>> 33).toUInt32
+    -- bf16 = top 16 bits of an fp32 whose exponent is 127 (value in [1,2)).
+    let mantissa : UInt32 := r &&& 0x7F
+    let signBit  : UInt32 := if (r >>> 8) &&& 1 == 1 then 0x8000 else 0
+    let hi : UInt32 := signBit ||| 0x3F80 ||| mantissa
+    out := out.push (hi &&& 0xFF).toUInt8
+    out := out.push ((hi >>> 8) &&& 0xFF).toUInt8
+  pure out
+
+/-- Compile, dispatch, and read back one kernel over caller-owned
+    input buffers. The output buffer is allocated and freed here. -/
+private def runDiffKernel (k : DiffKernel) (aBuf bBuf : UInt64)
+    (outBytes : Nat) : IO (Except String ByteArray) := do
+  let lib ← Runtime.Metal.metalCompile k.src
+  if lib == 0 then
+    return .error s!"{k.label}: metalCompile returned 0"
+  let outBuf ← Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+  if outBuf == 0 then
+    Runtime.Metal.metalLibraryRelease lib
+    return .error s!"{k.label}: metalAlloc {outBytes} returned 0"
+  let d := k.dims
+  let rc ← Runtime.Metal.metalDispatch lib k.fn #[outBuf, aBuf, bBuf]
+    (USize.ofNat (d.grid.x * d.threadgroup.x))
+    (USize.ofNat (d.grid.y * d.threadgroup.y))
+    (USize.ofNat (d.grid.z * d.threadgroup.z))
+    (USize.ofNat d.threadgroup.x) (USize.ofNat d.threadgroup.y)
+    (USize.ofNat d.threadgroup.z)
+  if rc != 0 then
+    Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+    Runtime.Metal.metalLibraryRelease lib
+    return .error s!"{k.label}: dispatch rc={rc}"
+  let bytes ← Runtime.Metal.metalBufferReadBytes outBuf (USize.ofNat outBytes)
+  Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+  Runtime.Metal.metalLibraryRelease lib
+  pure (.ok bytes)
+
+/-- Parse `MxKxN`. -/
+private def parseTriple (s : String) : Option (Nat × Nat × Nat) :=
+  match s.splitOn "x" with
+  | [a, b, c] =>
+    match a.toNat?, b.toNat?, c.toNat? with
+    | some m, some k, some n => some (m, k, n)
+    | _, _, _ => none
+  | _ => none
+
+/-- `tgrad matmul-differential --shape MxKxN --seed S` — execute the
+    captured tinygrad kernel and the Lean-generated kernel on one pair
+    of seeded inputs and compare their outputs bit-for-bit. -/
+def matmulDifferential (args : List String) : IO UInt32 := do
+  let mut shape : String := ""
+  let mut seedS : String := "42"
+  let mut rest := args
+  while rest.length > 0 do
+    match rest with
+    | "--shape" :: v :: tl => shape := v; rest := tl
+    | "--seed"  :: v :: tl => seedS := v; rest := tl
+    | _ :: tl              => rest := tl
+    | []                   => rest := []
+  match parseTriple shape with
+  | none =>
+      IO.eprintln s!"[matmul-differential] bad --shape {shape} (expected MxKxN)"
+      pure 1
+  | some (M, K, N) =>
+  match Renderer.Metal.ShapeSentinel.ofTriple M K N with
+  | none =>
+      IO.eprintln s!"[matmul-differential] {shape} is not a captured sentinel; no reference kernel exists to compare against"
+      pure 1
+  | some sentinel =>
+  match Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N with
+  | .error e =>
+      IO.eprintln s!"[matmul-differential] generator rejected {shape}: {repr e}"
+      pure 1
+  | .ok genDecl => do
+    let seed : UInt64 := (seedS.toNat?.getD 42).toUInt64
+    let refPath := sentinel.fixturePath
+    let refSrc ← (try IO.FS.readFile (System.FilePath.mk refPath) catch _ => pure "")
+    if refSrc.isEmpty then
+      IO.eprintln s!"[matmul-differential] missing reference capture at {refPath}"
+      return 1
+    let refK : DiffKernel :=
+      { label := "captured", src := refSrc, fn := Pipeline.kernelNameFor sentinel,
+        dims := Pipeline.dispatchDimsFor sentinel }
+    let genK : DiffKernel :=
+      { label := "generated", src := Renderer.Metal.renderKernel genDecl,
+        fn := s!"matmul_tc_manual_{M}x{K}x{N}",
+        dims := Renderer.Metal.tcLaunchDims M N }
+    -- Anti-cheat: byte-equal sources would mean the transcription was
+    -- re-vendored rather than the kernel generated.
+    IO.println s!"diff_sources_byte_equal: {if genK.src == refK.src then 1 else 0}"
+    Runtime.Cache.flush
+    let aBytesN := M * K * 2
+    let bBytesN := K * N * 2
+    let outBytes := M * N * 2
+    let aBuf ← Runtime.Metal.metalAlloc (USize.ofNat aBytesN)
+    let bBuf ← Runtime.Metal.metalAlloc (USize.ofNat bBytesN)
+    if aBuf == 0 || bBuf == 0 then
+      IO.eprintln "[matmul-differential] input alloc failed"
+      return 1
+    Runtime.Metal.metalBufferWriteBytes aBuf (seededBf16 seed (M * K))
+    Runtime.Metal.metalBufferWriteBytes bBuf (seededBf16 (seed + 1) (K * N))
+    let refOut ← runDiffKernel refK aBuf bBuf outBytes
+    let genOut ← runDiffKernel genK aBuf bBuf outBytes
+    Runtime.Metal.metalFree aBuf (USize.ofNat aBytesN)
+    Runtime.Metal.metalFree bBuf (USize.ofNat bBytesN)
+    match refOut, genOut with
+    | .error e, _ =>
+        IO.eprintln s!"[matmul-differential] {e}"
+        pure 1
+    | _, .error e =>
+        IO.eprintln s!"[matmul-differential] {e}"
+        pure 1
+    | .ok r, .ok g =>
+        let mut diffs : Nat := 0
+        let mut firstDiff : Option Nat := none
+        for i in [:outBytes] do
+          if r.get! i != g.get! i then
+            diffs := diffs + 1
+            if firstDiff.isNone then firstDiff := some i
+        IO.println s!"diff_shape: {M}x{K}x{N}"
+        IO.println s!"diff_seed: {seed}"
+        IO.println s!"diff_bytes_compared: {outBytes}"
+        IO.println s!"diff_bytes_differing: {diffs}"
+        IO.println s!"diff_bit_identical: {if diffs == 0 then 1 else 0}"
+        match firstDiff with
+        | none   => pure ()
+        | some i =>
+            IO.println s!"diff_first_index: {i}"
+            IO.eprintln s!"[matmul-differential] first diff at byte {i}: captured={r.get! i} generated={g.get! i}"
+        if diffs == 0 then pure 0 else pure 1
+
 -- L5.b subcommand: matmul-verify --shape MxKxN --seed S.
 -- ============================================================================
 
@@ -796,6 +968,7 @@ def main (args : List String) : IO UInt32 := do
 
   -- L5 gate-runner surface
   | "matmul" :: rest           => matmul rest
+  | "matmul-differential" :: rest => matmulDifferential rest
   | "matmul-verify" :: rest    => matmulVerify rest
 
   | _              => usage; pure 1

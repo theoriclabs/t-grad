@@ -2072,7 +2072,7 @@ def liveEvolutionEvents : List Event :=
         outcome := .failed
           "the timed TinyJit replay was not byte-checked, JIT=0 could disable capture, and the loaded dylib was not bound to the recorded source",
         command := "independent adversarial review plus pinned-tinygrad JIT=0 probe",
-        artifactDigest := "sha256:adversarial-review-20260727" },
+        artifactDigest := "sha256:1ab55b9176beb1ab79326caaee20c67c39891ce70484fa1ad2ebd36a6be62113" },
     .promotionRevoked
       { candidate := { value := "candidate-paired-observer-42838f2" },
         reason := "post-promotion falsification found three missing executable invariants in the measured routes and binary provenance",
@@ -2119,7 +2119,7 @@ def liveEvolutionEvents : List Event :=
         validator := rw "verify.paired-performance-observer", obligation := .semantic,
         outcome := .passed,
         command := "run twelve CPU-only tests including prepared-route mismatch, JIT control, binary override rejection, and artifact joining",
-        artifactDigest := "sha256:12-tests-pass-29c41e5" },
+        artifactDigest := "sha256:742250a85b9bc1875b95e2e3191346e398bbcd33cc8b021a256ca2a71e125544" },
     .checkRecorded
       { id := { value := "check-paired-observer-live-29c41e5" },
         candidate := { value := "candidate-paired-observer-29c41e5" },

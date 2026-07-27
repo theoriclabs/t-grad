@@ -781,6 +781,8 @@ rules. The human-readable critical path is:
    timing, and evidence integration remain serial.
 4. Replace frozen performance denominators with live paired observations; keep
    verdict `indeterminate` until repeated-session variance supports a rule.
+   The bounded paired observer is implemented; exact-tree promotion and its
+   first serial live smoke are pending.
 5. Finish coherent evidence regeneration and make provenance audit fatal only
    after every file is genuinely produced by the checked writers.
 

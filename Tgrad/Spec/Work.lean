@@ -388,17 +388,18 @@ def workItems : List WorkItem :=
       title := "author a live paired performance observation harness",
       phase := .build, authority := .userGoal,
       closesFindings := [], dependsOn := [ew "codegen.delete-transcription"],
-      runtimeScope := [rw "verify.performance"],
+      runtimeScope := [rw "verify.paired-performance-observer"],
       touches := [.gateHarness],
       writes := ["scripts/perf/paired_runtime.py", "scripts/perf/README.md",
-        "scripts/perf/__init__.py", "scripts/dev/test_paired_runtime.py"],
+        "scripts/dev/test_paired_runtime.py", "Tgrad/Spec/RuntimeWork.lean",
+        "Tgrad/Spec/Work.lean", "PARITY.md"],
       authoringResources := [.sourceTree],
-      verificationResources := [.leanBuildTree],
+      verificationResources := [.leanBuildTree, .metalGpu],
       cost := 3, goalDistance := 0,
       validation := plannedValidation
-        "deterministic fake-adapter tests for paired AB/BA ordering, raw observations, summary statistics, and pre-timing correctness rejection"
-        "run CPU-only focused tests twice; compare artifacts; inject output mismatch; inspect schema for exact revisions, trees, environment, boundaries, session variance, and absence of a verdict"
-        "both orders occur; raw count is exact; reruns match; wrong outputs produce no timed evidence; no frozen baseline, threshold, or verdict field exists"
+        "clean attributable subjects, unique run identity, deterministic AB/BA pairing, correctness-before-output, raw observations, absolute and relative distributions, and explicit non-kernel scope"
+        "run CPU-only fakes twice; inject output/revision/timed failures and unequal session sizes; inspect schema; then run one serial exact-tree live smoke without treating it as repeatability evidence"
+        "both orders occur; fixed fake identities reproduce; real invocations cannot alias; wrong outputs create no timed evidence; dirty subjects reject; session weighting is equal; no frozen baseline, threshold, verdict, or kernel-speed eligibility exists"
         [.build, .semantic, .performance, .provenance, .resourceIsolation],
       recovery := "keep verify.performance missing and delete the harness candidate if its fake calibration or metadata contract is incomplete",
       progress := .inProgress "agent-descartes" },

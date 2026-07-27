@@ -286,6 +286,14 @@ def workUnits : List WorkUnit :=
       ["python/tgrad_bench.py", "scripts/gates/L7.sh", "scripts/gates/L11.sh"] .bypassed
       "interleave both runtimes in one session across the same timed boundary; retain raw paired samples and derive any threshold from observed within-run and between-run variance"
       "the current gate compares a live generated route with a frozen asymmetric baseline, so no ratio threshold is admissible",
+    implemented "verify.paired-performance-observer" "paired live performance observation"
+      .verification .observe [.candidateRevision, .scenario] [.executionObservation, .report]
+      .evidenceStore [.sourceTree, .metalGpu, .evidenceStore]
+      [.scenarioCount, .dispatchCount]
+      ["scripts/perf/paired_runtime.py", "scripts/perf/README.md",
+       "scripts/dev/test_paired_runtime.py"] .bounded
+      "validate both Git subjects before import, reject correctness mismatches before output, interleave balanced AB/BA pairs, retain raw observations, and report unique run identity, absolute timing/throughput, ratios, variance, and uncertainty"
+      "available boundaries compare operational repeated calls rather than isolated kernels; logical sessions share process-global caches; one live run cannot establish between-process repeatability or a performance verdict",
     implemented "verify.performance-repeatability" "performance repeatability diagnosis"
       .verification .observe [.candidateRevision, .scenario] [.executionObservation, .findingSet]
       .evidenceStore [.tmpNamespace, .metalGpu, .evidenceStore]
@@ -390,6 +398,13 @@ theorem performance_and_evidence_are_not_promoted :
 
 theorem repeatability_diagnosis_does_not_promote_performance :
     (workUnitFor? (workId "verify.performance-repeatability")).map
+        (fun unit => unit.isState .bounded) = some true &&
+    (workUnitFor? (workId "verify.performance")).map
+        (fun unit => unit.isState .bypassed) = some true := by
+  native_decide
+
+theorem paired_observer_does_not_promote_performance :
+    (workUnitFor? (workId "verify.paired-performance-observer")).map
         (fun unit => unit.isState .bounded) = some true &&
     (workUnitFor? (workId "verify.performance")).map
         (fun unit => unit.isState .bypassed) = some true := by

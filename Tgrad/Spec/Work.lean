@@ -362,6 +362,83 @@ def workItems : List WorkItem :=
         [.build, .apiContract, .semantic, .provenance, .humanReview],
       recovery := "leave targetUpstream unknown, retain the candidate snapshot as research input, and repair the extractor rather than editing generated manifests",
       progress := .complete "8c87034" },
+    { id := ew "oracle.calibrate-upstream-suite",
+      title := "make the upstream-on-upstream suite a reproducible oracle",
+      phase := .verify, authority := .evidence,
+      closesFindings := [], dependsOn := [ew "parity.pin-upstream"],
+      runtimeScope := [rw "verify.upstream-suite-calibration"],
+      touches := [.gateHarness, .evidenceStore],
+      writes := ["scripts/parity/run_upstream_suite.py",
+        "scripts/dev/test_parity_suite.py",
+        "fixtures/parity/suite_upstream_null_19c4d736f2bc.json"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.tmpNamespace, .evidenceStore],
+      cost := 2, goalDistance := 0,
+      validation := plannedValidation
+        "a pinned, clean, environment-attributed upstream self-run whose aggregate accounts for all 54 files and whose failures retain diagnosable raw evidence"
+        "validate commit/tree/clean state and manifest inventory; run in a pinned Python/dependency environment; record stdout/stderr digests or bounded excerpts; inject an empty file, partial limit, dirty checkout, and collection failure"
+        "no partial run overwrites full evidence; every status category sums to files; content hash is timestamp-independent; the current 49 pass, 1 fail, 3 collect-error, 1 empty outcomes are either repaired or explicitly calibrated"
+        [.semantic, .provenance, .resourceIsolation, .humanReview],
+      recovery := "retain c462ece as unpromoted diagnostic input and refuse to use its aggregate as a parity denominator",
+      progress := .planned },
+    { id := ew "oracle.classify-public-contract",
+      title := "classify upstream tests before observing Tgrad results",
+      phase := .design, authority := .userGoal,
+      closesFindings := [], dependsOn := [ew "parity.pin-upstream"],
+      runtimeScope := [rw "verify.test-contract-classification"],
+      touches := [.specification, .evidenceStore],
+      writes := ["scripts/parity/classify_test_contract.py",
+        "fixtures/parity/test_contract_19c4d736f2bc.json",
+        "Tgrad/Spec/ParityTarget.lean", "PARITY.md"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .evidenceStore],
+      cost := 2, goalDistance := 0,
+      validation := plannedValidation
+        "a total 138-file applicability ledger separating public compatibility, internal representation, backend-specific, and explicit exclusion rows with rationale"
+        "derive rows from the pinned inventory before any Tgrad suite run; require independent review; mutate, omit, duplicate, and reclassify rows after freezing"
+        "every upstream file has exactly one class; exclusions are empty-by-default and hash-bound; public API tests cannot be excluded because Tgrad currently fails them"
+        [.apiContract, .semantic, .provenance, .humanReview],
+      recovery := "keep all ambiguous files in-scope until classification is resolved; never fit the denominator to a measured numerator",
+      progress := .planned },
+    { id := ew "parity.import-test-contract",
+      title := "implement the thin upstream-suite Tgrad adapter",
+      phase := .build, authority := .agentExecution,
+      closesFindings := [],
+      dependsOn := [ew "oracle.calibrate-upstream-suite",
+        ew "oracle.classify-public-contract"],
+      runtimeScope := [rw "verify.tgrad-suite-adapter"],
+      touches := [.pythonAuthoring, .gateHarness, .evidenceStore],
+      writes := ["scripts/parity/tgrad_adapter.py",
+        "scripts/parity/run_upstream_suite.py",
+        "scripts/dev/test_parity_adapter.py"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.tmpNamespace, .metalGpu, .evidenceStore],
+      cost := 4, goalDistance := 0,
+      validation := plannedValidation
+        "the same frozen public-contract tests run against Tgrad through a minimal import/API substitution, with unsupported behavior failing rather than being emulated in the adapter"
+        "run adapter unit mutations; compare upstream mode unchanged; execute the first backend-free public shard against Tgrad; hash adapter, relation, environment, and both subject trees"
+        "the adapter contains no numerical implementation, expected-output rewrite, broad skip, tolerance weakening, or fallback import of tinygrad as Tgrad"
+        [.build, .apiContract, .differential, .provenance, .resourceIsolation],
+      recovery := "delete or narrow a thick adapter and leave the numerator unknown; never report upstream-on-upstream results as Tgrad",
+      progress := .planned },
+    { id := ew "parity.publish-first-coverage",
+      title := "publish the first immutable Tgrad coverage matrix",
+      phase := .promote, authority := .evidence,
+      closesFindings := [], dependsOn := [ew "parity.import-test-contract"],
+      runtimeScope := [rw "verify.parity-coverage-matrix"],
+      touches := [.specification, .evidenceStore],
+      writes := ["fixtures/parity/tgrad_coverage",
+        "Tgrad/Spec/Parity.lean", "Tgrad/Spec/ParityTarget.lean", "PARITY.md"],
+      authoringResources := [.sourceTree],
+      verificationResources := [.leanBuildTree, .tmpNamespace, .metalGpu, .evidenceStore],
+      cost := 3, goalDistance := 0,
+      validation := plannedValidation
+        "a total coverage matrix for one immutable Tgrad commit/tree and support profile over the generated 590-row target, with no invented percentage"
+        "join classified suite results and direct API/Ops/dtype/backend checks to requirement IDs; require pass, fail, excluded, or not-applicable evidence for every row; rebuild Lean specifications"
+        "targetContract becomes confirmed only when subject, profile, adapter, relation, environment, oracle, and evidence hashes resolve; uncovered and failing rows remain visible"
+        [.build, .apiContract, .semantic, .provenance, .humanReview],
+      recovery := "leave targetContract unknown and retain the partial matrix as diagnostic evidence until every requirement has an attributable state",
+      progress := .planned },
     { id := ew "harness.namespace-temporaries",
       title := "namespace every gate and devcheck temporary artifact",
       phase := .build, authority := .userGoal,
@@ -397,12 +474,12 @@ def workItems : List WorkItem :=
       verificationResources := [.leanBuildTree, .metalGpu],
       cost := 3, goalDistance := 0,
       validation := plannedValidation
-        "clean attributable subjects, unique run identity, deterministic AB/BA pairing, correctness-before-output, raw observations, absolute and relative distributions, and explicit non-kernel scope"
-        "run CPU-only fakes twice; inject output/revision/timed failures and unequal session sizes; inspect schema; then run one serial exact-tree live smoke without treating it as repeatability evidence"
-        "both orders occur; fixed fake identities reproduce; real invocations cannot alias; wrong outputs create no timed evidence; dirty subjects reject; session weighting is equal; no frozen baseline, threshold, verdict, or kernel-speed eligibility exists"
+        "clean attributable subjects and loaded binary, unique run identity, deterministic AB/BA pairing, verified prepared-route bytes, hash-joined artifacts, absolute and relative distributions, and explicit non-kernel scope"
+        "run CPU-only fakes twice; inject output/revision/JIT/binary/timed failures and unequal session sizes; inspect schema; then run one serial exact-tree live smoke without treating it as repeatability evidence"
+        "both orders occur; captured TinyJit replay is byte-correct before timing; the rebuilt dylib is source-bound; artifacts have a completion marker; dirty subjects reject; no frozen baseline, threshold, verdict, or kernel-speed eligibility exists"
         [.build, .semantic, .performance, .provenance, .resourceIsolation],
       recovery := "keep verify.performance missing and delete the harness candidate if its fake calibration or metadata contract is incomplete",
-      progress := .complete "42838f2" },
+      progress := .complete "29c41e5" },
     { id := ew "perf.rebaseline", title := "measure symmetric generated-kernel performance",
       phase := .verify, authority := .evidence,
       closesFindings := ["F-performance-methodology"],
@@ -2236,8 +2313,11 @@ theorem routing_is_promoted_and_released :
       !(liveActiveIntentIds.contains (ew "codegen.route-sentinels"))) = true := by
   native_decide
 
-theorem current_authoring_frontier_is_performance_rebaseline :
-    frontierIds = [ew "perf.rebaseline"] := by
+theorem current_authoring_frontier_exposes_oracle_and_performance_lanes :
+    frontierIds =
+      [ ew "oracle.calibrate-upstream-suite",
+        ew "oracle.classify-public-contract",
+        ew "perf.rebaseline" ] := by
   native_decide
 
 theorem materialization_and_differential_harness_are_promoted_and_released :

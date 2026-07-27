@@ -253,6 +253,31 @@ def workUnits : List WorkUnit :=
        "Tgrad/Spec/ParityTarget.lean"] .loadBearing
       "capture the exact official revision twice, verify canonical and section hashes, render the generated Lean inventory, check 590 unique well-formed requirements, and reject calibrated source/hash/exclusion mutations"
       "this establishes the foreign denominator and its drift detection; it does not classify a single Tgrad coverage cell or produce parity evidence",
+    implemented "verify.upstream-suite-calibration" "upstream suite self-calibration"
+      .verification .observe [.candidateRevision, .scenario] [.executionObservation, .report]
+      .gateHarness [.sourceTree, .tmpNamespace, .evidenceStore] [.scenarioCount, .evidenceCount]
+      ["scripts/parity/run_upstream_suite.py",
+       "fixtures/parity/suite_upstream_null_19c4d736f2bc.json"] .bounded
+      "run the pinned upstream null-suite against upstream itself and retain per-file outcomes"
+      "the first capture is 49/54, omits raw diagnostics and environment identity, undercounts an empty file in its aggregate categories, and is not yet promotable calibration evidence",
+    absent "verify.test-contract-classification" "public compatibility test classification"
+      .verification .validate [.candidateRevision, .scenario] [.validationEvidence, .report]
+      .specification [.sourceTree, .evidenceStore] [.scenarioCount]
+      "classify every discovered upstream test as public compatibility, internal representation, backend-specific, or explicit exclusion before observing Tgrad results"
+      "compare a reviewed generated classification with the pinned 138-file inventory and reject missing, duplicate, or post-score exclusions"
+      "without a predeclared applicability relation, the denominator can be fitted to the implementation",
+    absent "verify.tgrad-suite-adapter" "thin upstream-suite Tgrad adapter"
+      .verification .validate [.candidateRevision, .scenario] [.executionObservation, .validationEvidence]
+      .gateHarness [.sourceTree, .tmpNamespace, .evidenceStore] [.scenarioCount]
+      "implement a minimal audited import/API substitution whose hash participates in evidence identity"
+      "run adapter mutation tests and the same classified suite against both upstream and Tgrad"
+      "the current --against tgrad mode refuses execution, so no Tgrad numerator exists",
+    absent "verify.parity-coverage-matrix" "immutable subject/profile coverage matrix"
+      .verification .observe [.candidateRevision, .validationEvidence] [.validationEvidence, .report]
+      .evidenceStore [.sourceTree, .evidenceStore] [.scenarioCount, .evidenceCount]
+      "materialize every generated requirement against one immutable Tgrad tree and support profile with pass, fail, excluded, or not-applicable evidence"
+      "require total requirement coverage, foreign-oracle identity, adapter/relation hashes, and no fabricated percentage"
+      "targetContract remains unknown and parity has a denominator but no attributable numerator",
     implemented "verify.run-isolation" "run-scoped verification artifact isolation"
       .verification .validate [.candidateRevision, .scenario] [.validationEvidence]
       .gateHarness [.sourceTree, .tmpNamespace] [.scenarioCount]
@@ -292,7 +317,7 @@ def workUnits : List WorkUnit :=
       [.scenarioCount, .dispatchCount]
       ["scripts/perf/paired_runtime.py", "scripts/perf/README.md",
        "scripts/dev/test_paired_runtime.py"] .bounded
-      "validate both Git subjects before import, reject correctness mismatches before output, interleave balanced AB/BA pairs, retain raw observations, and report unique run identity, absolute timing/throughput, ratios, variance, and uncertainty"
+      "validate both Git subjects before import, rebuild and hash the loaded Tgrad dylib, require captured TinyJit replay bytes before timing, interleave balanced AB/BA pairs, and commit hash-joined raw/summary artifacts with no verdict"
       "available boundaries compare operational repeated calls rather than isolated kernels; logical sessions share process-global caches; one live run cannot establish between-process repeatability or a performance verdict",
     implemented "verify.performance-repeatability" "performance repeatability diagnosis"
       .verification .observe [.candidateRevision, .scenario] [.executionObservation, .findingSet]

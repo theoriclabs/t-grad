@@ -6,6 +6,21 @@
   "definition_revision": "0d5f1c1f8cab375f824cb5f1ae7c1865a1a5c078",
   "definition_tree": "e53d9330c663caee90692fadbe7369cb6c1821c3",
   "upstream_revision": "19c4d736f2bc8e26d21f08b28ffd6298408da00f",
+  "definition_change_set": [
+    "Tgrad/Growth/BroadcastAddManifest.lean",
+    "Tgrad/Growth/BroadcastAddManifestGenerated.lean",
+    "Tgrad/Growth/BroadcastAddPacket.lean",
+    "Tgrad/Requirements/BroadcastAddPilot.lean",
+    "Tgrad/Requirements/Relation.lean",
+    "Tgrad/Specification/BroadcastAddPilot.lean",
+    "TgradSpec.lean",
+    "docs/plan_2026-07-27.md",
+    "docs/requirement_engineering.md",
+    "fixtures/requirements/broadcast_add_prospective_v1.json",
+    "scripts/devcheck.sh",
+    "scripts/spec/generate_broadcast_add_manifest.py",
+    "scripts/spec/test_broadcast_add_manifest.py"
+  ],
   "definition_files": {
     "Tgrad/Requirements/Relation.lean": "6be8a9fb3a333191f5043503b4b6b6d60d8fa20bb063b1c9feb4b3bc5bcf554c",
     "Tgrad/Requirements/BroadcastAddPilot.lean": "7cb7bb644f464c4aaad495e533a7eadb1d17d087ad96ac35ca1f7ad8447ea1bb",

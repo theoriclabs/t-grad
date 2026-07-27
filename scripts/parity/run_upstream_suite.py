@@ -58,7 +58,7 @@ OUTCOMES = (
     "unobserved_upstream", "collection_mismatch", "collection_error", "timeout", "empty",
     "verifier_error",
 )
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def canonical(value: object) -> bytes:
@@ -165,7 +165,7 @@ def controlled_environment(against: str, checkout: Path,
             raise RuntimeError("Tgrad execution snapshot is incomplete")
         env.update({
             "PYTHONPATH": os.pathsep.join(
-                [str(shim_root), str(product_python), str(reporter_root)]
+                [str(shim_root), str(product_python), str(reporter_root), str(checkout)]
             ),
             "TGRAD_ROOT": str(isolated_root / "snapshot"),
             "TGRAD_LIB": str(runtime_library),
@@ -547,9 +547,14 @@ def load_contract(path: Path, checkout: Path, checkout_commit: str, group: str,
                 imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 imported_roots.add(node.module.split(".", 1)[0])
+        checkout_local_roots = {
+            entry.stem if entry.is_file() else entry.name
+            for entry in checkout.iterdir()
+            if entry.is_dir() or entry.suffix == ".py"
+        }
         external_modules = sorted(
             imported_roots - set(sys.stdlib_module_names) -
-            {"tinygrad", "test", "tests"}
+            {"tinygrad", "test", "tests"} - checkout_local_roots
         )
         selected.append({
             "path": rel,

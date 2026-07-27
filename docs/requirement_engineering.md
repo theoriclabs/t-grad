@@ -706,6 +706,13 @@ separable work fronts: realization identity for already materialized results,
 and generalized right-aligned broadcasting. Keeping them separate preserves
 fault localization and avoids crediting a convenience method with kernel work.
 
+[`WORK-PY-REALIZE-IDENTITY-V1`](../fixtures/requirements/broadcast_add_realize_candidate_v1.json)
+freezes the smaller front. Because `_pointwise` already returns a materialized
+BUFFER tensor, `realize` is specified as object identity with no allocation,
+dispatch, or graph rewrite. The prospective observation predicts complete
+traces for exactly two scenarios, while explicitly withholding any global
+parity promotion.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

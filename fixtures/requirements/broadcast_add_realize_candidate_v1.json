@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-PY-REALIZE-IDENTITY-V1",
+  "baseline_revision": "0eda71fd99cabfde6538197e15bcacc8980e7f27",
+  "trigger_evidence_id": "317fc368cfcda64ed0ee45eab33f49a985605ad75dc921021f4a7d86040572d1",
+  "finding": "Tgrad pointwise operations return materialized BUFFER tensors, but the public Tensor surface lacks tinygrad's realize method, so two otherwise observable float32 scenarios stop at realize_1.",
+  "candidate": {
+    "method": "Tensor.realize()",
+    "behavior": "return self when the Tensor already denotes a materialized BUFFER result",
+    "allocation_allowed": false,
+    "dispatch_allowed": false,
+    "graph_rewrite_allowed": false
+  },
+  "predicted_observation_transition": {
+    "full_legal_trace_reached_for": ["ADD-SAME-SHAPE-F32", "ADD-SINGLETON-AXIS-F32"],
+    "realize_identity": {"first_is_result": true, "second_is_result": true, "same_realized_object": true},
+    "rank_three_scenario_unchanged_at": "invoke_add",
+    "int32_scenarios_unchanged_at": "construct_left",
+    "incompatible_scenario_unchanged_at": "invoke_add",
+    "parity_promotion_predicted": false
+  },
+  "write_set": {
+    "product": ["python/tgrad.py"],
+    "verification": ["scripts/spec/test_tensor_realize.py"],
+    "forbidden": ["Tgrad/Pipeline.lean", "Tgrad/PythonFFI.lean", "c/tgrad_python.c", "scripts/spec/observe_broadcast_add.py"]
+  },
+  "fault_model": ["realize returns an equal copy", "realize allocates or dispatches", "second realize returns a different object"],
+  "frozen_before_product_authoring": true
+}

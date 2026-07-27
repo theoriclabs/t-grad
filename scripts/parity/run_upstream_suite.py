@@ -15,6 +15,8 @@ addressed and never silently overwritten.
 from __future__ import annotations
 
 import argparse
+import ast
+import fcntl
 import hashlib
 import json
 import os
@@ -23,6 +25,10 @@ import re
 import subprocess
 import sys
 import tempfile
+import shutil
+import io
+import tarfile
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -47,11 +53,12 @@ RUNTIME_LIBRARY = REPO / ".lake" / "build" / "lib" / "libtgrad.dylib"
 GROUPS = ("null", "unit", "backend")
 ORACLE_CLASSES = ("api_surface", "internal_repr", "infrastructure", "ambiguous")
 OUTCOMES = (
-    "passed", "all_skipped", "nonconforming", "blocked_product_surface",
-    "blocked_environment", "collection_error", "timeout", "empty",
+    "passed", "unobserved_environment", "nonconforming",
+    "blocked_product_surface", "blocked_environment", "mixed",
+    "unobserved_upstream", "collection_mismatch", "collection_error", "timeout", "empty",
     "verifier_error",
 )
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 5
 
 
 def canonical(value: object) -> bytes:
@@ -96,6 +103,24 @@ def git_directory_hash(revision: str, root: str) -> str:
     return digest(canonical(entries))
 
 
+def snapshot_directory_hash(revision: str, git_root: str,
+                            snapshot_root: Path) -> str:
+    listing = subprocess.run(
+        ["git", "-C", str(REPO), "ls-tree", "-r", "--name-only", revision,
+         "--", git_root],
+        capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    prefix = git_root.rstrip("/") + "/"
+    entries = []
+    for path in sorted(path for path in listing if path):
+        relative = path.removeprefix(prefix)
+        source = snapshot_root / relative
+        if not source.is_file():
+            raise RuntimeError(f"execution snapshot omitted tracked file: {path}")
+        entries.append((relative, file_hash(source)))
+    return digest(canonical(entries))
+
+
 def checkout_value(checkout: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(checkout), *args],
@@ -103,8 +128,26 @@ def checkout_value(checkout: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def checkout_snapshot_hash(checkout: Path, revision: str,
+                           snapshot: Path) -> str:
+    paths = subprocess.run(
+        ["git", "-C", str(checkout), "ls-tree", "-r", "--name-only", revision],
+        capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    entries = []
+    for relative in sorted(path for path in paths if path):
+        source = snapshot / relative
+        if not source.is_file():
+            raise RuntimeError(f"upstream execution snapshot omitted: {relative}")
+        entries.append((relative, file_hash(source)))
+    return digest(canonical(entries))
+
+
 def controlled_environment(against: str, checkout: Path,
-                           isolated_root: Path) -> dict[str, str]:
+                           isolated_root: Path, reporter_root: Path,
+                           shim_root: Path | None = None,
+                           product_python: Path | None = None,
+                           runtime_library: Path | None = None) -> dict[str, str]:
     env = {
         "HOME": str(isolated_root / "home"),
         "LANG": "C",
@@ -118,16 +161,73 @@ def controlled_environment(against: str, checkout: Path,
     (isolated_root / "home").mkdir()
     (isolated_root / "tmp").mkdir()
     if against == "tgrad":
+        if shim_root is None or product_python is None or runtime_library is None:
+            raise RuntimeError("Tgrad execution snapshot is incomplete")
         env.update({
             "PYTHONPATH": os.pathsep.join(
-                [str(SHIM_ROOT), str(PRODUCT_PYTHON), str(REPORTER_ROOT)]
+                [str(shim_root), str(product_python), str(reporter_root)]
             ),
-            "TGRAD_ROOT": str(REPO),
-            "TGRAD_LIB": str(RUNTIME_LIBRARY),
+            "TGRAD_ROOT": str(isolated_root / "snapshot"),
+            "TGRAD_LIB": str(runtime_library),
         })
     else:
-        env["PYTHONPATH"] = os.pathsep.join([str(checkout), str(REPORTER_ROOT)])
+        env["DEV"] = "METAL"
+        env["PYTHONPATH"] = os.pathsep.join([str(checkout), str(reporter_root)])
     return env
+
+
+@contextmanager
+def observer_lock():
+    lock_path = Path("/tmp/tgrad-parity-observer.lock")
+    with lock_path.open("a+b") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def copy_execution_snapshot(root: Path, against: str, checkout: Path,
+                            checkout_commit: str) -> dict[str, Path]:
+    snapshot = root / "snapshot"
+    reporter = snapshot / "reporter"
+    reporter.mkdir(parents=True)
+    shutil.copyfile(
+        REPORTER_ROOT / f"{REPORTER_MODULE}.py",
+        reporter / f"{REPORTER_MODULE}.py",
+    )
+    upstream_checkout = snapshot / "upstream"
+    archive = subprocess.run(
+        ["git", "-C", str(checkout), "archive", "--format=tar", checkout_commit],
+        capture_output=True, check=True,
+    ).stdout
+    upstream_checkout.mkdir()
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
+        bundle.extractall(upstream_checkout, filter="data")
+    result = {
+        "reporter_root": reporter,
+        "upstream_checkout": upstream_checkout,
+    }
+    if against == "tgrad":
+        shim = snapshot / "shim"
+        product = snapshot / "python"
+        runtime = snapshot / "runtime"
+        shutil.copytree(SHIM_ROOT, shim, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copytree(PRODUCT_PYTHON, product, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        runtime.mkdir()
+        runtime_library = runtime / RUNTIME_LIBRARY.name
+        shutil.copyfile(RUNTIME_LIBRARY, runtime_library)
+        shutil.copyfile(
+            REPO / ".lake" / "build" / "lib" / "libtgrad_Tgrad.dylib",
+            runtime / "libtgrad_Tgrad.dylib",
+        )
+        result.update({
+            "shim_root": shim,
+            "shim_runner": shim / "run_pytest.py",
+            "product_python": product,
+            "runtime_library": runtime_library,
+        })
+    return result
 
 
 def interpreter_facts(py: Path) -> dict:
@@ -145,11 +245,27 @@ all_distributions = sorted(
     if dist.metadata.get("Name")
 )
 selected_records = {}
+selected_files = {}
 for name in selected:
     try:
         dist = importlib.metadata.distribution(name)
         record = dist.read_text("RECORD") or ""
         selected_records[name] = hashlib.sha256(record.encode()).hexdigest()
+        files = []
+        for entry in sorted(dist.files or [], key=str):
+            # RECORD entries without a hash are generated/mutable artifacts
+            # such as pyc files.  They are not installation inputs.
+            if getattr(entry, "hash", None) is None:
+                continue
+            path = dist.locate_file(entry)
+            if path.is_file():
+                try:
+                    files.append((str(entry), hashlib.sha256(path.read_bytes()).hexdigest()))
+                except OSError:
+                    files.append((str(entry), "<unreadable>"))
+        selected_files[name] = hashlib.sha256(
+            json.dumps(files, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
     except importlib.metadata.PackageNotFoundError:
         pass
 print(json.dumps({
@@ -164,6 +280,7 @@ print(json.dumps({
         name: version for name, version in all_distributions if name in selected
     },
     "selected_dependency_record_sha256": selected_records,
+    "selected_dependency_files_sha256": selected_files,
     "distribution_manifest": all_distributions,
 }, sort_keys=True))
 '''.strip()
@@ -215,6 +332,87 @@ def backend_facts(py: Path, checkout: Path,
     }
 
 
+def upstream_backend_readiness(py: Path, checkout: Path,
+                               environment: dict[str, str]) -> dict:
+    probe = (
+        "import json; from tinygrad import Tensor; "
+        "value=Tensor([1.0]).realize().numpy().tolist(); "
+        "print(json.dumps({'value': value}, sort_keys=True))"
+    )
+    completed = subprocess.run(
+        [str(py), "-c", probe], cwd=checkout, env=environment,
+        capture_output=True, text=True, timeout=60,
+    )
+    output = completed.stdout + completed.stderr
+    return {
+        "available": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "diagnostic_sha256": normalize_output(output, checkout)[0],
+        "observed": (
+            json.loads(completed.stdout).get("value")
+            if completed.returncode == 0 else None
+        ),
+    }
+
+
+def prerequisite_facts(py: Path, environment: dict[str, str],
+                       selected: list[dict]) -> dict:
+    external_modules = sorted({
+        module for item in selected for module in item.get("external_modules", [])
+    })
+    probe = r'''
+import importlib.util
+import json
+import os
+from multiprocessing import shared_memory
+try:
+    block = shared_memory.SharedMemory(create=True, size=1)
+except BaseException as exc:
+    result = {
+        "available": False, "exception_type": type(exc).__name__,
+        "errno": getattr(exc, "errno", None),
+    }
+else:
+    block.close()
+    block.unlink()
+    result = {"available": True, "exception_type": None, "errno": None}
+modules = json.loads(os.environ["TGRAD_EXTERNAL_MODULES"])
+external = {}
+for module in modules:
+    try:
+        spec = importlib.util.find_spec(module)
+    except BaseException as exc:
+        external[module] = {"available": False, "exception_type": type(exc).__name__}
+    else:
+        external[module] = {"available": spec is not None, "exception_type": None}
+print(json.dumps({"posix_shared_memory": result, "external_modules": external}, sort_keys=True))
+'''.strip()
+    probe_environment = {
+        **environment,
+        "TGRAD_EXTERNAL_MODULES": json.dumps(external_modules, sort_keys=True),
+    }
+    completed = subprocess.run(
+        [str(py), "-c", probe], env=probe_environment,
+        capture_output=True, text=True, timeout=30,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "environment prerequisite probe failed: " +
+            (completed.stdout + completed.stderr)[-2000:]
+        )
+    return json.loads(completed.stdout)
+
+
+def verifier_identity() -> dict:
+    runner_hash = file_hash(Path(__file__).resolve())
+    return {
+        "runner_sha256": runner_hash,
+        "runner_revision": f"sha256:{runner_hash}",
+        "shim_runner_sha256": file_hash(SHIM_RUNNER),
+        "reporter_sha256": file_hash(REPORTER_ROOT / f"{REPORTER_MODULE}.py"),
+    }
+
+
 def tool_output(command: list[str]) -> str:
     completed = subprocess.run(
         command, cwd=REPO, capture_output=True, text=True, check=True,
@@ -222,15 +420,44 @@ def tool_output(command: list[str]) -> str:
     return (completed.stdout + completed.stderr).strip()
 
 
-def rebuild_runtime(revision: str) -> dict:
+def executable_identity(name: str) -> dict:
+    path = Path(tool_output(["which", name])).resolve()
+    return {"path": str(path), "sha256": file_hash(path)}
+
+
+def stable_repo_identity(expected_revision: str, expected_tree: str) -> None:
+    if git_value("status", "--porcelain"):
+        raise RuntimeError("Tgrad tree became dirty during runtime build")
+    if git_value("rev-parse", "HEAD") != expected_revision:
+        raise RuntimeError("Tgrad revision changed during runtime build")
+    if git_value("rev-parse", "HEAD^{tree}") != expected_tree:
+        raise RuntimeError("Tgrad tree changed during runtime build")
+
+
+def rebuild_runtime(revision: str, source_tree: str) -> dict:
     commands = [
         ["lake", "-H", "build", "Tgrad:shared"],
         ["make", "-B", "-C", "c", "dylib"],
     ]
+    build_environment = {
+        key: value for key, value in {
+            "HOME": os.environ.get("HOME"),
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "LANG": "C",
+            "LC_ALL": "C",
+            "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
+            "ELAN_HOME": os.environ.get("ELAN_HOME"),
+            "SDKROOT": os.environ.get("SDKROOT"),
+            "TGRAD_MACOS_SDK": os.environ.get("TGRAD_MACOS_SDK"),
+            "MACOSX_DEPLOYMENT_TARGET": os.environ.get("MACOSX_DEPLOYMENT_TARGET"),
+        }.items() if value is not None
+    }
     logs = []
     for command in commands:
+        stable_repo_identity(revision, source_tree)
         completed = subprocess.run(
             command, cwd=REPO, capture_output=True, text=True,
+            env=build_environment,
         )
         combined = completed.stdout + completed.stderr
         logs.append({
@@ -243,6 +470,7 @@ def rebuild_runtime(revision: str) -> dict:
                 "runtime provenance build failed: " + " ".join(command) +
                 "\n" + combined[-4000:]
             )
+    stable_repo_identity(revision, source_tree)
     lean_library = REPO / ".lake" / "build" / "lib" / "libtgrad_Tgrad.dylib"
     inputs = {
         "lean_library_sha256": file_hash(lean_library),
@@ -253,7 +481,11 @@ def rebuild_runtime(revision: str) -> dict:
     return {
         "status": "built_by_observer",
         "source_revision": revision,
-        "source_tree": git_value("rev-parse", f"{revision}^{{tree}}"),
+        "source_tree": source_tree,
+        "build_environment": {
+            "values": build_environment,
+            "sha256": digest(canonical(build_environment)),
+        },
         "commands": commands,
         "command_logs": logs,
         "toolchain": {
@@ -261,6 +493,10 @@ def rebuild_runtime(revision: str) -> dict:
             "lean": tool_output(["lean", "--version"]),
             "clang": tool_output(["clang", "--version"]),
             "macos_sdk": tool_output(["xcrun", "--sdk", "macosx", "--show-sdk-path"]),
+            "lake_executable": executable_identity("lake"),
+            "lean_executable": executable_identity("lean"),
+            "clang_executable": executable_identity("clang"),
+            "xcrun_executable": executable_identity("xcrun"),
         },
         "link_inputs": inputs,
         "artifact_sha256": file_hash(RUNTIME_LIBRARY),
@@ -304,10 +540,22 @@ def load_contract(path: Path, checkout: Path, checkout_commit: str, group: str,
         source = checkout / rel
         if not source.is_file():
             raise RuntimeError(f"selected file missing from checkout: {rel}")
+        syntax = ast.parse(source.read_text(encoding="utf-8"), filename=rel)
+        imported_roots = set()
+        for node in ast.walk(syntax):
+            if isinstance(node, ast.Import):
+                imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                imported_roots.add(node.module.split(".", 1)[0])
+        external_modules = sorted(
+            imported_roots - set(sys.stdlib_module_names) -
+            {"tinygrad", "test", "tests"}
+        )
         selected.append({
             "path": rel,
             "group": Path(rel).parts[1],
             "source_sha256": file_hash(source),
+            "external_modules": external_modules,
         })
     group_counts = {
         selected_group: sum(item["group"] == selected_group for item in selected)
@@ -359,6 +607,8 @@ def diagnostics(stdout: str, stderr: str, checkout: Path) -> dict:
     stdout_normalized_hash, stdout_excerpt = normalize_output(stdout, checkout)
     stderr_normalized_hash, stderr_excerpt = normalize_output(stderr, checkout)
     combined = "\n".join(part for part in (stdout_excerpt, stderr_excerpt) if part)
+    stdout_artifact = persist_artifact("stdout", stdout.encode())
+    stderr_artifact = persist_artifact("stderr", stderr.encode())
     return {
         "stdout_bytes": len(stdout.encode()),
         "stdout_raw_sha256": digest(stdout.encode()),
@@ -367,21 +617,79 @@ def diagnostics(stdout: str, stderr: str, checkout: Path) -> dict:
         "stderr_raw_sha256": digest(stderr.encode()),
         "stderr_normalized_sha256": stderr_normalized_hash,
         "normalized_excerpt": combined,
+        "raw_artifacts": {
+            "stdout": stdout_artifact,
+            "stderr": stderr_artifact,
+        },
     }
 
 
-def read_report(path: Path) -> tuple[list[dict], str]:
+def persist_artifact(kind: str, raw: bytes) -> dict:
+    content_hash = digest(raw)
+    destination = OBSERVATION_DIR / "artifacts" / kind / content_hash
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not destination.exists():
+        try:
+            with destination.open("xb") as handle:
+                handle.write(raw)
+        except FileExistsError:
+            pass
+    if destination.read_bytes() != raw:
+        raise RuntimeError(f"content-addressed artifact collision: {destination}")
+    return {
+        "sha256": content_hash,
+        "bytes": len(raw),
+        "path": destination.relative_to(OBSERVATION_DIR).as_posix(),
+    }
+
+
+def read_report(path: Path) -> tuple[list[dict], str, dict | None]:
     if not path.is_file():
-        return [], ""
-    raw = path.read_text(encoding="utf-8")
+        return [], "", None
+    raw_bytes = path.read_bytes()
+    raw = raw_bytes.decode("utf-8")
     events = [json.loads(line) for line in raw.splitlines() if line.strip()]
-    return events, digest(raw.encode())
+    return events, digest(raw_bytes), persist_artifact("pytest-report", raw_bytes)
 
 
-def report_counts(events: list[dict]) -> tuple[dict, int, list[str]]:
-    collection_count = 0
+def analyze_report(events: list[dict], returncode: int) -> tuple[dict, dict]:
+    collection_events = [e for e in events if e.get("event") == "collection_finish"]
+    session_events = [e for e in events if e.get("event") == "session_finish"]
+    protocol_errors: list[str] = []
+    if len(collection_events) != 1:
+        protocol_errors.append("collection_finish_count")
+    if len(session_events) != 1:
+        protocol_errors.append("session_finish_count")
+    collection_event = collection_events[0] if len(collection_events) == 1 else {}
+    nodeids = collection_event.get("nodeids", [])
+    if not isinstance(nodeids, list) or not all(isinstance(nodeid, str) for nodeid in nodeids):
+        protocol_errors.append("invalid_nodeid_manifest")
+        nodeids = []
+    if len(nodeids) != len(set(nodeids)):
+        protocol_errors.append("duplicate_collected_nodeid")
+    collection_count = int(collection_event.get("count", 0)) if collection_event else 0
+    if collection_count != len(nodeids):
+        protocol_errors.append("collection_count_mismatch")
+    collection_cases = collection_event.get("cases", [])
+    if not isinstance(collection_cases, list) or not all(
+        isinstance(case, dict) and isinstance(case.get("nodeid"), str)
+        for case in collection_cases
+    ):
+        protocol_errors.append("invalid_collection_case_manifest")
+        collection_cases = []
+    if sorted(case["nodeid"] for case in collection_cases) != sorted(nodeids):
+        protocol_errors.append("collection_case_manifest_mismatch")
+    if len(session_events) == 1 and int(session_events[0].get("exitstatus", -999)) != returncode:
+        protocol_errors.append("session_exitstatus_mismatch")
+
     collection_errors = 0
     phases_with_error: list[str] = []
+    failure_types: list[str] = []
+    failed_reports = 0
+    report_keys: set[tuple[str, str, str]] = set()
+    terminal_nodeids: set[str] = set()
+    terminal_cases: list[dict] = []
+    case_results: list[dict] = []
     counts = {
         "passed": 0, "failed": 0, "skipped": 0,
         "xfailed": 0, "xpassed": 0, "errors": 0,
@@ -392,8 +700,42 @@ def report_counts(events: list[dict]) -> tuple[dict, int, list[str]]:
         elif event.get("event") == "collection_error":
             collection_errors += 1
         elif event.get("event") == "test_report":
-            phase = event.get("phase")
+            nodeid = str(event.get("nodeid", ""))
+            phase = str(event.get("phase", ""))
             outcome = event.get("outcome")
+            subtest_identity = json.dumps(
+                event.get("subtest"), sort_keys=True, separators=(",", ":")
+            )
+            key = (nodeid, phase, subtest_identity)
+            if key in report_keys:
+                protocol_errors.append("duplicate_test_phase")
+            report_keys.add(key)
+            if nodeid not in set(nodeids):
+                protocol_errors.append("report_for_uncollected_nodeid")
+            if phase == "call" or (phase == "setup" and outcome in {"failed", "skipped"}):
+                terminal_nodeids.add(nodeid)
+                case_key = {
+                    "nodeid": nodeid,
+                    "subtest": event.get("subtest"),
+                }
+                terminal_cases.append(case_key)
+                normalized_outcome = outcome
+                if "wasxfail" in event:
+                    normalized_outcome = (
+                        "xfailed" if outcome == "skipped" else "xpassed"
+                    )
+                elif phase == "setup" and outcome == "failed":
+                    normalized_outcome = "error"
+                case_results.append({
+                    "case": case_key,
+                    "outcome": normalized_outcome,
+                    "terminal_phase": phase,
+                    "failure_type": event.get("failure_type"),
+                })
+            if event.get("failure_type"):
+                failure_types.append(str(event["failure_type"]))
+            if outcome == "failed":
+                failed_reports += 1
             was_xfail = "wasxfail" in event
             if phase == "call":
                 if was_xfail and outcome == "skipped":
@@ -408,30 +750,97 @@ def report_counts(events: list[dict]) -> tuple[dict, int, list[str]]:
             elif phase == "setup" and outcome == "skipped":
                 counts["skipped"] += 1
     counts["collected"] = collection_count
-    return counts, collection_errors, sorted(set(phases_with_error))
+    if not collection_errors:
+        missing_terminal = set(nodeids) - terminal_nodeids
+        if missing_terminal:
+            protocol_errors.append("collected_test_without_terminal_outcome")
+    return counts, {
+        "collection_errors": collection_errors,
+        "error_phases": sorted(set(phases_with_error)),
+        "failure_types": sorted(set(failure_types)),
+        "failed_reports": failed_reports,
+        "nodeids": sorted(nodeids),
+        "collection_cases": sorted(
+            collection_cases, key=lambda case: canonical(case)
+        ),
+        "nodeid_manifest_sha256": digest(canonical(sorted(nodeids))),
+        "collection_case_manifest_sha256": digest(canonical(sorted(
+            collection_cases, key=lambda case: canonical(case)
+        ))),
+        "case_manifest_sha256": digest(canonical(sorted(
+            terminal_cases, key=lambda case: canonical(case)
+        ))),
+        "case_count": len(terminal_cases),
+        "case_results": sorted(case_results, key=lambda result: canonical(result["case"])),
+        "case_outcome_manifest_sha256": digest(canonical(sorted(
+            case_results, key=lambda result: canonical(result["case"])
+        ))),
+        "protocol_errors": sorted(set(protocol_errors)),
+    }
 
 
 def classify_result(returncode: int, output: str, events: list[dict],
-                    counts: dict, collection_errors: int,
-                    error_phases: list[str]) -> tuple[str, str, list[str]]:
+                    counts: dict, report: dict, rel: str,
+                    prerequisites: dict) -> tuple[str, str, list[str]]:
+    collection_errors = report["collection_errors"]
+    error_phases = report["error_phases"]
+    if report["protocol_errors"]:
+        return "harness", "verifier_error", [
+            "invalid_machine_report", *report["protocol_errors"]
+        ]
     missing = re.findall(
         r"(?:ModuleNotFoundError|ImportError): No module named ['\"]([^'\"]+)|"
         r"No module named ['\"]?([^'\"\s]+)",
         output,
     )
     missing = [left or right for left, right in missing]
+    declared_unavailable = {
+        name for name, fact in prerequisites.get("external_modules", {}).items()
+        if not fact.get("available", False)
+    }
+    missing_due_to_environment = any(
+        name.split(".", 1)[0] in declared_unavailable for name in missing
+    )
     unsupported_surface = (
         "strict Tgrad substitution did not own the tinygrad package" in output or
         "Tgrad's strict shim does not provide" in output or
         "TgradCapabilityError" in output or
         "Tgrad does not provide tinygrad capability" in output
     )
+    shared_memory_blocked = (
+        rel == "test/unit/test_shm_tensor.py" and
+        not prerequisites.get("posix_shared_memory", {}).get("available", False) and
+        "PermissionError" in report["failure_types"]
+    )
+    environment_failures = ["posix_shared_memory_unavailable"] if shared_memory_blocked else []
+    non_environment_failure_types = sorted(set(report["failure_types"]) - (
+        {"PermissionError"} if shared_memory_blocked else set()
+    ))
+    semantic_failures = (
+        bool(non_environment_failure_types) or
+        report["failed_reports"] > len(environment_failures)
+    )
+    if environment_failures and unsupported_surface:
+        return "mixed", "mixed", [
+            "environment_and_product_surface", *environment_failures
+        ]
+    if environment_failures and semantic_failures:
+        return "mixed", "mixed", [
+            "environment_and_semantic_failure", *environment_failures,
+            *non_environment_failure_types,
+        ]
+    if environment_failures:
+        return "environment", "blocked_environment", [
+            "runtime_environment_failure", *environment_failures
+        ]
     if not events:
-        if any(name.split(".", 1)[0] not in {"tinygrad", "tgrad"} for name in missing):
+        if missing_due_to_environment:
             return "harness", "blocked_environment", ["external_dependency_missing"]
+        if missing:
+            return "harness", "nonconforming", ["undeclared_runtime_dependency_missing"]
         return "harness", "verifier_error", ["missing_machine_report"]
     if collection_errors:
-        if any(name.split(".", 1)[0] not in {"tinygrad", "tgrad"} for name in missing):
+        if missing_due_to_environment:
             return "collection", "blocked_environment", ["external_dependency_missing"]
         if unsupported_surface:
             reason = (
@@ -454,7 +863,9 @@ def classify_result(returncode: int, output: str, events: list[dict],
     if returncode == 0 and counts["passed"] + counts["xpassed"] > 0:
         return "execution", "passed", []
     if returncode == 0 and observed > 0:
-        return "execution", "all_skipped", ["all_tests_skipped_or_xfailed"]
+        return "environment", "unobserved_environment", [
+            "all_tests_skipped_or_xfailed"
+        ]
     if returncode in {0, 5} and counts["collected"] == 0:
         return "no_tests", "empty", ["no_tests_collected"]
     return "harness", "verifier_error", ["pytest_or_process_error"]
@@ -462,6 +873,7 @@ def classify_result(returncode: int, output: str, events: list[dict],
 
 def run_file(py: Path, checkout: Path, rel: str, timeout: int,
              environment: dict[str, str], report_root: Path,
+             prerequisites: dict,
              pytest_runner: Path | None = None) -> dict:
     pytest_command = ["-m", "pytest"] if pytest_runner is None else [str(pytest_runner)]
     report_path = report_root / (digest(rel.encode()) + ".jsonl")
@@ -491,15 +903,26 @@ def run_file(py: Path, checkout: Path, rel: str, timeout: int,
                        "xfailed": 0, "xpassed": 0, "errors": 0,
                        "collected": 0},
             "report_sha256": file_hash(report_path) if report_path.is_file() else "",
+            "report_artifact": (
+                persist_artifact("pytest-report", report_path.read_bytes())
+                if report_path.is_file() else None
+            ),
+            "nodeid_manifest_sha256": "",
+            "nodeid_count": 0,
+            "collection_case_manifest_sha256": "",
+            "collection_cases": [],
+            "case_manifest_sha256": "",
+            "case_count": 0,
+            "case_results": [],
+            "case_outcome_manifest_sha256": "",
             "diagnostics": diagnostics(stdout, stderr, checkout),
         }
 
     output = completed.stdout + completed.stderr
-    events, report_hash = read_report(report_path)
-    counts, collection_errors, error_phases = report_counts(events)
+    events, report_hash, report_artifact = read_report(report_path)
+    counts, report = analyze_report(events, completed.returncode)
     phase, outcome, reason_codes = classify_result(
-        completed.returncode, output, events, counts, collection_errors,
-        error_phases,
+        completed.returncode, output, events, counts, report, rel, prerequisites,
     )
     process = "signaled" if completed.returncode < 0 else "exited"
     if completed.returncode < 0:
@@ -509,6 +932,19 @@ def run_file(py: Path, checkout: Path, rel: str, timeout: int,
         "phase": phase, "outcome": outcome, "reason_codes": reason_codes,
         "counts": counts,
         "report_sha256": report_hash,
+        "report_artifact": report_artifact,
+        "nodeid_manifest_sha256": report["nodeid_manifest_sha256"],
+        "nodeid_count": len(report["nodeids"]),
+        "collection_case_manifest_sha256": report[
+            "collection_case_manifest_sha256"
+        ],
+        "collection_cases": report["collection_cases"],
+        "case_manifest_sha256": report["case_manifest_sha256"],
+        "case_count": report["case_count"],
+        "case_results": report["case_results"],
+        "case_outcome_manifest_sha256": report[
+            "case_outcome_manifest_sha256"
+        ],
         "diagnostics": diagnostics(completed.stdout, completed.stderr, checkout),
     }
 
@@ -531,7 +967,8 @@ def aggregate(results: list[dict]) -> dict:
 
 
 def subject_identity(against: str, checkout: Path, checkout_commit: str,
-                     runtime_provenance: dict | None = None) -> dict:
+                     runtime_provenance: dict | None = None,
+                     runtime_library: Path = RUNTIME_LIBRARY) -> dict:
     if against == "upstream":
         return {
             "kind": "upstream",
@@ -546,16 +983,21 @@ def subject_identity(against: str, checkout: Path, checkout_commit: str,
         )
     if runtime_provenance is None:
         raise RuntimeError("Tgrad observation requires observer-built runtime provenance")
-    if not RUNTIME_LIBRARY.is_file():
-        raise RuntimeError(f"missing observer-built runtime artifact: {RUNTIME_LIBRARY}")
+    if not runtime_library.is_file():
+        raise RuntimeError(f"missing observer-built runtime artifact: {runtime_library}")
     revision = git_value("rev-parse", "HEAD")
+    tree = git_value("rev-parse", f"{revision}^{{tree}}")
+    if runtime_provenance.get("source_revision") != revision:
+        raise RuntimeError("runtime source revision does not match observed subject")
+    if runtime_provenance.get("source_tree") != tree:
+        raise RuntimeError("runtime source tree does not match observed subject")
     source_components = {
         root: git_directory_hash(revision, root) for root in ("Tgrad", "python", "c")
     }
     return {
         "kind": "tgrad",
         "revision": revision,
-        "tree": git_value("rev-parse", f"{revision}^{{tree}}"),
+        "tree": tree,
         "dirty": False,
         "product_sources": {
             "components": source_components,
@@ -567,14 +1009,18 @@ def subject_identity(against: str, checkout: Path, checkout_commit: str,
             "content_sha256": git_directory_hash(revision, "scripts/parity/shim"),
         },
         "runtime": {
-            "artifact_sha256": file_hash(RUNTIME_LIBRARY),
+            "artifact_sha256": file_hash(runtime_library),
+            "lean_artifact_sha256": file_hash(
+                runtime_library.parent / "libtgrad_Tgrad.dylib"
+            ),
             "source_provenance": runtime_provenance,
         },
     }
 
 
 def revalidate_inputs(identity: dict, checkout: Path,
-                      selected: list[dict]) -> None:
+                      selected: list[dict], execution_snapshot: dict[str, Path],
+                      py: Path, environment: dict[str, str]) -> None:
     errors = []
     upstream = identity["upstream"]
     if checkout_value(checkout, "status", "--porcelain"):
@@ -583,9 +1029,18 @@ def revalidate_inputs(identity: dict, checkout: Path,
         errors.append("upstream revision changed")
     if checkout_value(checkout, "rev-parse", "HEAD^{tree}") != upstream["tree"]:
         errors.append("upstream tree changed")
+    expected_snapshot_hash = checkout_snapshot_hash(
+        checkout, upstream["revision"], execution_snapshot["upstream_checkout"]
+    )
+    if expected_snapshot_hash != identity["upstream"].get("snapshot_content_sha256"):
+        errors.append("upstream execution snapshot content changed")
     for item in selected:
         if file_hash(checkout / item["path"]) != item["source_sha256"]:
             errors.append(f"upstream test changed: {item['path']}")
+        if file_hash(
+            execution_snapshot["upstream_checkout"] / item["path"]
+        ) != item["source_sha256"]:
+            errors.append(f"upstream execution snapshot differs: {item['path']}")
     contract = identity["contract"]
     if file_hash(REPO / contract["path"]) != contract["sha256"]:
         errors.append("oracle classification changed")
@@ -599,6 +1054,10 @@ def revalidate_inputs(identity: dict, checkout: Path,
         errors.append("strict shim runner changed")
     if file_hash(REPORTER_ROOT / f"{REPORTER_MODULE}.py") != verifier["reporter_sha256"]:
         errors.append("pytest reporter changed")
+    if file_hash(
+        execution_snapshot["reporter_root"] / f"{REPORTER_MODULE}.py"
+    ) != verifier["reporter_sha256"]:
+        errors.append("execution reporter differs from recorded verifier")
     subject = identity["subject"]
     if subject["kind"] == "tgrad":
         if git_value("status", "--porcelain"):
@@ -616,13 +1075,155 @@ def revalidate_inputs(identity: dict, checkout: Path,
             subject["revision"], "scripts/parity/shim"
         ) != subject["adapter"]["content_sha256"]:
             errors.append("strict adapter changed")
-        if file_hash(RUNTIME_LIBRARY) != subject["runtime"]["artifact_sha256"]:
-            errors.append("runtime artifact changed")
+        if file_hash(execution_snapshot["runtime_library"]) != subject["runtime"]["artifact_sha256"]:
+            errors.append("execution runtime artifact changed")
+        if file_hash(
+            execution_snapshot["runtime_library"].parent / "libtgrad_Tgrad.dylib"
+        ) != subject["runtime"]["lean_artifact_sha256"]:
+            errors.append("execution Lean runtime artifact changed")
+        if file_hash(execution_snapshot["product_python"] / "tgrad.py") != \
+                subject["product_sources"]["product_module_sha256"]:
+            errors.append("execution product module differs from recorded source")
+        if snapshot_directory_hash(
+            subject["revision"], "python", execution_snapshot["product_python"]
+        ) != subject["product_sources"]["components"]["python"]:
+            errors.append("execution Python tree differs from recorded source")
+        if snapshot_directory_hash(
+            subject["revision"], "scripts/parity/shim", execution_snapshot["shim_root"]
+        ) != subject["adapter"]["content_sha256"]:
+            errors.append("execution adapter tree differs from recorded source")
+        if file_hash(execution_snapshot["shim_runner"]) != verifier["shim_runner_sha256"]:
+            errors.append("execution shim differs from recorded verifier")
     if errors:
         raise RuntimeError("inputs changed during observation:\n  " + "\n  ".join(errors))
+    if interpreter_facts(py) != identity["environment"]["facts"]:
+        raise RuntimeError("Python interpreter or installed dependencies changed during observation")
+    if prerequisite_facts(py, environment, selected) != identity["environment"]["prerequisites"]:
+        raise RuntimeError("environment prerequisites changed during observation")
 
 
-def validate_upstream_baseline(path: Path, identity: dict) -> dict:
+def stable_result_payload(document: dict) -> dict:
+    stable_cells = []
+    for cell in document["observation"]["cells"]:
+        stable = {key: value for key, value in cell.items() if key != "diagnostics"}
+        diagnostics_doc = cell.get("diagnostics", {})
+        stable["diagnostic_identity"] = {
+            key: diagnostics_doc.get(key) for key in (
+                "stdout_normalized_sha256", "stderr_normalized_sha256"
+            )
+        }
+        stable_cells.append(stable)
+    stable_identity = json.loads(json.dumps(document["identity"]))
+    provenance = stable_identity.get("subject", {}).get("runtime", {}).get(
+        "source_provenance"
+    )
+    if isinstance(provenance, dict):
+        provenance.pop("command_logs", None)
+    return {"identity": stable_identity, "cells": stable_cells}
+
+
+def computed_result_id(document: dict) -> str:
+    return digest(canonical(stable_result_payload(document)))
+
+
+def computed_run_artifact_id(document: dict) -> str:
+    copy = json.loads(json.dumps(document))
+    copy.pop("run_artifact_id", None)
+    return digest(canonical(copy))
+
+
+def read_bound_artifact(evidence_path: Path, ref: dict) -> bytes:
+    if not isinstance(ref, dict):
+        raise RuntimeError("artifact reference is missing")
+    relative = Path(str(ref.get("path", "")))
+    if relative.is_absolute() or ".." in relative.parts:
+        raise RuntimeError(f"artifact path escapes evidence root: {relative}")
+    root = evidence_path.parent.resolve()
+    artifact = (root / relative).resolve()
+    if artifact != root and root not in artifact.parents:
+        raise RuntimeError(f"artifact path escapes evidence root: {relative}")
+    if not artifact.is_file():
+        raise RuntimeError(f"bound artifact is missing: {artifact}")
+    raw = artifact.read_bytes()
+    if ref.get("sha256") != digest(raw) or ref.get("bytes") != len(raw):
+        raise RuntimeError(f"bound artifact identity differs: {artifact}")
+    return raw
+
+
+def diagnostics_from_artifacts(cell: dict, evidence_path: Path,
+                               checkout: Path) -> tuple[dict, str, str]:
+    refs = cell.get("diagnostics", {}).get("raw_artifacts", {})
+    stdout_raw = read_bound_artifact(evidence_path, refs.get("stdout", {}))
+    stderr_raw = read_bound_artifact(evidence_path, refs.get("stderr", {}))
+    stdout = stdout_raw.decode("utf-8")
+    stderr = stderr_raw.decode("utf-8")
+    stdout_normalized_hash, stdout_excerpt = normalize_output(stdout, checkout)
+    stderr_normalized_hash, stderr_excerpt = normalize_output(stderr, checkout)
+    combined = "\n".join(part for part in (stdout_excerpt, stderr_excerpt) if part)
+    recomputed = {
+        "stdout_bytes": len(stdout_raw),
+        "stdout_raw_sha256": digest(stdout_raw),
+        "stdout_normalized_sha256": stdout_normalized_hash,
+        "stderr_bytes": len(stderr_raw),
+        "stderr_raw_sha256": digest(stderr_raw),
+        "stderr_normalized_sha256": stderr_normalized_hash,
+        "normalized_excerpt": combined,
+        "raw_artifacts": refs,
+    }
+    return recomputed, stdout, stderr
+
+
+def replay_upstream_cell(cell: dict, evidence_path: Path, checkout: Path,
+                         prerequisites: dict) -> dict:
+    report_ref = cell.get("report_artifact")
+    report_raw = read_bound_artifact(evidence_path, report_ref)
+    events = [
+        json.loads(line) for line in report_raw.decode("utf-8").splitlines()
+        if line.strip()
+    ]
+    returncode = cell.get("returncode")
+    if not isinstance(returncode, int):
+        raise RuntimeError(f"upstream baseline has no replayable return code: {cell.get('file')}")
+    counts, report = analyze_report(events, returncode)
+    diagnostics_doc, stdout, stderr = diagnostics_from_artifacts(
+        cell, evidence_path, checkout
+    )
+    phase, outcome, reason_codes = classify_result(
+        returncode, stdout + stderr, events, counts, report,
+        cell.get("file", ""), prerequisites,
+    )
+    process = "signaled" if returncode < 0 else "exited"
+    if returncode < 0:
+        reason_codes = ["signal", *reason_codes]
+    return {
+        "file": cell.get("file"),
+        "process": process,
+        "returncode": returncode,
+        "phase": phase,
+        "outcome": outcome,
+        "reason_codes": reason_codes,
+        "counts": counts,
+        "report_sha256": digest(report_raw),
+        "report_artifact": report_ref,
+        "nodeid_manifest_sha256": report["nodeid_manifest_sha256"],
+        "nodeid_count": len(report["nodeids"]),
+        "collection_case_manifest_sha256": report[
+            "collection_case_manifest_sha256"
+        ],
+        "collection_cases": report["collection_cases"],
+        "case_manifest_sha256": report["case_manifest_sha256"],
+        "case_count": report["case_count"],
+        "case_results": report["case_results"],
+        "case_outcome_manifest_sha256": report[
+            "case_outcome_manifest_sha256"
+        ],
+        "source_sha256": cell.get("source_sha256"),
+        "diagnostics": diagnostics_doc,
+    }
+
+
+def validate_upstream_baseline(path: Path, identity: dict,
+                               checkout: Path) -> tuple[dict, dict[str, dict]]:
     raw = path.read_bytes()
     baseline = json.loads(raw)
     if baseline.get("schema_version") != SCHEMA_VERSION:
@@ -630,15 +1231,49 @@ def validate_upstream_baseline(path: Path, identity: dict) -> dict:
     if baseline.get("against") != "upstream":
         raise RuntimeError("--upstream-baseline is not an upstream observation")
     baseline_identity = baseline.get("identity", {})
+    if not baseline_identity.get("upstream", {}).get("snapshot_content_sha256"):
+        raise RuntimeError("upstream baseline lacks immutable snapshot identity")
+    subject = baseline_identity.get("subject", {})
+    if subject.get("kind") != "upstream" or subject.get("dirty") is not False:
+        raise RuntimeError("upstream baseline subject identity is invalid")
+    if (
+        subject.get("revision") != baseline_identity.get("upstream", {}).get("revision") or
+        subject.get("tree") != baseline_identity.get("upstream", {}).get("tree")
+    ):
+        raise RuntimeError("upstream baseline subject does not match pinned upstream")
     for key in ("upstream", "contract"):
         if baseline_identity.get(key) != identity.get(key):
             raise RuntimeError(f"upstream baseline {key} does not match Tgrad scenario")
     baseline_environment = baseline_identity.get("environment", {})
     current_environment = identity.get("environment", {})
+    for label, environment_doc in (
+        ("upstream baseline", baseline_environment),
+        ("Tgrad observation", current_environment),
+    ):
+        if environment_doc.get("sha256") != digest(canonical({
+            key: value for key, value in environment_doc.items()
+            if key != "sha256"
+        })):
+            raise RuntimeError(f"{label} environment hash is inconsistent")
+    if not baseline_environment.get("oracle_backend_readiness", {}).get(
+        "available", False
+    ):
+        raise RuntimeError("upstream baseline backend readiness was not established")
     if baseline_environment.get("facts") != current_environment.get("facts"):
         raise RuntimeError("upstream baseline Python/dependency environment differs")
-    if baseline_environment.get("backend") != current_environment.get("backend"):
-        raise RuntimeError("upstream baseline backend/hardware environment differs")
+    if baseline_environment.get("prerequisites") != current_environment.get("prerequisites"):
+        raise RuntimeError("upstream baseline prerequisite environment differs")
+    baseline_backend = baseline_environment.get("backend", {})
+    current_backend = current_environment.get("backend", {})
+    if baseline_backend.get("hardware") != current_backend.get("hardware"):
+        raise RuntimeError("upstream baseline hardware environment differs")
+    backend_profile = identity.get("scenario", {}).get(
+        "backend_profile", {}
+    )
+    if baseline_backend.get("default_device") != backend_profile.get("upstream"):
+        raise RuntimeError("upstream baseline did not use the declared oracle backend")
+    if current_backend.get("default_device") != backend_profile.get("tgrad"):
+        raise RuntimeError("Tgrad did not use the declared subject backend")
     common_policy = (
         "LANG", "LC_ALL", "PYTHONHASHSEED", "PYTHONNOUSERSITE",
         "PYTHONSAFEPATH", "isolated_home", "isolated_tmp", "PATH",
@@ -652,42 +1287,215 @@ def validate_upstream_baseline(path: Path, identity: dict) -> dict:
         raise RuntimeError("upstream baseline controlled-environment policy differs")
     baseline_scenario = baseline_identity.get("scenario", {})
     current_scenario = identity.get("scenario", {})
-    for key in ("group", "oracle_class", "files", "timeout_seconds", "pytest_flags"):
+    for key in (
+        "group", "oracle_class", "files", "timeout_seconds", "pytest_flags",
+        "backend_profile",
+    ):
         if baseline_scenario.get(key) != current_scenario.get(key):
             raise RuntimeError(f"upstream baseline scenario field differs: {key}")
     if baseline_identity.get("verifier") != identity.get("verifier"):
         raise RuntimeError("upstream baseline used a different verifier")
-    outcomes = baseline.get("observation", {}).get("aggregate", {}).get(
-        "files_by_outcome", {}
+    scenario = baseline_identity.get("scenario", {})
+    if scenario.get("sha256") != digest(canonical({
+        key: value for key, value in scenario.items() if key != "sha256"
+    })):
+        raise RuntimeError("upstream baseline scenario hash is inconsistent")
+    if baseline.get("scenario_id") != scenario.get("sha256"):
+        raise RuntimeError("upstream baseline scenario_id is inconsistent")
+    cells = baseline.get("observation", {}).get("cells")
+    if not isinstance(cells, list) or len(cells) != 34:
+        raise RuntimeError("upstream baseline must contain exactly 34 cells")
+    by_file = {}
+    expected_files = {item["path"]: item for item in scenario.get("files", [])}
+    for cell in cells:
+        name = cell.get("file")
+        if not isinstance(name, str) or name in by_file:
+            raise RuntimeError("upstream baseline has missing or duplicate file cells")
+        if name not in expected_files:
+            raise RuntimeError(f"upstream baseline has an unexpected cell: {name}")
+        if cell.get("source_sha256") != expected_files[name].get("source_sha256"):
+            raise RuntimeError(f"upstream baseline source hash differs: {name}")
+        if not cell.get("nodeid_manifest_sha256"):
+            raise RuntimeError(f"upstream baseline lacks collection identity: {name}")
+        if not cell.get("collection_case_manifest_sha256"):
+            raise RuntimeError(f"upstream baseline lacks collection case identity: {name}")
+        if not cell.get("case_manifest_sha256"):
+            raise RuntimeError(f"upstream baseline lacks executed-case identity: {name}")
+        if not cell.get("case_outcome_manifest_sha256"):
+            raise RuntimeError(f"upstream baseline lacks case outcome identity: {name}")
+        replayed = replay_upstream_cell(
+            cell, path, checkout,
+            baseline_identity.get("environment", {}).get("prerequisites", {}),
+        )
+        if replayed != cell:
+            differing = sorted(
+                key for key in set(replayed) | set(cell)
+                if replayed.get(key) != cell.get(key)
+            )
+            raise RuntimeError(
+                f"upstream baseline cell cannot be replayed: {name}: " +
+                ", ".join(differing)
+            )
+        by_file[name] = cell
+    if set(by_file) != set(expected_files):
+        raise RuntimeError("upstream baseline cell set differs from scenario")
+    recorded_aggregate = baseline.get("observation", {}).get("aggregate")
+    if recorded_aggregate != aggregate(cells):
+        raise RuntimeError("upstream baseline aggregate is inconsistent with cells")
+    if baseline.get("result_id") != computed_result_id(baseline):
+        raise RuntimeError("upstream baseline result_id is inconsistent")
+    if baseline.get("run_artifact_id") != computed_run_artifact_id(baseline):
+        raise RuntimeError("upstream baseline run_artifact_id is inconsistent")
+    if not baseline.get("result_id") or not baseline.get("run_artifact_id"):
+        raise RuntimeError("upstream baseline lacks content identities")
+    outcomes = recorded_aggregate.get("files_by_outcome", {})
+    unexpected = sorted(
+        set(outcomes) - {"passed", "unobserved_environment", "blocked_environment"}
     )
-    unexpected = sorted(set(outcomes) - {"passed", "all_skipped"})
     if unexpected:
         raise RuntimeError(
             "upstream baseline is red for: " + ", ".join(unexpected)
         )
-    return {
+    reference = {
         "artifact_sha256": digest(raw),
         "result_id": baseline.get("result_id"),
         "run_artifact_id": baseline.get("run_artifact_id"),
+        "oracle_eligible_cases": {
+            name: [
+                result["case"] for result in cell["case_results"]
+                if result["outcome"] == "passed"
+            ]
+            for name, cell in sorted(by_file.items())
+        },
+        "oracle_eligible_case_count": sum(
+            result["outcome"] == "passed"
+            for cell in by_file.values() for result in cell["case_results"]
+        ),
+        "upstream_unobserved_case_count": sum(
+            result["outcome"] != "passed"
+            for cell in by_file.values() for result in cell["case_results"]
+        ),
     }
+    return reference, by_file
+
+
+def apply_upstream_oracle(result: dict, expected: dict) -> None:
+    eligible = {
+        canonical(case_result["case"]): case_result
+        for case_result in expected["case_results"]
+        if case_result["outcome"] == "passed"
+    }
+    if not eligible:
+        prior = result["outcome"]
+        result["outcome"] = "unobserved_upstream"
+        result["phase"] = "oracle"
+        result["reason_codes"] = sorted(set([
+            *result["reason_codes"],
+            "upstream_has_no_passed_cases",
+            f"subject_outcome:{prior}",
+        ]))
+        return
+    current_cases = {
+        canonical(case_result["case"]): case_result
+        for case_result in result["case_results"]
+    }
+    expected_collection = {
+        descriptor["nodeid"]: descriptor
+        for descriptor in expected["collection_cases"]
+    }
+    current_collection = {
+        descriptor["nodeid"]: descriptor
+        for descriptor in result["collection_cases"]
+    }
+    eligible_nodeids = {
+        case_result["case"]["nodeid"] for case_result in eligible.values()
+    }
+    missing = sorted(key.decode() for key in eligible if key not in current_cases)
+    descriptor_mismatch = sorted(
+        nodeid for nodeid in eligible_nodeids
+        if current_collection.get(nodeid) != expected_collection.get(nodeid)
+    )
+    result["upstream_oracle"] = {
+        "eligible_case_count": len(eligible),
+        "eligible_case_manifest_sha256": digest(canonical(sorted(
+            [case_result["case"] for case_result in eligible.values()],
+            key=lambda case: canonical(case),
+        ))),
+    }
+    if missing or descriptor_mismatch:
+        prior = result["outcome"]
+        if prior == "passed":
+            result["outcome"] = "collection_mismatch"
+        result["phase"] = "collection"
+        result["reason_codes"] = sorted(set([
+            *result["reason_codes"],
+            "upstream_eligible_case_scope_differs",
+            *(["missing_eligible_cases"] if missing else []),
+            *(["eligible_case_descriptor_differs"] if descriptor_mismatch else []),
+            f"prior_outcome:{prior}",
+        ]))
+        return
+    nonpassing = [
+        current_cases[key] for key in eligible
+        if current_cases[key]["outcome"] != "passed"
+    ]
+    if nonpassing:
+        prior = result["outcome"]
+        if prior == "passed":
+            result["outcome"] = "nonconforming"
+            result["phase"] = "execution"
+        result["reason_codes"] = sorted(set([
+            *result["reason_codes"],
+            "upstream_passed_case_not_passed_by_subject",
+        ]))
+    else:
+        result["outcome"] = "passed"
+        result["phase"] = "execution"
+        result["reason_codes"] = []
+
+
+def validate_tgrad_observation(path: Path, document: dict,
+                               upstream_path: Path, checkout: Path) -> None:
+    identity = document.get("identity", {})
+    subject = identity.get("subject", {})
+    if subject.get("kind") != "tgrad" or subject.get("dirty") is not False:
+        raise RuntimeError("Tgrad observation subject identity is invalid")
+    baseline_ref, baseline_cells = validate_upstream_baseline(
+        upstream_path, identity, checkout
+    )
+    if identity.get("upstream_baseline") != baseline_ref:
+        raise RuntimeError("Tgrad observation baseline reference is inconsistent")
+    cells = document.get("observation", {}).get("cells", [])
+    by_file = {}
+    for stored in cells:
+        name = stored.get("file")
+        if name in by_file or name not in baseline_cells:
+            raise RuntimeError("Tgrad observation has missing or duplicate file cells")
+        replayed = replay_upstream_cell(
+            stored, path, checkout,
+            identity.get("environment", {}).get("prerequisites", {}),
+        )
+        apply_upstream_oracle(replayed, baseline_cells[name])
+        if replayed != stored:
+            differing = sorted(
+                key for key in set(replayed) | set(stored)
+                if replayed.get(key) != stored.get(key)
+            )
+            raise RuntimeError(
+                f"Tgrad observation cell cannot be replayed: {name}: " +
+                ", ".join(differing)
+            )
+        by_file[name] = stored
+    if set(by_file) != set(baseline_cells):
+        raise RuntimeError("Tgrad observation file set differs from upstream baseline")
+    if document.get("observation", {}).get("aggregate") != aggregate(cells):
+        raise RuntimeError("Tgrad observation aggregate is inconsistent with cells")
 
 
 def write_evidence(document: dict, output: Path | None, scope: str) -> Path:
-    stable_cells = [
-        {key: value for key, value in cell.items() if key != "diagnostics"}
-        for cell in document["observation"]["cells"]
-    ]
-    semantic_subject = json.loads(json.dumps(document["identity"]["subject"]))
-    provenance = semantic_subject.get("runtime", {}).get("source_provenance")
-    if isinstance(provenance, dict):
-        provenance.pop("command_logs", None)
     document["scenario_id"] = document["identity"]["scenario"]["sha256"]
-    document["result_id"] = digest(canonical({
-        "scenario_id": document["scenario_id"],
-        "subject": semantic_subject,
-        "cells": stable_cells,
-    }))
-    document["run_artifact_id"] = digest(canonical(document))
+    document["result_id"] = computed_result_id(document)
+    document["run_artifact_id"] = computed_run_artifact_id(document)
     rendered = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode()
     if output is None:
         subject = document["identity"]["subject"]["revision"][:12]
@@ -723,7 +1531,10 @@ def main() -> int:
     parser.add_argument("--checkout", type=Path, default=DEFAULT_CHECKOUT)
     parser.add_argument("--python", type=Path, default=DEFAULT_VENV_PY,
                         help="pytest environment (or set TGRAD_PARITY_PYTHON)")
-    parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument(
+        "--timeout", type=int, default=600,
+        help="per-file timeout; canonical calibration uses 600 seconds",
+    )
     parser.add_argument("--expect-files", type=int, default=0)
     parser.add_argument(
         "--require-outcome", action="append", default=[], choices=OUTCOMES,
@@ -750,7 +1561,8 @@ def main() -> int:
         args.expect_files = 34
         if args.against == "upstream":
             args.require_outcome = sorted(
-                set(args.require_outcome) | {"passed", "all_skipped"}
+                set(args.require_outcome) |
+                {"passed", "unobserved_environment", "blocked_environment"}
             )
         elif args.upstream_baseline is None:
             parser.error("canonical Tgrad mode requires --upstream-baseline")
@@ -790,35 +1602,106 @@ def main() -> int:
         print("\n".join(item["path"] for item in selected))
         return 0
 
-    runtime_provenance = None
-    if args.against == "tgrad":
-        if git_value("status", "--porcelain"):
-            parser.error(
-                "refusing to build or observe Tgrad from a dirty tree; "
-                "commit the observer and product first"
-            )
-        try:
-            runtime_provenance = rebuild_runtime(git_value("rev-parse", "HEAD"))
-        except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
-            parser.error(str(exc))
-    try:
-        subject = subject_identity(
-            args.against, args.checkout, checkout_commit, runtime_provenance
-        )
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
-        parser.error(str(exc))
-    with tempfile.TemporaryDirectory(
+    with observer_lock(), tempfile.TemporaryDirectory(
         prefix="tgrad_parity_observer_", dir="/tmp"
     ) as temp:
-        environment = controlled_environment(
-            args.against, args.checkout, Path(temp)
+        temp_root = Path(temp)
+        runtime_provenance = None
+        if args.against == "tgrad":
+            if git_value("status", "--porcelain"):
+                parser.error(
+                    "refusing to build or observe Tgrad from a dirty tree; "
+                    "commit the observer and product first"
+                )
+            try:
+                build_revision = git_value("rev-parse", "HEAD")
+                build_tree = git_value("rev-parse", f"{build_revision}^{{tree}}")
+                runtime_provenance = rebuild_runtime(build_revision, build_tree)
+            except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+                parser.error(str(exc))
+        execution_snapshot = copy_execution_snapshot(
+            temp_root, args.against, args.checkout, checkout_commit
         )
+        execution_checkout = execution_snapshot["upstream_checkout"]
+        upstream_snapshot_hash = checkout_snapshot_hash(
+            args.checkout, checkout_commit, execution_checkout
+        )
+        try:
+            subject = subject_identity(
+                args.against, args.checkout, checkout_commit, runtime_provenance,
+                execution_snapshot.get("runtime_library", RUNTIME_LIBRARY),
+            )
+        except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+            parser.error(str(exc))
+        environment = controlled_environment(
+            args.against, execution_checkout, temp_root,
+            execution_snapshot["reporter_root"],
+            execution_snapshot.get("shim_root"),
+            execution_snapshot.get("product_python"),
+            execution_snapshot.get("runtime_library"),
+        )
+        prerequisites = prerequisite_facts(
+            args.python.absolute(), environment, selected
+        )
+        oracle_backend = (
+            upstream_backend_readiness(
+                args.python.absolute(), execution_checkout, environment
+            ) if args.against == "upstream" else None
+        )
+        if (
+            args.canonical_api_surface and args.against == "upstream" and
+            not oracle_backend.get("available", False)
+        ):
+            parser.error(
+                "declared upstream Metal backend failed its readiness probe; "
+                "refusing to calibrate the contract in this environment"
+            )
+        verifier = verifier_identity()
+        environment_identity = {
+            "facts": interpreter_facts(args.python.absolute()),
+            "backend": backend_facts(
+                args.python.absolute(), execution_checkout, environment
+            ),
+            "prerequisites": prerequisites,
+            "oracle_backend_readiness": oracle_backend,
+            "policy": {
+                "isolated_home": True,
+                "isolated_tmp": True,
+                "PATH": environment["PATH"],
+                "path_sha256": digest(environment["PATH"].encode()),
+                "python_path": [
+                    component
+                    .replace(str(REPO), "<tgrad-repo>")
+                    .replace(str(args.checkout), "<upstream-checkout>")
+                    .replace(str(temp_root), "<execution-root>")
+                    for component in environment["PYTHONPATH"].split(os.pathsep)
+                ],
+                "tgrad_root": (
+                    "<execution-root>/snapshot"
+                    if "TGRAD_ROOT" in environment else None
+                ),
+                "tgrad_lib": (
+                    environment.get("TGRAD_LIB", "")
+                    .replace(str(temp_root), "<execution-root>") or None
+                ),
+                "inherited_backend_overrides": [],
+                "controlled_backend_selector": environment.get("DEV"),
+                **{
+                    key: environment[key]
+                    for key in (
+                        "LANG", "LC_ALL", "PYTHONHASHSEED",
+                        "PYTHONNOUSERSITE", "PYTHONSAFEPATH",
+                    )
+                },
+            },
+        }
+        environment_identity["sha256"] = digest(canonical(environment_identity))
         pytest_runner = None
         if args.against == "tgrad":
-            pytest_runner = SHIM_RUNNER
+            pytest_runner = execution_snapshot["shim_runner"]
             verify = subprocess.run(
-                [str(args.python), str(SHIM_RUNNER), "--verify-only"],
-                cwd=args.checkout, capture_output=True, text=True, env=environment,
+                [str(args.python), str(pytest_runner), "--verify-only"],
+                cwd=execution_checkout, capture_output=True, text=True, env=environment,
             )
             if verify.returncode != 0:
                 print(
@@ -832,8 +1715,8 @@ def main() -> int:
         results = []
         for index, item in enumerate(selected, 1):
             result = run_file(
-                args.python.absolute(), args.checkout, item["path"], args.timeout,
-                environment, Path(temp) / "reports", pytest_runner,
+                args.python.absolute(), execution_checkout, item["path"], args.timeout,
+                environment, Path(temp) / "reports", prerequisites, pytest_runner,
             )
             result["source_sha256"] = item["source_sha256"]
             results.append(result)
@@ -844,80 +1727,52 @@ def main() -> int:
                 f"{counts['skipped']}s/{counts['errors']}e)"
             )
 
-        result_summary = aggregate(results)
-        verifier_hash = file_hash(Path(__file__).resolve())
         identity = {
             "upstream": {
                 "revision": checkout_commit,
                 "tree": checkout_value(args.checkout, "rev-parse", f"{checkout_commit}^{{tree}}"),
+                "snapshot_content_sha256": upstream_snapshot_hash,
             },
             "subject": subject,
-            "verifier": {
-                "runner_sha256": verifier_hash,
-                "runner_revision": f"sha256:{verifier_hash}",
-                "shim_runner_sha256": file_hash(SHIM_RUNNER),
-                "reporter_sha256": file_hash(
-                    REPORTER_ROOT / f"{REPORTER_MODULE}.py"
-                ),
-            },
+            "verifier": verifier,
             "contract": contract,
-            "environment": {
-                "facts": interpreter_facts(args.python.absolute()),
-                "backend": backend_facts(
-                    args.python.absolute(), args.checkout, environment
-                ),
-                "policy": {
-                    "isolated_home": True,
-                    "isolated_tmp": True,
-                    "PATH": environment["PATH"],
-                    "path_sha256": digest(environment["PATH"].encode()),
-                    "python_path": [
-                        component
-                        .replace(str(REPO), "<tgrad-repo>")
-                        .replace(str(args.checkout), "<upstream-checkout>")
-                        for component in environment["PYTHONPATH"].split(os.pathsep)
-                    ],
-                    "tgrad_root": (
-                        "<tgrad-repo>" if "TGRAD_ROOT" in environment else None
-                    ),
-                    "tgrad_lib": (
-                        environment.get("TGRAD_LIB", "").replace(
-                            str(REPO), "<tgrad-repo>"
-                        ) or None
-                    ),
-                    "inherited_backend_overrides": [],
-                    **{
-                        key: environment[key]
-                        for key in (
-                            "LANG", "LC_ALL", "PYTHONHASHSEED",
-                            "PYTHONNOUSERSITE", "PYTHONSAFEPATH",
-                        )
-                    },
-                },
+            "acceptance": {
+                "allowed_file_outcomes": sorted(set(args.require_outcome)),
             },
+            "environment": environment_identity,
             "scenario": {
                 "group": args.group,
                 "oracle_class": args.oracle_class,
                 "files": selected,
                 "timeout_seconds": args.timeout,
-                "required_outcomes": sorted(set(args.require_outcome)),
                 "pytest_flags": [
                     "-q", "--no-header", "-p", "no:cacheprovider",
                     "-p", REPORTER_MODULE,
                 ],
+                "backend_profile": {
+                    "upstream": "METAL",
+                    "tgrad": "METAL",
+                    "relation": "same_backend_public_observations",
+                },
             },
         }
-        identity["environment"]["sha256"] = digest(canonical(identity["environment"]))
         identity["scenario"]["sha256"] = digest(canonical(identity["scenario"]))
         if args.against == "tgrad" and args.upstream_baseline is not None:
             try:
-                identity["upstream_baseline"] = validate_upstream_baseline(
-                    args.upstream_baseline.resolve(), identity
+                baseline_ref, baseline_cells = validate_upstream_baseline(
+                    args.upstream_baseline.resolve(), identity, args.checkout
                 )
+                identity["upstream_baseline"] = baseline_ref
+                for result in results:
+                    expected = baseline_cells[result["file"]]
+                    apply_upstream_oracle(result, expected)
             except (OSError, RuntimeError, json.JSONDecodeError) as exc:
                 parser.error(str(exc))
         try:
-            revalidate_inputs(identity, args.checkout, selected)
+            revalidate_inputs(
+                identity, args.checkout, selected, execution_snapshot,
+                args.python.absolute(), environment,
+            )
         except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
             parser.error(str(exc))
         document = {
@@ -925,10 +1780,11 @@ def main() -> int:
             "against": args.against,
             "identity": identity,
             "observation": {
-                "aggregate": result_summary,
+                "aggregate": aggregate(results),
                 "cells": results,
             },
         }
+        result_summary = document["observation"]["aggregate"]
         scope = (
             "api_surface" if args.canonical_api_surface
             else "subset_" + contract["executed_selection_sha256"][:12]
@@ -953,6 +1809,39 @@ def main() -> int:
             file=sys.stderr,
         )
         return 3
+    if args.canonical_api_surface and args.against == "tgrad":
+        invalid = {
+            "verifier_error", "timeout", "collection_mismatch",
+            "collection_error", "empty",
+        }
+        observed = set(result_summary["files_by_outcome"])
+        if observed & invalid:
+            print(
+                "canonical evidence is invalid: " +
+                ", ".join(sorted(observed & invalid)),
+                file=sys.stderr,
+            )
+            return 3
+        nonparity = observed - {"passed", "unobserved_upstream"}
+        if nonparity:
+            print(
+                "canonical evidence is valid but parity is not established: " +
+                ", ".join(sorted(nonparity)),
+                file=sys.stderr,
+            )
+            return 4
+        baseline_scope = identity.get("upstream_baseline", {})
+        if (
+            baseline_scope.get("oracle_eligible_case_count", 0) == 0 or
+            baseline_scope.get("upstream_unobserved_case_count", 0) > 0
+        ):
+            print(
+                "canonical comparison is incomplete: upstream left "
+                f"{baseline_scope.get('upstream_unobserved_case_count', 0)} "
+                "cases unobserved",
+                file=sys.stderr,
+            )
+            return 5
     return 0
 
 

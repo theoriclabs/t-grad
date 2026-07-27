@@ -52,6 +52,13 @@ import Tgrad.Pipeline
 -- L6 (Python authoring layer — Python → C → Lean via @[export])
 import Tgrad.PythonFFI
 
+-- The ontology: sorts, morphisms, and gaps, stated as type-checking
+-- Lean. Imported here on purpose — `lean_lib Tgrad`'s default glob is
+-- `Glob.one `Tgrad`, so it builds only this file and its transitive
+-- imports. Without this line `Tgrad/Ontology.lean` is never compiled
+-- by `lake build` and its `#check` pins are inert.
+import Tgrad.Ontology
+
 -- Experimental mechanistic query model for planner / architect agents.
 import Tgrad.Model.Impact
 import Tgrad.Model.Spec

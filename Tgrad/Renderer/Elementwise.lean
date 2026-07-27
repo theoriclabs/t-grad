@@ -123,6 +123,81 @@ theorem elementwise_rejects_unsupported :
     (elementwiseKernelDecl .andB 4 4 (.var "i" .int32_) (.var "j" .int32_) .bfloat16_ .bfloat16_ .bfloat16_ "t").isNone := by
   native_decide
 
+
+/-! ## Reduction
+
+  The accumulate-over-a-loop shape already exists in the matmul kernel:
+  zero an accumulator, walk the contracted axis, write back. This
+  generalises it to one contracted axis of a rank-2 operand, so `sum`
+  and `prod` are the same kernel with a different identity element and
+  operator — a table row each, exactly like the pointwise ops.
+
+  Keepdim is the only mode: reducing axis 1 of `rows x cols` yields
+  `rows x 1`. Everything downstream is rank-2, and a rank-changing
+  reduce would need shape machinery that is not built yet. Saying so is
+  better than silently dropping an axis.
+-/
+
+/-- Identity element for the accumulator, as MSL. -/
+def reduceInit : BinOp → Option String
+  | .add => some "0.0f"
+  | .mul => some "1.0f"
+  | _    => none
+
+def reduceOpName : BinOp → String
+  | .add => "sum"
+  | .mul => "prod"
+  | _    => "unsupported"
+
+/-- `out = reduce OP over one axis of a rank-2 operand`, keepdim.
+
+    `idxOf` receives the output coordinate and the loop variable and
+    returns the operand index, so the caller decides which axis is
+    contracted and views cost nothing. -/
+def reduceKernelDecl (op : BinOp) (rows cols axis : Nat)
+    (operandIdx : UOp) (aTy outTy : Dtype) (tag : String) : Option KernelDecl :=
+  match elementwiseOpStr op, reduceInit op, mslScalarType aTy, mslScalarType outTy with
+  | some opStr, some init, some aS, some outS =>
+    let bound := if axis == 1 then cols else rows
+    let outLen := if axis == 1 then rows else cols
+    some
+      { name     := s!"red_{reduceOpName op}_{aTy.toStr}_{outTy.toStr}_a{axis}_{tag}_{rows}x{cols}",
+        wmmaArgs := [],
+        args     := [
+          .buffer { qualifier := "device", baseType := outS, name := "data0" },
+          .buffer { qualifier := "device", baseType := aS,   name := "data1" },
+          .attr   { baseType := "uint3", name := "gid",
+                    attrStr := "[[threadgroup_position_in_grid]]" },
+        ],
+        body     := [
+          .declInt "gidx0" "gid.x" (some s!"{outLen}"),
+          .declFloat "acc" init,
+          .forLoop "ridx0" bound [
+            .loadIndexed s!"{aS} val0" "data1" operandIdx,
+            .assign "acc" s!"acc{opStr}((float)val0)"
+          ],
+          .storeIndexedAs outS "data0" (.var "gidx0" .int32_) "acc"
+        ],
+        trailingNewline := false }
+  | _, _, _, _ => none
+
+/-- Distinct reductions must not share a kernel identity, for the same
+    cache reason the pointwise operators must not. -/
+theorem reduce_names_separate_operators :
+    (reduceKernelDecl .add 4 4 1 (.var "i" .int32_) .bfloat16_ .bfloat16_ "t").map
+        (fun d => d.name)
+      ≠ (reduceKernelDecl .mul 4 4 1 (.var "i" .int32_) .bfloat16_ .bfloat16_ "t").map
+        (fun d => d.name) := by
+  native_decide
+
+/-- Reducing a different axis is a different kernel. -/
+theorem reduce_names_separate_axes :
+    (reduceKernelDecl .add 4 4 0 (.var "i" .int32_) .bfloat16_ .bfloat16_ "t").map
+        (fun d => d.name)
+      ≠ (reduceKernelDecl .add 4 4 1 (.var "i" .int32_) .bfloat16_ .bfloat16_ "t").map
+        (fun d => d.name) := by
+  native_decide
+
 end Metal
 end Renderer
 end Tgrad

@@ -686,6 +686,54 @@ private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
                   [rows, cols] outTy))
   | _, _, _, _ => return none
 
+
+initialize libCacheRed : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+/-- Lower a reduction over one axis of a rank-2 operand, keepdim.
+
+    Same structure as the pointwise path: the operand index comes from
+    the `View` algebra, so reducing a transposed or sliced tensor needs
+    no extra code. The loop variable is the contracted coordinate. -/
+private def runReduce (op : BinOp) (a : Tgrad.Tensor) (axis : Nat) :
+    IO (Option Tgrad.Tensor) := do
+  let aShape := a.shape
+  if aShape.length != 2 then return none
+  match aShape[0]?, aShape[1]?, Tgrad.Schedule.viewOfUOp a.uop with
+  | some rows, some cols, some va => do
+    let gid : UOp := .var "gidx0" .int32_
+    let rid : UOp := .var "ridx0" .int32_
+    -- axis 1 contracts columns: operand coordinate is (out, loop).
+    -- axis 0 contracts rows:    operand coordinate is (loop, out).
+    let vars := if axis == 1 then [gid, rid] else [rid, gid]
+    let operandIdx := Tgrad.Schedule.View.indexOf va vars
+    let outTy := a.dtype
+    let tag := toString (String.hash operandIdx.renderIndexExpr)
+    match Tgrad.Renderer.Metal.reduceKernelDecl op rows cols axis
+            operandIdx a.dtype outTy tag with
+    | none => return none
+    | some decl => do
+      let cache ← libCacheRed.get
+      let cached := cacheLookup decl.name cache
+      let lib ← if cached != 0 then pure cached else do
+        let msl := Tgrad.Renderer.Metal.renderKernel decl
+        let l ← Tgrad.Runtime.Metal.metalCompile msl
+        if l != 0 then libCacheRed.modify (fun c => (decl.name, l) :: c)
+        pure l
+      if lib == 0 then return none
+      let outLen := if axis == 1 then rows else cols
+      let outShape := if axis == 1 then [rows, 1] else [1, cols]
+      let outBytes := outLen * outTy.sizeBytes
+      let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+      if outBuf == 0 then return none
+      let rc ← Tgrad.Runtime.Metal.metalDispatch lib decl.name
+        #[outBuf, a.buffer.raw] (USize.ofNat outLen) 1 1 1 1 1
+      if rc != 0 then
+        Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+        return none
+      pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+                  outShape outTy))
+  | _, _, _ => return none
+
 /-- Materialise a graph and return a handle to the result.
 
     The accepted shape today is the matmul marker
@@ -723,6 +771,16 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
             match (← runBufferMatmul a b M K N) with
             | none     => return 0
             | some out => TensorRegistry.register out
+  | .reduce op bodyU axes =>
+      -- A reduction whose body is not the matmul marker. The matmul arm
+      -- above is matched first because it is the more specific pattern.
+      let a : Tgrad.Tensor := { uop := bodyU, dtype := bodyU.dtypeOf }
+      let axis := match axes with
+                  | (.const _ (.i n)) :: _ => n.toNat
+                  | _                      => 1
+      match (← runReduce op a axis) with
+      | none     => return 0
+      | some out => TensorRegistry.register out
   | .binop op aU bU _ =>
       -- Pointwise. Reachable for every operator `elementwiseOpStr`
       -- accepts; the rest fail to build a kernel rather than emitting

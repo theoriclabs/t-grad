@@ -641,6 +641,33 @@ class Tensor:
     def __mul__(self, other: "Tensor") -> "Tensor":
         return self._pointwise(other, _BINOP_MUL, "mul")
 
+    # Reductions. Same table-row shape as the pointwise ops: the kernel
+    # is shared, only the operator and identity element differ. Keepdim
+    # is the only mode, so `sum(axis=1)` on (rows, cols) gives (rows, 1).
+    def _reduce(self, op_code: int, axis: int, name: str) -> "Tensor":
+        if axis not in (0, 1):
+            raise TgradTypeError(f"{name}: axis must be 0 or 1 (got {axis})")
+        if self._dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(f"{name}: unsupported dtype {self._dtype!r}")
+        h = _lib.tgrad_tensor_reduce(op_code, self._handle, axis)
+        if h == 0:
+            raise TgradError(f"tgrad_tensor_reduce({name}) returned 0")
+        out_handle = _lib.tgrad_realize(h)
+        if out_handle == 0:
+            raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
+        out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
+        m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
+        n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+        dt = _dtype_of_handle(out_handle)
+        return Tensor(out_buf, m * n * _DTYPE_BYTES[dt], (m, n), dt,
+                      handle=out_handle, owns_buf=True, base=None)
+
+    def sum(self, axis: int = 1) -> "Tensor":
+        return self._reduce(_BINOP_ADD, axis, "sum")
+
+    def prod(self, axis: int = 1) -> "Tensor":
+        return self._reduce(_BINOP_MUL, axis, "prod")
+
     def __matmul__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented

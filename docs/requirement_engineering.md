@@ -713,6 +713,25 @@ dispatch, or graph rewrite. The prospective observation predicts complete
 traces for exactly two scenarios, while explicitly withholding any global
 parity promotion.
 
+Evidence
+`bfbde2d1477526daaf84b1b3aa06b8996fe13396d8e36ba3d87899c21718dcc9`
+matches the realization prediction exactly. `ADD-SAME-SHAPE-F32` and
+`ADD-SINGLETON-AXIS-F32` now match upstream in all eleven declared dimensions:
+construction, shape, dtype, exact values, realization identity, repeated
+readback, input immutability, exception stage/class/message, and terminal
+outcome. This is calibrated scenario conformance, not requirement promotion.
+Adequacy remains open, two int32 scenarios are unobserved past construction,
+rank-3 broadcasting is unsupported, and the incompatible-shape exception
+relation differs.
+
+This sequence is the first strong evidence that the method is working as a
+growth mechanism rather than a documentation exercise. Each accepted packet
+made a prospective, falsifiable transition prediction; the only prediction
+miss was a write-set omission, which was caught before commit and amended.
+The observed frontier narrowed monotonically from constructor protocol, to
+readback, to realization identity, without changing the upstream baseline or
+the verifier semantics to obtain a green result.
+
 ## How to know whether the method is working
 
 Compilation is necessary but almost uninformative here. The method is working

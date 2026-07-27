@@ -1,0 +1,1192 @@
+{
+  "against": "tgrad",
+  "artifacts": [
+    {
+      "bytes": 13238,
+      "kind": "probe-protocol",
+      "path": "artifacts/probe-protocol/5a42d5074023d0e3d9952ff896ee5fa7e72b14b4b231f822302dcb8c472777ed",
+      "sha256": "5a42d5074023d0e3d9952ff896ee5fa7e72b14b4b231f822302dcb8c472777ed"
+    },
+    {
+      "bytes": 0,
+      "kind": "probe-stderr-normalized",
+      "path": "artifacts/probe-stderr-normalized/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "kind": "probe-stderr-raw",
+      "path": "artifacts/probe-stderr-raw/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 13239,
+      "kind": "probe-stdout-normalized",
+      "path": "artifacts/probe-stdout-normalized/59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10",
+      "sha256": "59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10"
+    },
+    {
+      "bytes": 13239,
+      "kind": "probe-stdout-raw",
+      "path": "artifacts/probe-stdout-raw/59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10",
+      "sha256": "59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10"
+    }
+  ],
+  "calibrations": null,
+  "evidence_id": "bfbde2d1477526daaf84b1b3aa06b8996fe13396d8e36ba3d87899c21718dcc9",
+  "identity": {
+    "adapter": {
+      "content_sha256": "f0efa66bacc6b7307bd36035fd4444d5fc98882838e115d897ccbd44e2fe98df",
+      "kind": "strict_tgrad_substitution",
+      "no_fallback_required": true,
+      "runner_sha256": "747f83cc5a94abc888707659eb50046926f23b6cc6be0fc018a55da30b8d560e"
+    },
+    "comparison_relation": {
+      "amendment_sha256": "1719e2f46ce29d8226cd3afb832dcd487aa126cc110979a7b5c871aad1f7cd26",
+      "fault_model": [
+        "probe mismatch rejected",
+        "schema mismatch rejected",
+        "manifest mismatch rejected",
+        "semantic lock mismatch rejected",
+        "missing relation identity rejected",
+        "revision-only provenance difference accepted"
+      ],
+      "module_sha256": "c17a9f1ce559a8bebdcc2934095743410afd896b2039c2d97f26155cc9e1591f",
+      "provenance_only_fields": [
+        "observer_sha256",
+        "git.revision",
+        "git.tree",
+        "git.files",
+        "git.sha256"
+      ],
+      "subject_protocol_fields": [
+        "probe_sha256",
+        "schema_version",
+        "manifest_effective_sha256",
+        "semantic_lock_sha256"
+      ],
+      "tests_sha256": "c74c8a6db57340a43e583d0a8e8a665827290ee4aa495efd71bfd980c36589c4",
+      "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V6"
+    },
+    "environment": {
+      "backend": "METAL",
+      "facts": {
+        "cache_tag": "cpython-313",
+        "distribution_manifest_sha256": "54e3b2aa6716a5ed4f5c35539241aa5a7230680c1c97ba30669cfe8ce33c283c",
+        "implementation": "CPython",
+        "launcher": "/Users/harshwork/code/Tgrad/.venv/bin/python",
+        "launcher_target": "/Users/harshwork/.local/share/uv/python/cpython-3.13.9-macos-aarch64-none/bin/python3.13",
+        "launcher_target_sha256": "29da7f053cfe0c521796b29078913add87b336a33e737dad25176e4dcfe83794",
+        "machine": "arm64",
+        "platform": "Darwin",
+        "platform_release": "24.5.0",
+        "python": "3.13.9",
+        "runtime_executable": "/Users/harshwork/code/Tgrad/.venv/bin/python",
+        "selected_dependencies": {
+          "hypothesis": "6.161.6",
+          "numpy": "2.5.1",
+          "pytest": "9.1.1",
+          "torch": "2.13.0"
+        },
+        "selected_dependency_files_sha256": {
+          "hypothesis": "0fddf6586bc1fc48a7332827e45effd4490f84d6b06b9c18ab9f4fbb1e75f568",
+          "numpy": "6649bf79d7db29bf17c2acc59eeaf2623473556454d6eff90f7163acfdbb84b7",
+          "pytest": "c09a29d7da13834b268f0da2ebabfbd53a6b26cfdbbfb5cbb976663475f8e87d",
+          "torch": "233c71ef3fb239493409365e7aaa21fa4a1f6a68e98d95f19c1e7926293a9ba1"
+        },
+        "selected_dependency_record_sha256": {
+          "hypothesis": "08e8fa6013c36921587c0d630411edbe6e46c0a86adc28e351b2b3c22c5968d0",
+          "numpy": "2fc9cb62438f989f9a9fc647f5755184a6c3b1962eb857d121756e6fc776f2cc",
+          "pytest": "bbfa6bca7da7a353f71b7b61b59d75df723c51dbdf52d930d549af8cfe44852b",
+          "torch": "3aa9bac0ba902009ff8f1e32184dca0808d53e8813458558214159e7c922fa7b"
+        }
+      },
+      "facts_sha256": "67d64a99683d3444685c4e6db1e2d20970dbaf4d2072b4dc6d47478dabb45af2",
+      "hardware": {
+        "chip_type": "Apple M4",
+        "identity_sha256": "7826b350b1d111a9b52cfba16bad783a331c23f6c0c425a01d3f0b4d7c22359c",
+        "machine_model": "Mac16,12",
+        "machine_name": "MacBook Air"
+      },
+      "policy": {
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PYTHONHASHSEED": "0",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONSAFEPATH": "1",
+        "isolated_home": true,
+        "isolated_tmp": true,
+        "strict_no_upstream_fallback": true
+      },
+      "sha256": "75d15c7a9b0fb713d4a0d0ed54ef526f0c552f75200ea6987f117613931020f8"
+    },
+    "lock": {
+      "definition_revision": "78e4027b3011541f9dc8be73fe9d2d3e1a0b997f",
+      "definition_tree": "eae76e83ebc2d8b0bd1fe72140fa4a8809f15082",
+      "predecessor_definition_sha256": "b5cbcf16482c418875aecc9b1f7eb59b4de1800f49b3ba8c331954072f1cb6b5",
+      "semantic_lock_sha256": "975820bfd46b1eaa3a5826f7c8357e5560d380cd5a6da1c88b1afc278ccb2b2a",
+      "sha256": "1719e2f46ce29d8226cd3afb832dcd487aa126cc110979a7b5c871aad1f7cd26",
+      "trial_id": "TRIAL-BROADCAST-ADD-PROSPECTIVE-V6"
+    },
+    "manifest": {
+      "base_v2_amendment_sha256": "3cd3b5f4534092c008c22c8ef79c481d1c9753831ada848b06b7a82a0362303f",
+      "effective_sha256": "02229c32937df15704714282ee28754b8fed3938b9b4f33d1aba254b206b4c1e",
+      "packet_id": "WORK-SPEC-BROADCAST-ADD-PROSPECTIVE-V4",
+      "v3_amendment_sha256": "e8c78e7ea3d233334bf8fbc752dfeedc6908e86612e244659fca490403a33b0d",
+      "v4_amendment_sha256": "b5cbcf16482c418875aecc9b1f7eb59b4de1800f49b3ba8c331954072f1cb6b5"
+    },
+    "runtime": {
+      "execution": {
+        "product_python_content_sha256": "f19180eed720b03e83f380363a36ac30646b88dc170fd85b5e71122cd4ac8cba",
+        "runtime_artifact_sha256": "08e62e0110784cfc8e82f7ea1b3ad69d90db987e318e3160061eb6661335148e",
+        "runtime_artifacts": {
+          "libtgrad.dylib": "068af6bb53e34acb72f4c2a31b96b663d38f59958cbc5b7d9e6b68ba6ed0571d",
+          "libtgrad_Tgrad.dylib": "f8d3b6b8caa54581e37bdad8059d20ac19c6a54e214251b8c14bea155ef52384"
+        },
+        "shim_content_sha256": "f0efa66bacc6b7307bd36035fd4444d5fc98882838e115d897ccbd44e2fe98df"
+      },
+      "kind": "tgrad_native_runtime",
+      "source": {
+        "combined_sha256": "e7d844485fd91248582654e492a67a69b27e2af9acc0d64c6d8a4a182d4ebe3e",
+        "component_sha256": {
+          "Tgrad": "00257730fd7e3598c00f33483df73e20e78771986df81d24b097430ecce91961",
+          "c": "0a072b296383e7f3319e58657a2e5cc1a246d7180bf2c135606809fa58b0b209",
+          "python": "a15ecad204aa44363ae4c8bf27696928835d688103286fe97164f54bfe895210",
+          "scripts/parity/shim": "f0efa66bacc6b7307bd36035fd4444d5fc98882838e115d897ccbd44e2fe98df"
+        },
+        "dirty": false,
+        "revision": "24198dfbcd827fe853f2b281fc3362a96312fd60",
+        "tree": "e58249b01649e5344a04ae620f82485a6c45479c"
+      }
+    },
+    "source": {
+      "combined_sha256": "e7d844485fd91248582654e492a67a69b27e2af9acc0d64c6d8a4a182d4ebe3e",
+      "component_sha256": {
+        "Tgrad": "00257730fd7e3598c00f33483df73e20e78771986df81d24b097430ecce91961",
+        "c": "0a072b296383e7f3319e58657a2e5cc1a246d7180bf2c135606809fa58b0b209",
+        "python": "a15ecad204aa44363ae4c8bf27696928835d688103286fe97164f54bfe895210",
+        "scripts/parity/shim": "f0efa66bacc6b7307bd36035fd4444d5fc98882838e115d897ccbd44e2fe98df"
+      },
+      "dirty": false,
+      "revision": "24198dfbcd827fe853f2b281fc3362a96312fd60",
+      "tree": "e58249b01649e5344a04ae620f82485a6c45479c"
+    },
+    "upstream_baseline": {
+      "evidence_id": "84a58222575eab06ecc72889e1dbbe2a2084849356673a8d299c21ad2e41a844",
+      "path_sha256": "7f256eebdcdf2ddba531df875e16f0d84bacb8730307dfae175324bba90d515f",
+      "protocol_sha256": "5e0464e3e4413cecdc9f29a9718b4d834af7233df002fb8b3757fa83ab5daa40",
+      "scenario_manifest_sha256": "02229c32937df15704714282ee28754b8fed3938b9b4f33d1aba254b206b4c1e",
+      "source_revision": "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+    },
+    "verifier": {
+      "git": {
+        "clean": true,
+        "files": {
+          "scripts/spec/observe_broadcast_add.py": "4f5cf6155ef99f7eb2a935b4ff23118c58c5cc6a0417bc7b7f95c328475c1a87",
+          "scripts/spec/test_broadcast_add_observer.py": "0ef9f691a92fbe16c15cae7412a7f61846d78d24f1b1a835520ae9309d843b51"
+        },
+        "revision": "24198dfbcd827fe853f2b281fc3362a96312fd60",
+        "sha256": "c8737a12cf48ca84387946ca2781b0c34ab93eddf71d1fce0e070ced1251f3a4",
+        "tree": "e58249b01649e5344a04ae620f82485a6c45479c"
+      },
+      "observer_sha256": "4f5cf6155ef99f7eb2a935b4ff23118c58c5cc6a0417bc7b7f95c328475c1a87",
+      "probe_sha256": "bb11d63073c6ba3c000963934b26c707d7861703b12146f71c5a44c224ed0129",
+      "schema_version": 1
+    }
+  },
+  "inference_policy": {
+    "adequacy": "open",
+    "kind": "observation_only",
+    "never_infer": [
+      "conformant",
+      "promoted",
+      "full_tinygrad_parity"
+    ]
+  },
+  "observation": {
+    "artifacts": {
+      "probe-protocol": {
+        "bytes": 13238,
+        "kind": "probe-protocol",
+        "path": "artifacts/probe-protocol/5a42d5074023d0e3d9952ff896ee5fa7e72b14b4b231f822302dcb8c472777ed",
+        "sha256": "5a42d5074023d0e3d9952ff896ee5fa7e72b14b4b231f822302dcb8c472777ed"
+      },
+      "probe-stderr-normalized": {
+        "bytes": 0,
+        "kind": "probe-stderr-normalized",
+        "path": "artifacts/probe-stderr-normalized/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "probe-stderr-raw": {
+        "bytes": 0,
+        "kind": "probe-stderr-raw",
+        "path": "artifacts/probe-stderr-raw/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "probe-stdout-normalized": {
+        "bytes": 13239,
+        "kind": "probe-stdout-normalized",
+        "path": "artifacts/probe-stdout-normalized/59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10",
+        "sha256": "59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10"
+      },
+      "probe-stdout-raw": {
+        "bytes": 13239,
+        "kind": "probe-stdout-raw",
+        "path": "artifacts/probe-stdout-raw/59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10",
+        "sha256": "59ab7f26cfd79298069bfb045a26e394879f01bd1683d15a20a0264d0a1f6d10"
+      }
+    },
+    "protocol": {
+      "backend": "METAL",
+      "mutation": null,
+      "ownership": {
+        "contaminated_modules": [],
+        "fallback_detected": false,
+        "loaded_tinygrad_modules": [
+          {
+            "kind": "file",
+            "module": "tinygrad",
+            "owner": "<shim>",
+            "path": "<shim>/__init__.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad._unsupported",
+            "owner": "<shim>",
+            "path": "<shim>/_unsupported.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.device",
+            "owner": "<shim>",
+            "path": "<shim>/device.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.dtype",
+            "owner": "<shim>",
+            "path": "<shim>/dtype.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.engine",
+            "owner": "<shim>",
+            "path": "<shim>/engine/__init__.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.engine.jit",
+            "owner": "<shim>",
+            "path": "<shim>/engine/jit.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.helpers",
+            "owner": "<shim>",
+            "path": "<shim>/helpers.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.nn",
+            "owner": "<shim>",
+            "path": "<shim>/nn/__init__.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.uop",
+            "owner": "<shim>",
+            "path": "<shim>/uop/__init__.py"
+          },
+          {
+            "kind": "file",
+            "module": "tinygrad.uop.ops",
+            "owner": "<shim>",
+            "path": "<shim>/uop/ops.py"
+          }
+        ],
+        "package": {
+          "kind": "file",
+          "owner": "<shim>",
+          "path": "<shim>/__init__.py"
+        },
+        "package_paths": [
+          "<shim>/."
+        ],
+        "product_module": {
+          "kind": "file",
+          "owner": "<product>",
+          "path": "<product>/tgrad.py"
+        },
+        "strict_finder_active": true,
+        "tensor_class_identity": true,
+        "tensor_module": {
+          "kind": "file",
+          "owner": "<product>",
+          "path": "<product>/tgrad.py"
+        }
+      },
+      "protocol_token": "bfbe3108e2cd9c69a5f0e40997c103998083e17f4669a9f6f1c46a435c2b8d68",
+      "scenario_manifest_sha256": "02229c32937df15704714282ee28754b8fed3938b9b4f33d1aba254b206b4c1e",
+      "scenarios": [
+        {
+          "dimensions": {
+            "construction": {
+              "state": "observed",
+              "value": {
+                "left": true,
+                "right": true
+              }
+            },
+            "dtype": {
+              "state": "observed",
+              "value": "float32"
+            },
+            "exception_class": {
+              "state": "observed",
+              "value": null
+            },
+            "exception_message": {
+              "state": "observed",
+              "value": null
+            },
+            "exception_stage": {
+              "state": "observed",
+              "value": null
+            },
+            "inputs_unchanged": {
+              "state": "observed",
+              "value": {
+                "after_sha256": "670ea797928e59eb1551b31f3b78509d217268b056a947609078d24592c7be45",
+                "before_sha256": "670ea797928e59eb1551b31f3b78509d217268b056a947609078d24592c7be45",
+                "equal": true
+              }
+            },
+            "realize_identity": {
+              "state": "observed",
+              "value": {
+                "first_is_result": true,
+                "same_realized_object": true,
+                "second_is_result": true
+              }
+            },
+            "repeated_readback": {
+              "state": "observed",
+              "value": {
+                "equal": true,
+                "first_sha256": "76b0f9a8e3bbfa60f57115ddfceb945d3f99fda4b24aa8c0672f1efd0f0b6147",
+                "second_sha256": "76b0f9a8e3bbfa60f57115ddfceb945d3f99fda4b24aa8c0672f1efd0f0b6147"
+              }
+            },
+            "shape": {
+              "state": "observed",
+              "value": [
+                2,
+                3
+              ]
+            },
+            "terminal_outcome": {
+              "state": "observed",
+              "value": "returned"
+            },
+            "value": {
+              "state": "observed",
+              "value": {
+                "dtype": "float32",
+                "sha256": "76b0f9a8e3bbfa60f57115ddfceb945d3f99fda4b24aa8c0672f1efd0f0b6147",
+                "shape": [
+                  2,
+                  3
+                ],
+                "storage_dtype": "<f4",
+                "storage_hex": "000030410000b041000004420000304200005c4200008442",
+                "values": [
+                  "0x1.6000000000000p+3",
+                  "0x1.6000000000000p+4",
+                  "0x1.0800000000000p+5",
+                  "0x1.6000000000000p+5",
+                  "0x1.b800000000000p+5",
+                  "0x1.0800000000000p+6"
+                ]
+              }
+            }
+          },
+          "id": "ADD-SAME-SHAPE-F32",
+          "requirements": [
+            "REQ-ADD-LEGAL-SAME-DTYPE",
+            "REQ-REALIZE-IDEMPOTENT"
+          ],
+          "terminal": {
+            "exception": null,
+            "outcome": "returned"
+          },
+          "trace": [
+            {
+              "stage": "construct_left",
+              "status": "completed"
+            },
+            {
+              "stage": "construct_right",
+              "status": "completed"
+            },
+            {
+              "stage": "snapshot_inputs",
+              "status": "completed"
+            },
+            {
+              "stage": "invoke_add",
+              "status": "completed"
+            },
+            {
+              "stage": "capture_result_identity",
+              "status": "completed"
+            },
+            {
+              "stage": "observe_shape",
+              "status": "completed"
+            },
+            {
+              "stage": "observe_dtype",
+              "status": "completed"
+            },
+            {
+              "stage": "realize_1",
+              "status": "completed"
+            },
+            {
+              "stage": "readback_1",
+              "status": "completed"
+            },
+            {
+              "stage": "realize_2",
+              "status": "completed"
+            },
+            {
+              "stage": "readback_2",
+              "status": "completed"
+            },
+            {
+              "stage": "snapshot_inputs_after",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "dimensions": {
+            "construction": {
+              "state": "observed",
+              "value": {
+                "left": true,
+                "right": true
+              }
+            },
+            "dtype": {
+              "state": "observed",
+              "value": "float32"
+            },
+            "exception_class": {
+              "state": "observed",
+              "value": null
+            },
+            "exception_message": {
+              "state": "observed",
+              "value": null
+            },
+            "exception_stage": {
+              "state": "observed",
+              "value": null
+            },
+            "inputs_unchanged": {
+              "state": "observed",
+              "value": {
+                "after_sha256": "09e530a8ee1a81a5e20e6b83d39245c3499545b4aa8b12bdb7a8bf428741b0b4",
+                "before_sha256": "09e530a8ee1a81a5e20e6b83d39245c3499545b4aa8b12bdb7a8bf428741b0b4",
+                "equal": true
+              }
+            },
+            "realize_identity": {
+              "state": "observed",
+              "value": {
+                "first_is_result": true,
+                "same_realized_object": true,
+                "second_is_result": true
+              }
+            },
+            "repeated_readback": {
+              "state": "observed",
+              "value": {
+                "equal": true,
+                "first_sha256": "3183e1374229362cd352733da95758412861e3a341e18369e0016bbf3d1318f4",
+                "second_sha256": "3183e1374229362cd352733da95758412861e3a341e18369e0016bbf3d1318f4"
+              }
+            },
+            "shape": {
+              "state": "observed",
+              "value": [
+                2,
+                3
+              ]
+            },
+            "terminal_outcome": {
+              "state": "observed",
+              "value": "returned"
+            },
+            "value": {
+              "state": "observed",
+              "value": {
+                "dtype": "float32",
+                "sha256": "3183e1374229362cd352733da95758412861e3a341e18369e0016bbf3d1318f4",
+                "shape": [
+                  2,
+                  3
+                ],
+                "storage_dtype": "<f4",
+                "storage_hex": "0000304100004041000050410000c0410000c8410000d041",
+                "values": [
+                  "0x1.6000000000000p+3",
+                  "0x1.8000000000000p+3",
+                  "0x1.a000000000000p+3",
+                  "0x1.8000000000000p+4",
+                  "0x1.9000000000000p+4",
+                  "0x1.a000000000000p+4"
+                ]
+              }
+            }
+          },
+          "id": "ADD-SINGLETON-AXIS-F32",
+          "requirements": [
+            "REQ-ADD-LEGAL-SAME-DTYPE",
+            "REQ-REALIZE-IDEMPOTENT"
+          ],
+          "terminal": {
+            "exception": null,
+            "outcome": "returned"
+          },
+          "trace": [
+            {
+              "stage": "construct_left",
+              "status": "completed"
+            },
+            {
+              "stage": "construct_right",
+              "status": "completed"
+            },
+            {
+              "stage": "snapshot_inputs",
+              "status": "completed"
+            },
+            {
+              "stage": "invoke_add",
+              "status": "completed"
+            },
+            {
+              "stage": "capture_result_identity",
+              "status": "completed"
+            },
+            {
+              "stage": "observe_shape",
+              "status": "completed"
+            },
+            {
+              "stage": "observe_dtype",
+              "status": "completed"
+            },
+            {
+              "stage": "realize_1",
+              "status": "completed"
+            },
+            {
+              "stage": "readback_1",
+              "status": "completed"
+            },
+            {
+              "stage": "realize_2",
+              "status": "completed"
+            },
+            {
+              "stage": "readback_2",
+              "status": "completed"
+            },
+            {
+              "stage": "snapshot_inputs_after",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "dimensions": {
+            "construction": {
+              "state": "observed",
+              "value": {
+                "left": false,
+                "right": false
+              }
+            },
+            "dtype": {
+              "reason": "result_dtype_not_reached",
+              "state": "unobserved"
+            },
+            "exception_class": {
+              "state": "observed",
+              "value": "TgradTypeError"
+            },
+            "exception_message": {
+              "state": "observed",
+              "value": "unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int32>; supported: ['bf16', 'f32']"
+            },
+            "exception_stage": {
+              "state": "observed",
+              "value": "construct_left"
+            },
+            "inputs_unchanged": {
+              "reason": "both_input_snapshots_not_reached",
+              "state": "unobserved"
+            },
+            "realize_identity": {
+              "reason": "both_realizations_not_reached",
+              "state": "unobserved"
+            },
+            "repeated_readback": {
+              "reason": "both_readbacks_not_reached",
+              "state": "unobserved"
+            },
+            "shape": {
+              "reason": "result_shape_not_reached",
+              "state": "unobserved"
+            },
+            "terminal_outcome": {
+              "state": "observed",
+              "value": "raised"
+            },
+            "value": {
+              "reason": "first_readback_not_reached",
+              "state": "unobserved"
+            }
+          },
+          "id": "ADD-RANK-EXTENSION-I32",
+          "requirements": [
+            "REQ-ADD-LEGAL-SAME-DTYPE",
+            "REQ-REALIZE-IDEMPOTENT"
+          ],
+          "terminal": {
+            "exception": {
+              "class": "TgradTypeError",
+              "message": "unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int32>; supported: ['bf16', 'f32']",
+              "stage": "construct_left"
+            },
+            "outcome": "raised"
+          },
+          "trace": [
+            {
+              "exception_class": "TgradTypeError",
+              "exception_message": "unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int32>; supported: ['bf16', 'f32']",
+              "stage": "construct_left",
+              "status": "raised"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "construct_right",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "snapshot_inputs",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "invoke_add",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "capture_result_identity",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_shape",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_dtype",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "realize_1",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "readback_1",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "realize_2",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "readback_2",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "snapshot_inputs_after",
+              "status": "skipped"
+            }
+          ]
+        },
+        {
+          "dimensions": {
+            "construction": {
+              "state": "observed",
+              "value": {
+                "left": true,
+                "right": true
+              }
+            },
+            "dtype": {
+              "reason": "result_dtype_not_reached",
+              "state": "unobserved"
+            },
+            "exception_class": {
+              "state": "observed",
+              "value": "NotInLeanScope"
+            },
+            "exception_message": {
+              "state": "observed",
+              "value": "add: rank-2 only"
+            },
+            "exception_stage": {
+              "state": "observed",
+              "value": "invoke_add"
+            },
+            "inputs_unchanged": {
+              "reason": "both_input_snapshots_not_reached",
+              "state": "unobserved"
+            },
+            "realize_identity": {
+              "reason": "both_realizations_not_reached",
+              "state": "unobserved"
+            },
+            "repeated_readback": {
+              "reason": "both_readbacks_not_reached",
+              "state": "unobserved"
+            },
+            "shape": {
+              "reason": "result_shape_not_reached",
+              "state": "unobserved"
+            },
+            "terminal_outcome": {
+              "state": "observed",
+              "value": "raised"
+            },
+            "value": {
+              "reason": "first_readback_not_reached",
+              "state": "unobserved"
+            }
+          },
+          "id": "ADD-TWO-SIDED-BROADCAST-F32",
+          "requirements": [
+            "REQ-ADD-LEGAL-SAME-DTYPE",
+            "REQ-REALIZE-IDEMPOTENT"
+          ],
+          "terminal": {
+            "exception": {
+              "class": "NotInLeanScope",
+              "message": "add: rank-2 only",
+              "stage": "invoke_add"
+            },
+            "outcome": "raised"
+          },
+          "trace": [
+            {
+              "stage": "construct_left",
+              "status": "completed"
+            },
+            {
+              "stage": "construct_right",
+              "status": "completed"
+            },
+            {
+              "stage": "snapshot_inputs",
+              "status": "completed"
+            },
+            {
+              "exception_class": "NotInLeanScope",
+              "exception_message": "add: rank-2 only",
+              "stage": "invoke_add",
+              "status": "raised"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "capture_result_identity",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_shape",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_dtype",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "realize_1",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "readback_1",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "realize_2",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "readback_2",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "snapshot_inputs_after",
+              "status": "skipped"
+            }
+          ]
+        },
+        {
+          "dimensions": {
+            "construction": {
+              "state": "observed",
+              "value": {
+                "left": false,
+                "right": false
+              }
+            },
+            "dtype": {
+              "reason": "result_dtype_not_reached",
+              "state": "unobserved"
+            },
+            "exception_class": {
+              "state": "observed",
+              "value": "TgradTypeError"
+            },
+            "exception_message": {
+              "state": "observed",
+              "value": "unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int32>; supported: ['bf16', 'f32']"
+            },
+            "exception_stage": {
+              "state": "observed",
+              "value": "construct_left"
+            },
+            "inputs_unchanged": {
+              "reason": "both_input_snapshots_not_reached",
+              "state": "unobserved"
+            },
+            "realize_identity": {
+              "reason": "both_realizations_not_reached",
+              "state": "unobserved"
+            },
+            "repeated_readback": {
+              "reason": "both_readbacks_not_reached",
+              "state": "unobserved"
+            },
+            "shape": {
+              "reason": "result_shape_not_reached",
+              "state": "unobserved"
+            },
+            "terminal_outcome": {
+              "state": "observed",
+              "value": "raised"
+            },
+            "value": {
+              "reason": "first_readback_not_reached",
+              "state": "unobserved"
+            }
+          },
+          "id": "ADD-I32-F32-SCALAR-PROMOTION",
+          "requirements": [
+            "REQ-ADD-DTYPE-PROMOTION",
+            "REQ-REALIZE-IDEMPOTENT"
+          ],
+          "terminal": {
+            "exception": {
+              "class": "TgradTypeError",
+              "message": "unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int32>; supported: ['bf16', 'f32']",
+              "stage": "construct_left"
+            },
+            "outcome": "raised"
+          },
+          "trace": [
+            {
+              "exception_class": "TgradTypeError",
+              "exception_message": "unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int32>; supported: ['bf16', 'f32']",
+              "stage": "construct_left",
+              "status": "raised"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "construct_right",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "snapshot_inputs",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "invoke_add",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "capture_result_identity",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_shape",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_dtype",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "realize_1",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "readback_1",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "realize_2",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "readback_2",
+              "status": "skipped"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "snapshot_inputs_after",
+              "status": "skipped"
+            }
+          ]
+        },
+        {
+          "dimensions": {
+            "construction": {
+              "state": "observed",
+              "value": {
+                "left": true,
+                "right": true
+              }
+            },
+            "exception_class": {
+              "state": "observed",
+              "value": "TgradTypeError"
+            },
+            "exception_message": {
+              "state": "observed",
+              "value": "add: shapes (2, 3) and (2, 2) are not broadcastable"
+            },
+            "exception_stage": {
+              "state": "observed",
+              "value": "invoke_add"
+            },
+            "shape": {
+              "reason": "result_shape_not_available",
+              "state": "unobserved"
+            },
+            "terminal_outcome": {
+              "state": "observed",
+              "value": "raised"
+            }
+          },
+          "id": "ADD-INCOMPATIBLE-SHAPES",
+          "requirements": [
+            "REQ-ADD-INCOMPATIBLE-SHAPE"
+          ],
+          "terminal": {
+            "exception": {
+              "class": "TgradTypeError",
+              "message": "add: shapes (2, 3) and (2, 2) are not broadcastable",
+              "stage": "invoke_add"
+            },
+            "outcome": "raised"
+          },
+          "trace": [
+            {
+              "stage": "construct_left",
+              "status": "completed"
+            },
+            {
+              "stage": "construct_right",
+              "status": "completed"
+            },
+            {
+              "exception_class": "TgradTypeError",
+              "exception_message": "add: shapes (2, 3) and (2, 2) are not broadcastable",
+              "stage": "invoke_add",
+              "status": "raised"
+            },
+            {
+              "reason": "prior_stage_raised",
+              "stage": "observe_shape_if_constructed",
+              "status": "skipped"
+            },
+            {
+              "stage": "record_terminal_stage_class_message",
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "schema_version": 1,
+      "status": "complete",
+      "subject_mode": "tgrad"
+    }
+  },
+  "result_kind": "observation",
+  "schema_version": 1,
+  "upstream_comparison": [
+    {
+      "counts": {
+        "different": 0,
+        "same": 11,
+        "unobserved": 0
+      },
+      "dimensions": {
+        "construction": "same",
+        "dtype": "same",
+        "exception_class": "same",
+        "exception_message": "same",
+        "exception_stage": "same",
+        "inputs_unchanged": "same",
+        "realize_identity": "same",
+        "repeated_readback": "same",
+        "shape": "same",
+        "terminal_outcome": "same",
+        "value": "same"
+      },
+      "scenario_id": "ADD-SAME-SHAPE-F32"
+    },
+    {
+      "counts": {
+        "different": 0,
+        "same": 11,
+        "unobserved": 0
+      },
+      "dimensions": {
+        "construction": "same",
+        "dtype": "same",
+        "exception_class": "same",
+        "exception_message": "same",
+        "exception_stage": "same",
+        "inputs_unchanged": "same",
+        "realize_identity": "same",
+        "repeated_readback": "same",
+        "shape": "same",
+        "terminal_outcome": "same",
+        "value": "same"
+      },
+      "scenario_id": "ADD-SINGLETON-AXIS-F32"
+    },
+    {
+      "counts": {
+        "different": 5,
+        "same": 0,
+        "unobserved": 6
+      },
+      "dimensions": {
+        "construction": "different",
+        "dtype": "unobserved",
+        "exception_class": "different",
+        "exception_message": "different",
+        "exception_stage": "different",
+        "inputs_unchanged": "unobserved",
+        "realize_identity": "unobserved",
+        "repeated_readback": "unobserved",
+        "shape": "unobserved",
+        "terminal_outcome": "different",
+        "value": "unobserved"
+      },
+      "scenario_id": "ADD-RANK-EXTENSION-I32"
+    },
+    {
+      "counts": {
+        "different": 4,
+        "same": 1,
+        "unobserved": 6
+      },
+      "dimensions": {
+        "construction": "same",
+        "dtype": "unobserved",
+        "exception_class": "different",
+        "exception_message": "different",
+        "exception_stage": "different",
+        "inputs_unchanged": "unobserved",
+        "realize_identity": "unobserved",
+        "repeated_readback": "unobserved",
+        "shape": "unobserved",
+        "terminal_outcome": "different",
+        "value": "unobserved"
+      },
+      "scenario_id": "ADD-TWO-SIDED-BROADCAST-F32"
+    },
+    {
+      "counts": {
+        "different": 5,
+        "same": 0,
+        "unobserved": 6
+      },
+      "dimensions": {
+        "construction": "different",
+        "dtype": "unobserved",
+        "exception_class": "different",
+        "exception_message": "different",
+        "exception_stage": "different",
+        "inputs_unchanged": "unobserved",
+        "realize_identity": "unobserved",
+        "repeated_readback": "unobserved",
+        "shape": "unobserved",
+        "terminal_outcome": "different",
+        "value": "unobserved"
+      },
+      "scenario_id": "ADD-I32-F32-SCALAR-PROMOTION"
+    },
+    {
+      "counts": {
+        "different": 3,
+        "same": 2,
+        "unobserved": 1
+      },
+      "dimensions": {
+        "construction": "same",
+        "exception_class": "different",
+        "exception_message": "different",
+        "exception_stage": "different",
+        "shape": "unobserved",
+        "terminal_outcome": "same"
+      },
+      "scenario_id": "ADD-INCOMPATIBLE-SHAPES"
+    }
+  ]
+}

@@ -108,6 +108,16 @@ def findings : List Finding :=
       description := "committed evidence names an absent commit and stale hashes",
       state := .confirmed .open
         "after 7c7dc0f regenerated 11 reproducible files, 26/37 still name an absent commit, 76/115 hashes are unresolved, 28 roll-ups disagree, and 17 writer keys mismatch" },
+    { id := "F-upstream-ops-understatement", severity := .high,
+      component := .specification,
+      description := "the obvious tinygrad/uop/ops.py location imports Ops instead of defining its 82-member vocabulary",
+      state := .confirmed (.remediated "3ed1e49")
+        "the extractor reads tinygrad/uop/__init__.py, rejects a missing or empty Ops enum, and records that source in the foreign manifest" },
+    { id := "F-upstream-tensor-mixin-understatement", severity := .high,
+      component := .specification,
+      description := "scanning tensor.py alone found 47 methods and understated the inherited 297-method Tensor surface by 6.3x",
+      state := .confirmed (.remediated "3ed1e49")
+        "the extractor walks every tinygrad/mixin module, records per-source members, and refuses to emit when no mixins are found" },
     { id := "F-division-semantics", severity := .medium,
       component := .rewriteEngine,
       description := "constant fold, Python oracle, and C renderer disagree for negatives",
@@ -137,7 +147,7 @@ def remediatedFindings : List Finding := findings.filter (fun finding =>
   | _ => false)
 
 example : openFindings.length = 2 := by native_decide
-example : remediatedFindings.length = 12 := by native_decide
+example : remediatedFindings.length = 14 := by native_decide
 example : findings.all (fun finding => finding.state.hasUpgradePath) = true := by
   native_decide
 example : findingCoverage.hasUpgradePath = true := by native_decide

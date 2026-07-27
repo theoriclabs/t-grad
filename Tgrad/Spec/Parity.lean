@@ -1,4 +1,12 @@
 import Tgrad.Spec.Epistemic
+import Tgrad.Spec.ParityTarget
+import Tgrad.Dtype
+import Tgrad.UOp
+import Tgrad.Tensor
+import Tgrad.Codegen.Opt.Apply
+import Tgrad.Schedule.View
+import Tgrad.Renderer.Metal
+import Tgrad.Pipeline
 
 /-! # Tgrad.Spec.Parity — a versioned destination and a compiler from gaps to work
 
@@ -32,12 +40,22 @@ def UpstreamRef.wellFormed (ref : UpstreamRef) : Bool :=
   !ref.apiManifestHash.isEmpty &&
   !ref.testManifestHash.isEmpty
 
-/-- No revision is invented here.  Capturing this value is the first parity
-work item; until then every numeric "distance to tinygrad" is ungrounded. -/
+/-- The exact foreign revision and generated-manifest identities selected by
+the owner after reviewing the extracted candidate. -/
+def pinnedUpstream : UpstreamRef :=
+  { repository := ParityTarget.repository,
+    revision := ParityTarget.revision,
+    observedAt := ParityTarget.committedAt,
+    sourceManifestHash := ParityTarget.sourceManifestSha256,
+    apiManifestHash := ParityTarget.apiManifestSha256,
+    testManifestHash := ParityTarget.testManifestSha256 }
+
+/-- The reviewed foreign manifest pins the first convergence target.  This
+confirms the denominator only; it does not claim that any Tgrad requirement is
+conformant. -/
 def targetUpstream : Epistemic UpstreamRef :=
-  .unknown
-    "a pinned tinygrad revision plus source, public-API, and test manifests"
-    "capture one official tinygrad revision and commit immutable generated manifests with hashes"
+  .confirmed pinnedUpstream
+    s!"{ParityTarget.manifestPath}; content sha256 {ParityTarget.manifestContentSha256}; extractor sha256 {ParityTarget.extractorSha256}"
 
 inductive Profile where
   | semanticCore
@@ -315,12 +333,132 @@ def Contract.obligationsFor
   ((contract.requirements.filter fun requirement =>
       requirementIds.contains requirement.id).flatMap (·.dimensions)).eraseDups
 
-/-- The target contract cannot honestly be populated until `targetUpstream`
-is confirmed and the generated coverage matrix exists. -/
+/-! ## Generated target requirements
+
+The names below come only from `ParityTarget`, which is rendered from the
+foreign JSON manifest.  The category-to-domain/profile/equivalence mapping is
+local policy and remains reviewable here; the denominator itself is not typed
+by hand. -/
+
+private def apiProfiles : List Profile :=
+  [.publicApi, .metal, .portable, .ecosystem, .allBackends]
+
+private def semanticProfiles : List Profile :=
+  [.semanticCore, .publicApi, .metal, .portable, .ecosystem, .allBackends]
+
+private def symbolRequirement (category symbol : String)
+    (domains : List Domain) (dimensions : List Dimension)
+    (profiles : List Profile) (relation : String) : Requirement :=
+  { id := s!"{category}:{symbol}",
+    domains,
+    dimensions,
+    profiles,
+    upstreamSymbols := [symbol],
+    upstreamTests := [],
+    requiredEnvironments := ["host"],
+    equivalenceRelation := relation }
+
+private def testRequirement (group path : String)
+    (profiles : List Profile) : Requirement :=
+  { id := s!"test:{group}:{path}",
+    domains := [.workloads],
+    dimensions := [.api, .semantic, .runtime],
+    profiles,
+    upstreamSymbols := [],
+    upstreamTests := [path],
+    requiredEnvironments :=
+      if group == "backend" then ["declared-backend"] else ["host"],
+    equivalenceRelation := "tinygrad-test-file-v1" }
+
+def tensorMethodRequirements : List Requirement :=
+  ParityTarget.tensorMethods.map fun name =>
+    symbolRequirement "tensor-method" s!"Tensor.{name}"
+      [.tensorSurface] [.api, .semantic] apiProfiles "tinygrad-tensor-api-v1"
+
+def tensorPropertyRequirements : List Requirement :=
+  ParityTarget.tensorProperties.map fun name =>
+    symbolRequirement "tensor-property" s!"Tensor.{name}"
+      [.tensorSurface] [.api, .semantic] apiProfiles "tinygrad-tensor-api-v1"
+
+def dtypeRequirements : List Requirement :=
+  ParityTarget.dtypeNames.map fun name =>
+    symbolRequirement "dtype" s!"dtypes.{name}"
+      [.dtypeSystem, .scalarSemantics] [.api, .semantic, .numerical]
+      semanticProfiles "tinygrad-dtype-v1"
+
+def opsRequirements : List Requirement :=
+  ParityTarget.opsMembers.map fun name =>
+    symbolRequirement "ops" s!"Ops.{name}"
+      [.uopIr, .rewriteSystem, .lowering] [.semantic, .compiler]
+      semanticProfiles "tinygrad-ops-v1"
+
+def backendRequirements : List Requirement :=
+  ParityTarget.backendNames.map fun name =>
+    { (symbolRequirement "backend" s!"tinygrad.runtime.ops_{name}"
+        [.renderer, .runtime] [.backend, .runtime]
+        (if name == "metal" then [.metal, .allBackends] else [.allBackends])
+        "tinygrad-backend-v1") with
+      requiredEnvironments := [name] }
+
+def nullTestRequirements : List Requirement :=
+  ParityTarget.nullTestFiles.map fun path =>
+    testRequirement "null" path semanticProfiles
+
+def unitTestRequirements : List Requirement :=
+  ParityTarget.unitTestFiles.map fun path =>
+    testRequirement "unit" path semanticProfiles
+
+def backendTestRequirements : List Requirement :=
+  ParityTarget.backendTestFiles.map fun path =>
+    testRequirement "backend" path [.metal, .portable, .allBackends]
+
+def targetRequirements : List Requirement :=
+  tensorMethodRequirements ++ tensorPropertyRequirements ++
+  dtypeRequirements ++ opsRequirements ++ backendRequirements ++
+  nullTestRequirements ++ unitTestRequirements ++ backendTestRequirements
+
+def targetRequirementIds : List String := targetRequirements.map (·.id)
+
+def unknownCoverageCell (requirement : Requirement) : CoverageCell :=
+  { requirementId := requirement.id,
+    state := .unknown
+      "Tgrad support has not been classified against this generated requirement"
+      "run the pinned foreign test or manifest/API adapter and record a typed coverage state",
+    evidence := [],
+    gap := "unclassified generated upstream requirement" }
+
+/-- A coverage-contract skeleton for a particular immutable Tgrad tree.  Every
+cell starts unknown; importing the denominator does not grant conformance. -/
+def contractSkeleton (subjectTree : String) (profile : Profile) : Contract :=
+  { upstream := pinnedUpstream,
+    subjectTree,
+    profile,
+    requirements := targetRequirements,
+    cells := targetRequirements.map unknownCoverageCell,
+    validators := [] }
+
+theorem target_requirement_count_is_generated :
+    targetRequirements.length = ParityTarget.requirementCount := by
+  native_decide
+
+theorem target_requirement_ids_are_unique : targetRequirementIds.Nodup := by
+  native_decide
+
+theorem target_requirements_are_well_formed :
+    targetRequirements.all Requirement.wellFormed = true := by
+  native_decide
+
+theorem target_exclusions_are_explicitly_empty :
+    ParityTarget.exclusions = [] := by
+  rfl
+
+/-- The denominator and skeleton now exist.  This particular contract remains
+unknown until a subject tree, declared profile, applicability rules, calibrated
+validators, and observed cells are imported. -/
 def targetContract : Epistemic Contract :=
   .unknown
-    "a generated coverage matrix for a pinned upstream revision and declared profile"
-    "diff the pinned manifests against Tgrad, import foreign tests, and classify every required cell"
+    "a subject-tree/profile instance of the generated 590-row target with observed coverage cells"
+    "select an immutable Tgrad tree and profile, import applicable upstream tests, and replace each unknown skeleton cell with observed evidence or an explicit gap"
 
 /-! ## Shape of the ideal codebase
 
@@ -671,6 +809,10 @@ def program : List ProgramTemplate :=
       "discovery may parallelize; one integrator promotes the next target revision"
       .evidenceIntegration ]
 
+/-- Internal identity projection for the authored program-template table.
+
+Checks over this list establish only that the plan is internally coherent.
+They do not compare Tgrad with tinygrad and therefore are not parity evidence. -/
 def programIds : List String := program.map (fun item => item.id)
 
 def ProgramTemplate.structurallyReady (item : ProgramTemplate) : Bool :=
@@ -694,13 +836,20 @@ def dependenciesFollowOrder : List ProgramTemplate -> List String -> Bool
       item.dependsOn.all seen.contains &&
       dependenciesFollowOrder rest (item.id :: seen)
 
+/-- Internal sanity check over the authored template table.  In particular,
+this cannot establish upstream coverage, implementation support, or parity: its
+entire input is the table defined in this module. -/
 def programStructurallyReady : Bool :=
   program.all ProgramTemplate.structurallyReady &&
   dependenciesFollowOrder program []
 
+/-- The authored template IDs are unique.  This is a self-consistency theorem,
+not an observation about either product or the upstream contract. -/
 theorem program_ids_are_unique : programIds.Nodup := by
   native_decide
 
+/-- The authored dependency table is internally known and topologically
+ordered.  This is useful plan validation, but is not compatibility evidence. -/
 theorem program_dependencies_are_known_and_ordered :
     programStructurallyReady = true := by
   native_decide
@@ -884,5 +1033,37 @@ def Contract.backlogCovers (contract : Contract) (backlog : List GapRecord) : Bo
 example :
     (program.find? fun item => item.id == "compiler.first-cpu-slice").isSome = true := by
   native_decide
+
+/-! ## Product-symbol drift pins
+
+`Parity` is specification-side code, but it describes the product's dtype,
+tensor, UOp, optimization, renderer, runtime, and view/lowering surfaces.  These
+checks deliberately put representative product symbols in this module's
+compile-time dependency cone.  A product rename or signature change must break
+the spec build and force reconciliation.  They are drift alarms only: like the
+table-coherence theorems above, they are not parity evidence. -/
+
+#check (Tgrad.Dtype : Type)
+#check (Tgrad.Dtype.lub : Tgrad.Dtype -> Tgrad.Dtype -> Tgrad.Dtype)
+#check (Tgrad.ConstVal : Type)
+#check (Tgrad.BinOp : Type)
+#check (Tgrad.UOp : Type)
+#check (Tgrad.UOpKind : Type)
+#check (Tgrad.UOp.kind : Tgrad.UOp -> Tgrad.UOpKind)
+#check (Tgrad.Tensor : Type)
+#check (Tgrad.Tensor.transpose : Tgrad.Tensor -> Tgrad.Tensor)
+#check (Tgrad.Schedule.View : Type)
+#check (Tgrad.Schedule.View.indexOf :
+  Tgrad.Schedule.View -> List Tgrad.UOp -> Tgrad.UOp)
+#check (Tgrad.Codegen.Opt.OptOps : Type)
+#check (Tgrad.Renderer.Metal.KernelDecl : Type)
+#check (Tgrad.Renderer.Metal.renderKernel :
+  Tgrad.Renderer.Metal.KernelDecl -> String)
+#check (Tgrad.Pipeline.materializeView :
+  Tgrad.Tensor -> IO (Except Tgrad.PipelineError Tgrad.Tensor))
+#check (Tgrad.Runtime.Metal.metalCompile : String -> IO UInt64)
+#check (Tgrad.Runtime.Metal.metalDispatch :
+  UInt64 -> String -> Array UInt64 ->
+  USize -> USize -> USize -> USize -> USize -> USize -> IO UInt32)
 
 end Tgrad.Spec.Parity

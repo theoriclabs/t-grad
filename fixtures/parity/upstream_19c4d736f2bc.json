@@ -20,7 +20,7 @@
     ],
     "source": "tinygrad/runtime/"
   },
-  "content_sha256": "439370c2308bae30756329b6dfd96c0e004ce7a4aa78f155b4ee689554973874",
+  "content_sha256": "14baf8ef7fa88fe13ae860ac282eacbdc53be2d633a137f5f44c4112e9693390",
   "counts": {
     "backends": 16,
     "dtype_names": 52,
@@ -87,8 +87,10 @@
     ],
     "source": "tinygrad/dtype.py"
   },
-  "extracted_at_utc": "2026-07-27T08:10:14Z",
+  "exclusions": [],
+  "extracted_at_utc": "2026-07-27T08:20:29Z",
   "extractor": "scripts/parity/extract_upstream.py",
+  "extractor_sha256": "cf970d9c554e3b7564b596697bc4ba817bde12f0adf267aa9a8c04334f21b2a2",
   "ops": {
     "members": [
       "ADD",
@@ -175,6 +177,14 @@
       "XOR"
     ],
     "source": "tinygrad/uop/__init__.py"
+  },
+  "schema_version": 1,
+  "section_sha256": {
+    "backends": "076f8d2475dedab3227ed39d8ff88e7d3c7d8d5132c8291db0b7f8be1b32a1f4",
+    "dtypes": "a1e44a79b640ede356abe098709aebe863a060909f94858b0a9dbf6d31014901",
+    "ops": "a94c136752a543ec6c115e1a4b452ba528d6dd26681e0b5ab2fc30e2b7bb8105",
+    "tensor_api": "38494d2648ee4296642e68a457b1107b4f344ec1f01bfad2b41b53291eff9043",
+    "tests": "c8760f43016fefcd9816e08a206682dd97d2a7af9726e825d16e0b240d6f4260"
   },
   "tensor_api": {
     "by_source": {

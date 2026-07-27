@@ -17,22 +17,29 @@ Stated plainly, because the roadmap only works if the origin is honest:
 
 | dimension | tinygrad target | Tgrad today |
 |---|---|---|
-| revision | **not pinned yet** | this repository tree |
-| public Tensor surface | generated inventory still missing | bounded Python surface centred on bf16 matmul and movement views |
-| UOp / Ops surface | generated inventory still missing | 21 local constructors; partial lowering |
-| dtypes | generated inventory still missing | bf16 is load-bearing; parts of a wider lattice exist but are not on the path |
-| backends | target profile not declared | Metal only |
+| revision | `19c4d736f2bc8e26d21f08b28ffd6298408da00f` | this repository tree |
+| public Tensor surface | 297 generated methods and 5 properties | bounded Python surface centred on bf16 matmul and movement views |
+| UOp / Ops surface | 82 generated `Ops` members | 21 local constructors; partial lowering |
+| dtypes | 52 generated public names on `dtypes` | bf16 is load-bearing; parts of a wider lattice exist but are not on the path |
+| backends | 16 generated runtime modules; active target profile not yet selected | Metal only |
+| tests | 138 generated null/unit/backend files; 54 in the backend-free null group | no upstream-test adapter yet |
 | rank | n-D | 2-D product path; bounded movement algebra underneath |
 | autograd | part of upstream contract | absent |
 | JIT / optimization search | part of upstream contract | absent |
 
-The missing numbers are deliberate. Current tinygrad documentation exposes a
-broad and changing Tensor, dtype, UOp, runtime, JIT, multi-device, NN, and
-state-management surface. A count copied into prose is stale as soon as
-upstream moves. The first parity action is therefore to pin one official
-revision and generate source, API, dtype, Ops, backend, and test manifests.
-Until that exists, a percentage such as “7% compatible” has no denominator and
-must not enter evidence.
+These numbers come from
+`fixtures/parity/upstream_19c4d736f2bc.json`, not from this prose. The generated
+Lean module turns them into 590 mandatory requirement rows. A compatibility
+percentage still must not be published: the denominator now exists, but no
+subject-tree/profile coverage matrix or parity evidence exists yet.
+
+The first extraction attempt exposed two anti-flattery hazards. `Ops` lives in
+`tinygrad/uop/__init__.py`, not the tempting `tinygrad/uop/ops.py`; missing that
+definition shrinks the vocabulary toward zero. Likewise, scanning only
+`tensor.py` found 47 methods while the inherited mixin surface contains 297—a
+6.3× understatement. The extractor now fails rather than writing a partial
+manifest, records per-source Tensor provenance, and makes exclusions an
+explicit empty-by-default ledger.
 
 Two structural facts matter more than the table:
 
@@ -286,9 +293,11 @@ This separates six things that the earlier process blurred:
    scenario manifest.
 6. **Promotion** — the atomic update that changes what the project claims.
 
-The checked form is `Tgrad/Spec/Parity.lean`. `targetUpstream` and
-`targetContract` are deliberately `unknown`: the plan does not fabricate the
-pin it says is missing. `ProgramTemplate` is deliberately weaker than
+The checked form is `Tgrad/Spec/Parity.lean`. `targetUpstream` is now confirmed
+from the generated foreign manifest. `targetContract` remains deliberately
+`unknown`: the generated 590-row skeleton has no selected immutable Tgrad
+subject tree, active profile, applicability decisions, calibrated validators,
+or observed coverage cells. `ProgramTemplate` is deliberately weaker than
 `Work.WorkItem`: long-horizon intent is not mutation authority.
 
 The loop has two modes:
@@ -383,10 +392,10 @@ counts.
 | backend profile | runtime module, renderer/compiler variant, architecture, OS/hardware, applicable CI selectors and compile-only rows | pinned upstream workflow matrix, not a made-up Cartesian matrix |
 | performance | compile speed, driver/dispatch speed, model/scheduler speed and kernel/codegen speed | pinned speed workloads with live paired repeated sessions |
 
-The candidate snapshot contained 82 upstream `Ops` constructors, 17 concrete
-scalar dtypes plus weak types, and 16 runtime modules (eight highlighted public
-compute runtimes). These numbers are useful extractor regression checks only
-after Tgrad reproduces the pin; they are not prose-owned completion targets.
+The pinned manifest contains 82 upstream `Ops` members, 52 public names on the
+`dtypes` class, 16 runtime modules, 297 Tensor methods, 5 Tensor properties, and
+138 test files. These are generated denominator checks; the normative lists
+live in the JSON and generated Lean target, not in this prose.
 
 ## 11. The ideal codebase shape
 
@@ -570,7 +579,12 @@ Higher evidence does not erase lower invariants. The codegen differential and
 the differential detects wrong-but-distinct placement. Neither subsumes the
 other.
 
-Every evidence record carries:
+The following is the required schema for a future admissible evidence record;
+it does not assert that such records already exist. At the time of this plan,
+**zero parity evidence records have been recorded**. The repository contains
+types for provenance and calibration, not observed parity results.
+
+Every future evidence record must carry:
 
 - upstream revision;
 - Tgrad subject tree;

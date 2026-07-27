@@ -40,6 +40,7 @@ from pathlib import Path
 DEFAULT_REF = "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
 REPO = "tinygrad/tinygrad"
 OUT_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "parity"
+SOURCE_TREE: Path | None = None
 
 TEST_GROUPS = ("null", "unit", "backend")
 
@@ -49,12 +50,64 @@ class ExtractionError(RuntimeError):
 
 
 def gh(path: str) -> object:
+    if SOURCE_TREE is not None:
+        return local_api(path)
     p = subprocess.run(
         ["gh", "api", f"repos/{REPO}/{path}"], capture_output=True, text=True
     )
     if p.returncode != 0:
         raise ExtractionError(f"gh api {path} failed: {p.stderr.strip()[:200]}")
     return json.loads(p.stdout)
+
+
+def local_api(path: str) -> object:
+    """The small GitHub-contents subset needed by this extractor, from a checkout."""
+    assert SOURCE_TREE is not None
+    if path.startswith("commits/"):
+        requested = path.removeprefix("commits/")
+        process = subprocess.run(
+            ["git", "-C", str(SOURCE_TREE), "show", "-s",
+             "--format=%H%x00%cI%x00%s", "HEAD"],
+            capture_output=True, text=True,
+        )
+        if process.returncode != 0:
+            raise ExtractionError(f"cannot inspect source checkout: {process.stderr.strip()}")
+        sha, committed_at, subject = process.stdout.strip().split("\0", 2)
+        committed_at = datetime.fromisoformat(committed_at).astimezone(
+            timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if not sha.startswith(requested) and requested != sha:
+            raise ExtractionError(
+                f"source checkout is {sha}, not requested revision {requested}"
+            )
+        status = subprocess.run(
+            ["git", "-C", str(SOURCE_TREE), "status", "--porcelain"],
+            capture_output=True, text=True,
+        )
+        if status.returncode != 0 or status.stdout:
+            raise ExtractionError("source checkout must be a clean immutable tree")
+        return {
+            "sha": sha,
+            "commit": {"committer": {"date": committed_at}, "message": subject},
+        }
+    if not path.startswith("contents/"):
+        raise ExtractionError(f"unsupported local API request: {path}")
+    relative, _, requested = path.removeprefix("contents/").partition("?ref=")
+    head = subprocess.run(
+        ["git", "-C", str(SOURCE_TREE), "rev-parse", "HEAD"],
+        capture_output=True, text=True,
+    )
+    if head.returncode != 0 or not head.stdout.strip().startswith(requested):
+        raise ExtractionError(f"local content request does not match checkout: {relative}")
+    target = SOURCE_TREE / relative
+    if target.is_file():
+        return {"content": base64.b64encode(target.read_bytes()).decode("ascii")}
+    if target.is_dir():
+        return [
+            {"name": child.name, "size": child.stat().st_size}
+            for child in sorted(target.iterdir())
+        ]
+    raise ExtractionError(f"missing path in source checkout: {relative}")
 
 
 def source_of(path: str, ref: str) -> str:
@@ -217,15 +270,31 @@ def test_inventory(ref: str) -> dict:
 
 
 def main() -> int:
+    global SOURCE_TREE
+    if sys.version_info < (3, 11):
+        print(
+            "extract_upstream: FAILED — Python 3.11+ is required to parse the pinned upstream syntax",
+            file=sys.stderr,
+        )
+        return 1
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", default=DEFAULT_REF)
     ap.add_argument("--print", dest="print_only", action="store_true")
+    ap.add_argument("--check", action="store_true")
+    ap.add_argument("--source-tree", type=Path)
     args = ap.parse_args()
+    if args.print_only and args.check:
+        ap.error("--print and --check are mutually exclusive")
+    SOURCE_TREE = args.source_tree.resolve() if args.source_tree is not None else None
+    if SOURCE_TREE is not None and not SOURCE_TREE.is_dir():
+        print(f"extract_upstream: FAILED — no source tree at {SOURCE_TREE}", file=sys.stderr)
+        return 1
 
     try:
         head = gh(f"commits/{args.ref}")
         ref = head["sha"]
         manifest = {
+            "schema_version": 1,
             "upstream_repo": REPO,
             "upstream_ref": ref,
             "upstream_committed_at": head["commit"]["committer"]["date"],
@@ -233,11 +302,16 @@ def main() -> int:
             "extracted_at_utc": datetime.now(timezone.utc)
             .strftime("%Y-%m-%dT%H:%M:%SZ"),
             "extractor": "scripts/parity/extract_upstream.py",
+            "extractor_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "tensor_api": tensor_api(ref),
             "dtypes": dtype_inventory(ref),
             "ops": ops_inventory(ref),
             "backends": backend_inventory(ref),
             "tests": test_inventory(ref),
+            # Exclusions are policy, not extraction accidents.  The ledger is
+            # explicit and empty by default so a missing inventory can never be
+            # laundered into an implicit exclusion.
+            "exclusions": [],
         }
     except ExtractionError as e:
         print(f"extract_upstream: FAILED — {e}", file=sys.stderr)
@@ -260,6 +334,12 @@ def main() -> int:
         "test_files_no_backend": t["null"]["count"],
     }
     manifest["counts"] = counts
+    manifest["section_sha256"] = {
+        name: hashlib.sha256(
+            json.dumps(manifest[name], sort_keys=True).encode()
+        ).hexdigest()
+        for name in ("tensor_api", "dtypes", "ops", "backends", "tests")
+    }
     # Content digest over everything except the wall-clock stamp, so two
     # runs at the same ref are comparable byte-for-byte. The evidence
     # audit exists because unverifiable provenance is how this repo ended
@@ -277,8 +357,21 @@ def main() -> int:
     if args.print_only:
         return 0
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUT_DIR / f"upstream_{ref[:12]}.json"
+    if args.check:
+        try:
+            committed = json.loads(out.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            print(f"extract_upstream: STALE — cannot read {out}: {error}", file=sys.stderr)
+            return 1
+        if (committed.get("upstream_ref") != ref or
+                committed.get("content_sha256") != manifest["content_sha256"]):
+            print(f"extract_upstream: STALE — {out}", file=sys.stderr)
+            return 1
+        print(f"\nextract_upstream: OK — {out.relative_to(OUT_DIR.parents[1])}")
+        return 0
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     print(f"\nwrote {out.relative_to(OUT_DIR.parents[1])}")
     return 0

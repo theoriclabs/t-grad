@@ -1,4 +1,5 @@
 import Tgrad.Ontology
+import Tgrad.Contract.Assurance
 import Tgrad.Spec.Epistemic
 import Tgrad.Spec.Architecture
 import Tgrad.Spec.Findings

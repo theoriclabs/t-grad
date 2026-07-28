@@ -8,6 +8,12 @@ It now passes with a calibrated no-fallback validator, while the two dependent
 tensor requirements become observable but remain unobserved.  The target is
 still only an extracted candidate and adequacy remains open, so no compatibility
 claim is promoted merely because one behavior passed.
+
+The evidence-bound defs below (`context`, `helpersState`, …) freeze the subject
+tree recorded in `PilotGenerated` so derivation theorems stay decidable.  The
+live status report must instead call `contextFor` / `statusJsonFor` with the
+actual current product tree supplied at run time; binding both sides of the
+staleness check to `PilotGenerated.subjectTree` makes `.stale` unreachable.
 -/
 
 namespace Tgrad.Growth.PilotState
@@ -28,37 +34,53 @@ def target : TargetRef :=
     profile := publicMetalPilot.id
     disposition := .extractedCandidate }
 
+/-- Subject tree recorded with the generated observation.  Theorems below use
+this as a frozen evidence-bound snapshot.  The live status report must not;
+it receives the actual current product tree at report time. -/
 def productBaseline : TreeRef :=
   Tgrad.Evidence.PilotGenerated.subjectTree
 
-/-- The generated observer binds verifier, adapter, environment, and scenario
-identities to the current observation. -/
-def context : PromotionContext :=
+/-- Promotion context for a concrete product subject tree.  Boundary identity
+still comes from the generated observer; only the subject tree varies. -/
+def contextFor (subjectTree : TreeRef) : PromotionContext :=
   { target
-    subjectTree := productBaseline
+    subjectTree
     boundary := some Tgrad.Evidence.PilotGenerated.boundary }
 
-def helpersState : RequirementState :=
-  deriveRequirementState context importHelpers helpersBoundary helpersAdequacy
+/-- Evidence-bound snapshot context.  Live reports use `contextFor` with the
+runtime-supplied current product tree instead. -/
+def context : PromotionContext :=
+  contextFor productBaseline
+
+def helpersStateFor (ctx : PromotionContext) : RequirementState :=
+  deriveRequirementState ctx importHelpers helpersBoundary helpersAdequacy
     pilotCandidates Tgrad.Evidence.PilotGenerated.validators
     Tgrad.Evidence.PilotGenerated.observations
     Tgrad.Evidence.PilotGenerated.blockages
 
-def addState : RequirementState :=
-  deriveRequirementState context broadcastAdd addBoundary addAdequacy
+def addStateFor (ctx : PromotionContext) : RequirementState :=
+  deriveRequirementState ctx broadcastAdd addBoundary addAdequacy
     pilotCandidates Tgrad.Evidence.PilotGenerated.validators
     Tgrad.Evidence.PilotGenerated.observations
     Tgrad.Evidence.PilotGenerated.blockages
 
-def viewState : RequirementState :=
-  deriveRequirementState context viewReadbackLifetime viewBoundary viewAdequacy
+def viewStateFor (ctx : PromotionContext) : RequirementState :=
+  deriveRequirementState ctx viewReadbackLifetime viewBoundary viewAdequacy
     pilotCandidates Tgrad.Evidence.PilotGenerated.validators
     Tgrad.Evidence.PilotGenerated.observations
     Tgrad.Evidence.PilotGenerated.blockages
 
-def states : List RequirementState := [helpersState, addState, viewState]
+def statesFor (ctx : PromotionContext) : List RequirementState :=
+  [helpersStateFor ctx, addStateFor ctx, viewStateFor ctx]
 
-def gaps : List Gap := (states.flatMap gapsFor).eraseDups
+def gapsForContext (ctx : PromotionContext) : List Gap :=
+  ((statesFor ctx).flatMap gapsFor).eraseDups
+
+def helpersState : RequirementState := helpersStateFor context
+def addState : RequirementState := addStateFor context
+def viewState : RequirementState := viewStateFor context
+def states : List RequirementState := statesFor context
+def gaps : List Gap := gapsForContext context
 
 /- This theorem checks only the current snapshot.  It does not establish a
 source-to-binary build chain or a derivation-stable before/after transition. -/
@@ -271,12 +293,15 @@ private def gapJson (gap : Gap) : String :=
   s!"      \"kind\": {quote (gapKindToken gap.kind)}\n" ++
   "    }"
 
-def statusJson : String :=
+def statusJsonFor (ctx : PromotionContext) : String :=
+  let subject := ctx.subjectTree
+  let reportStates := statesFor ctx
+  let reportGaps := gapsForContext ctx
   "{\n" ++
   "  \"schema_version\": 1,\n" ++
   s!"  \"target_revision\": {quote target.revision},\n" ++
   "  \"target_disposition\": \"extracted_candidate\",\n" ++
-  s!"  \"product_revision\": {quote productBaseline.revision},\n" ++
+  s!"  \"product_revision\": {quote subject.revision},\n" ++
   "  \"observer_identity\": {\n" ++
   s!"    \"verifier_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.verifierTree.contentHash},\n" ++
   s!"    \"adapter_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.adapterHash},\n" ++
@@ -285,9 +310,13 @@ def statusJson : String :=
   s!"    \"scenario_hash\": {quote Tgrad.Evidence.PilotGenerated.boundary.scenarioManifestHash}\n" ++
   "  },\n" ++
   "  \"states\": [\n" ++
-  String.intercalate ",\n" (states.map stateJson) ++ "\n  ],\n" ++
+  String.intercalate ",\n" (reportStates.map stateJson) ++ "\n  ],\n" ++
   "  \"gaps\": [\n" ++
-  String.intercalate ",\n" (gaps.map gapJson) ++ "\n  ]\n" ++
+  String.intercalate ",\n" (reportGaps.map gapJson) ++ "\n  ]\n" ++
   "}"
+
+/-- Evidence-bound snapshot JSON.  Live status uses `statusJsonFor` with the
+runtime current product tree. -/
+def statusJson : String := statusJsonFor context
 
 end Tgrad.Growth.PilotState

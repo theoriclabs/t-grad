@@ -38,9 +38,11 @@ set -euo pipefail
 # exception to the "ratchet only grows" rule; check_no_gate_regression's
 # baseline is now (L0..L6) and further cuts are not permitted.
 GREEN_GATES=(L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 L11 L12 L13_A L13_B L13_C L13_D L13_E L13 L13_F L13_F_STRICT_A L13_F_STRICT_B L13_F_STRICT_C L14_A L14_B_1 L14_B_2_a L14_B_2_b L14_B_2_c L14_B_2 L14_B_3 L14_B L14_C L14 L15_A L15_B L15_C L15)
+# L16_PILOT is implemented and runnable but intentionally absent from
+# GREEN_GATES: live --check is honestly red until evidence is promoted.
 # -----------------------------------------------------------------------
 
-ALL_GATES=(L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 L11 L12 L13_A L13_B L13_C L13_D L13_E L13 L13_F L13_F_STRICT_A L13_F_STRICT_B L13_F_STRICT_C L14_A L14_B_1 L14_B_2_a L14_B_2_b L14_B_2_c L14_B_2 L14_B_3 L14_B L14_C L14 L15_A L15_B L15_C L15)
+ALL_GATES=(L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 L11 L12 L13_A L13_B L13_C L13_D L13_E L13 L13_F L13_F_STRICT_A L13_F_STRICT_B L13_F_STRICT_C L14_A L14_B_1 L14_B_2_a L14_B_2_b L14_B_2_c L14_B_2 L14_B_3 L14_B L14_C L14 L15_A L15_B L15_C L15 L16_PILOT)
 export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export TGRAD_DIR="$REPO_ROOT"
 export TGRAD_BENCH_MODE=full
@@ -116,7 +118,7 @@ main() {
       run_gate "$2"
       ;;
     L0|L1|L2|L3|L4|L5|L6|L7|L8|L9|L10|L11|L12|L13|L14|L15|\
-    L13_A|L13_B|L13_C|L13_D|L13_E|L13_F|L13_F_STRICT_A|L13_F_STRICT_B|L13_F_STRICT_C|L14_A|L14_B_1|L14_B_2_a|L14_B_2_b|L14_B_2_c|L14_B_2|L14_B_3|L14_B|L14_C|L14|L15_A|L15_B|L15_C|L15)
+    L13_A|L13_B|L13_C|L13_D|L13_E|L13_F|L13_F_STRICT_A|L13_F_STRICT_B|L13_F_STRICT_C|L14_A|L14_B_1|L14_B_2_a|L14_B_2_b|L14_B_2_c|L14_B_2|L14_B_3|L14_B|L14_C|L14|L15_A|L15_B|L15_C|L15|L16_PILOT)
       ratchet_check || { echo "✗ ratchet regression detected — aborting"; return 1; }
       run_global_preflight || { echo "✗ global preflight failed — aborting"; return 1; }
       echo "──────── $1 (single-gate run) ────────"
@@ -124,7 +126,7 @@ main() {
       ;;
     *)
       echo "unknown gate: $1"
-      echo "valid: L0..L15 + sub-gates L13_A..L13_F, L13_F_STRICT_A..B, L14_A..L14_C, L15_A..L15_C  (or --list)"
+      echo "valid: L0..L15 + sub-gates L13_A..L13_F, L13_F_STRICT_A..B, L14_A..L14_C, L15_A..L15_C, L16_PILOT  (or --list)"
       return 2
       ;;
   esac

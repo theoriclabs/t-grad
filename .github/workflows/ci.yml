@@ -14,6 +14,10 @@ jobs:
       TGRAD_ALLOW_METAL_RUNTIME_SKIP: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # check_real_chronology.py authenticates five historical cycle
+          # intervals and deliberately fails when those commits are absent.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

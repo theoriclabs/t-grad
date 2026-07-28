@@ -17,6 +17,20 @@ drift and frequency scaling move slowly relative to one iteration, so
 alternating cancels most of it, while a blocked design assigns all the
 drift to whichever side ran second.
 
+KNOWN BIAS --- READ BEFORE USING THIS NUMBER. Co-residency is not free.
+Measured 2026-07-28 at 1024**3: tinygrad alone runs at ~2.4ms median, but
+~4.6ms median inside this harness with Tgrad in the same process. Sharing
+one process and one Metal context roughly halves tinygrad's throughput,
+which FLATTERS Tgrad's ratio. The first run of this file reported 0.875x
+and was read as "Tgrad is faster"; isolated runs give min/min ~1.02 and
+median/median ~1.58. That conclusion was wrong and this comment exists so
+it is not drawn again.
+
+Interleaving fixes drift between the two sides. It does NOT fix a bias
+that applies to both sides unequally. Use this to compare a change to
+Tgrad against an earlier Tgrad run under the same harness; do not use it
+to make a claim about Tgrad versus tinygrad in absolute terms.
+
 It reports a DISTRIBUTION, not a single ratio. `bench-full` compares
 min/min, which is the most optimistic statistic on both sides and hides
 variance entirely. Median with a spread lets a reader see whether a

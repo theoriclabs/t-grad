@@ -19,11 +19,29 @@ Three claims follow, and they are not equally hard:
 3. **It is better for being in Lean**, in a way that can be pointed at.
 
 Performance is none of these. It is a **guardrail**: evidence that the
-rewrite did not buy its properties by being slow. A ratio near or below
-1.0 discharges that guardrail; it is not the point, and chasing precision
-in it is wasted effort. (Measured 2026-07-28: paired same-session,
-interleaved, Tgrad at **0.875x** tinygrad's time. Guardrail discharged.
-Stop optimising it.)
+rewrite did not buy its properties by being slow. It is not the point,
+and chasing precision in it is wasted effort --- which is just as well,
+because precision is not available here.
+
+Measured 2026-07-28 at 1024**3, each implementation alone in its own
+process: tinygrad min 2.206ms / median 2.411ms; Tgrad min 2.252ms /
+median 3.818ms. So **min/min ~1.02, median/median ~1.58**.
+
+Two cautions, both learned by getting this wrong first:
+
+* A paired harness that runs both implementations in ONE process is
+  biased. It measured tinygrad at ~4.6ms against ~2.4ms isolated ---
+  co-residency roughly halves tinygrad's throughput and flatters Tgrad.
+  An earlier version of this document reported "0.875x, Tgrad is faster"
+  from that harness. That was wrong.
+* Even tinygrad alone measured 1.56ms under the baseline capture and
+  2.21ms under a simpler harness ON THE SAME DAY --- a 40% swing from
+  harness details (shuffling, cooldowns, pass selection) alone.
+
+The defensible statement is therefore narrow: **Tgrad is in the same
+order as tinygrad, not catastrophically worse, and no sharper claim is
+supported by these instruments.** The guardrail is discharged at that
+strength and no further.
 
 ## 2. Claim 1 — the code is there
 

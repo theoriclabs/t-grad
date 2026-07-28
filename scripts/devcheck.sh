@@ -105,12 +105,14 @@ cheap_preflight() {
     scripts.spec.test_broadcast_add_relation \
     scripts.spec.test_broadcast_add_manifest || return 1
 
-  # WORK-EW-RANKED-BROADCAST-VERIFY-V1: this Metal-backed regression is
+  # The ranked-broadcast and int32-elementwise Metal regressions are
   # explicitly registered because unittest discovery is not used here.
   # A unique log avoids adding another process-global /tmp collision.
   local ranked_broadcast_log
   ranked_broadcast_log="$(mktemp "${TMPDIR:-/tmp}/tgrad_ranked_broadcast.XXXXXX")"
-  if ! run_cmd "$PY" -m unittest scripts.spec.test_ranked_broadcast \
+  if ! run_cmd "$PY" -m unittest \
+      scripts.spec.test_ranked_broadcast \
+      scripts.spec.test_int32_elementwise \
       >"$ranked_broadcast_log" 2>&1; then
     if skip_metal_runtime_smoke "ranked broadcast regression" "$ranked_broadcast_log"; then
       rm -f "$ranked_broadcast_log"

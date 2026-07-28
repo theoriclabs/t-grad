@@ -45,9 +45,16 @@ class PublicTensorConstructorTests(unittest.TestCase):
         self.assertIs(by_tuple._base, source)
         self.assertIs(by_args._base, source)
 
-    def test_unsupported_dtype_fails_before_allocation(self):
+    def test_int32_constructor_preserves_dtype_and_values(self):
+        tensor = tgrad.Tensor([1, -2, 16777217], dtype="i32")
+        self.assertEqual(tensor.dtype, "i32")
+        self.assertEqual(tensor.shape, (3,))
+        np.testing.assert_array_equal(
+            tensor.numpy(), np.asarray([1, -2, 16777217], dtype=np.int32))
+
+    def test_still_unsupported_dtype_fails_before_allocation(self):
         with self.assertRaises(tgrad.TgradTypeError):
-            tgrad.Tensor([1, 2], dtype="i32")
+            tgrad.Tensor([1, 2], dtype="f16")
 
     def test_ragged_input_is_rejected(self):
         with self.assertRaises(tgrad.TgradTypeError):

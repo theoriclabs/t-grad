@@ -8,6 +8,7 @@ from ._unsupported import missing_attribute, unsupported, unsupported_type
 
 _BF16 = "bf16"
 _F32 = "f32"
+_I32 = "i32"
 
 
 class _DTypes:
@@ -16,6 +17,7 @@ class _DTypes:
     float = _F32
     default_float = _F32
     floats = (_BF16, _F32)
+    ints = (_I32,)
     fp8s = ()
 
     # These identifiers are importable for test parametrization, but any
@@ -23,7 +25,7 @@ class _DTypes:
     bool = unsupported("tinygrad.dtype.dtypes.bool")
     int8 = unsupported("tinygrad.dtype.dtypes.int8")
     int16 = unsupported("tinygrad.dtype.dtypes.int16")
-    int32 = unsupported("tinygrad.dtype.dtypes.int32")
+    int32 = int = _I32
     int64 = long = unsupported("tinygrad.dtype.dtypes.int64")
     uint8 = unsupported("tinygrad.dtype.dtypes.uint8")
     uint16 = unsupported("tinygrad.dtype.dtypes.uint16")
@@ -38,13 +40,17 @@ class _DTypes:
 
     @staticmethod
     def is_float(dtype) -> bool:
-        if dtype in _tgrad._SUPPORTED_DTYPES:
+        if dtype in (_BF16, _F32):
             return True
+        if dtype == _I32:
+            return False
         raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
 
     @staticmethod
     def is_int(dtype) -> bool:
-        if dtype in _tgrad._SUPPORTED_DTYPES:
+        if dtype == _I32:
+            return True
+        if dtype in (_BF16, _F32):
             return False
         raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
 
@@ -56,7 +62,7 @@ class _DTypes:
 
 
 dtypes = _DTypes()
-DTYPES_DICT = {"bfloat16": _BF16, "float32": _F32}
+DTYPES_DICT = {"bfloat16": _BF16, "float32": _F32, "int32": _I32}
 
 
 def _to_np_dtype(dtype):
@@ -68,6 +74,8 @@ def _to_np_dtype(dtype):
     if dtype in (_BF16, _F32):
         # Tgrad's bf16 host readback is deliberately lifted to float32.
         return np.dtype(np.float32)
+    if dtype == _I32:
+        return np.dtype(np.int32)
     raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
 
 

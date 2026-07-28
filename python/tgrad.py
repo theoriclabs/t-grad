@@ -233,10 +233,11 @@ _BINOP_ADD = 0
 _BINOP_MUL = 1
 _BINOP_SUB = 2
 
-_SUPPORTED_DTYPES = {"bf16", "f32"}
+_SUPPORTED_DTYPES = {"bf16", "f32", "i32"}
+_REDUCE_DTYPES = {"bf16", "f32"}
 # Bytes per element, used to check that a materialized buffer is
 # exactly as large as its declared shape requires.
-_DTYPE_BYTES = {"bf16": 2, "f32": 4}
+_DTYPE_BYTES = {"bf16": 2, "f32": 4, "i32": 4}
 
 
 _DTYPE_OF_CODE = {0: "bf16", 1: "f32", 2: "f16", 3: "i32"}
@@ -257,6 +258,8 @@ def _bytes_from_numpy(arr: np.ndarray, dtype: str) -> bytes:
         return _bf16_from_fp32(arr)
     if dtype == "f32":
         return arr.astype(np.float32).tobytes()
+    if dtype == "i32":
+        return arr.astype(np.int32).tobytes()
     raise TgradTypeError(f"unsupported dtype {dtype!r}")
 
 
@@ -265,6 +268,8 @@ def _numpy_from_bytes(b: bytes, shape: tuple[int, ...], dtype: str) -> np.ndarra
         return _fp32_from_bf16(b, shape)
     if dtype == "f32":
         return np.frombuffer(b, dtype=np.float32).reshape(shape).copy()
+    if dtype == "i32":
+        return np.frombuffer(b, dtype=np.int32).reshape(shape).copy()
     raise TgradTypeError(f"unsupported dtype {dtype!r}")
 
 
@@ -711,7 +716,10 @@ class Tensor:
     def _reduce(self, op_code: int, axis: int, name: str) -> "Tensor":
         if axis not in (0, 1):
             raise TgradTypeError(f"{name}: axis must be 0 or 1 (got {axis})")
-        if self._dtype not in _SUPPORTED_DTYPES:
+        # The current reduction renderer accumulates in float. Int32 is a
+        # pointwise/storage capability only until a native integer reduction
+        # packet lands; admitting it here would silently launder precision.
+        if self._dtype not in _REDUCE_DTYPES:
             raise TgradTypeError(f"{name}: unsupported dtype {self._dtype!r}")
         h = _lib.tgrad_tensor_reduce(op_code, self._handle, axis)
         if h == 0:

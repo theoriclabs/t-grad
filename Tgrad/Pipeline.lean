@@ -335,8 +335,9 @@ def materializeViewKernelDeclForDtype
   let coordDecls := ((logicalStrides.zip view.shape).zipIdx).map (fun pair =>
     let ((rowMajorStride, dim), axis) := pair
     .declIntIdx s!"idx{axis}" (logicalCoord linear rowMajorStride dim))
-  let storageType := if dtype == .float32_ then "uint" else "ushort"
-  let widthTag := if dtype == .float32_ then "u32" else "u16"
+  let isFourBytes := dtype == .float32_ || dtype == .int32_
+  let storageType := if isFourBytes then "uint" else "ushort"
+  let widthTag := if isFourBytes then "u32" else "u16"
   let tag := s!"{widthTag}_s_{natListTag view.shape}_t_{natListTag view.strides}_o_{view.offset}"
   { name := s!"materialize_view_{tag}",
     args := [
@@ -372,8 +373,10 @@ abort rather than a typed error. -/
 def materializeView (tensor : Tensor) : IO (Except PipelineError Tensor) := do
   if tensor.isBufferUop then
     return .error (.notInLeanScope "materializeView: expected a movement view, got BUFFER")
-  if tensor.dtype != .bfloat16_ && tensor.dtype != .float32_ then
-    return .error (.notInLeanScope "materializeView: only bf16 and f32 are supported")
+  if tensor.dtype != .bfloat16_ && tensor.dtype != .float32_ &&
+      tensor.dtype != .int32_ then
+    return .error (.notInLeanScope
+      "materializeView: only bf16, f32, and i32 are supported")
   let some view := Schedule.viewOfUOp tensor.uop
     | return .error (.notInLeanScope "materializeView: movement chain is invalid or unsupported")
   let elements := view.numel

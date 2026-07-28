@@ -50,7 +50,7 @@ class TgradTypeError(TypeError):
 class NotInLeanScope(RuntimeError):
     pass
 
-_SUPPORTED_DTYPES = {"bf16", "f32"}
+_SUPPORTED_DTYPES = {"bf16", "f32", "i32"}
 
 def _numel(shape):
     value = 1
@@ -136,6 +136,11 @@ def test_only_tgrad_is_visible():
 
     shim_tensor = importlib.import_module("tinygrad.tensor")
     assert shim_tensor.Tensor is tgrad.Tensor
+    shim_dtype = importlib.import_module("tinygrad.dtype")
+    assert tinygrad.dtypes.int32 == "i32"
+    assert tinygrad.dtypes.is_int(tinygrad.dtypes.int32)
+    assert not tinygrad.dtypes.is_float(tinygrad.dtypes.int32)
+    assert shim_dtype.DTYPES_DICT["int32"] == "i32"
 
     child_code = '''
 import importlib

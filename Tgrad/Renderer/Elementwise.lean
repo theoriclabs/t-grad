@@ -34,6 +34,7 @@ def mslScalarType : Dtype → Option String
   | .bfloat16_ => some "bfloat"
   | .float32_  => some "float"
   | .float16_  => some "half"
+  | .int32_    => some "int"
   | _          => none
 
 /-- MSL spelling of the pointwise operators that are meaningful for a
@@ -59,6 +60,14 @@ def elementwiseOpName : BinOp → String
   | .sub => "sub"
   | .mul => "mul"
   | _    => "unsupported"
+
+/-- Compute in the promoted output domain. Native int32 arithmetic must not
+pass through float: values above `2^24` would be rounded before the store.
+Every currently admitted non-int32 output is a floating dtype, including mixed
+int32/float32 operations selected by `Dtype.lub`. -/
+def elementwiseComputeExpr (outTy : Dtype) (opStr : String) : String :=
+  if outTy == .int32_ then s!"val0{opStr}val1"
+  else s!"((float)val0){opStr}((float)val1)"
 
 /-- MSL coordinate component for one of Metal's three grid axes. -/
 private def gridComponent : Nat → String
@@ -97,10 +106,8 @@ def elementwiseKernelDeclRanked (op : BinOp) (outShape : List Nat)
           .loadIndexed s!"{bS} val1" "data2" bIdx,
           -- Compute in fp32 and let `storeIndexed` apply the bf16 cast,
           -- matching how the matmul kernels accumulate.
-          -- Compute in fp32 regardless of operand width, then cast once
-          -- to the promoted output type.
           .storeIndexedAs outS "data0" outIdx
-            s!"((float)val0){opStr}((float)val1)"
+            (elementwiseComputeExpr outTy opStr)
         ],
         trailingNewline := false }
   | _, _, _, _ => none
@@ -125,6 +132,15 @@ theorem elementwise_names_separate_operators :
       ≠ (elementwiseKernelDecl .sub 4 4 (.var "i" .int32_) (.var "j" .int32_) .bfloat16_ .bfloat16_ .bfloat16_ "t").map
         (fun d => d.name) := by
   native_decide
+
+theorem int32_compute_is_native :
+    elementwiseComputeExpr .int32_ "+" = "val0+val1" := by
+  rfl
+
+theorem promoted_float_compute_converts_operands :
+    elementwiseComputeExpr .float32_ "+" =
+      "((float)val0)+((float)val1)" := by
+  rfl
 
 /-- Unsupported operators build no kernel at all, rather than emitting
     a plausible one. -/

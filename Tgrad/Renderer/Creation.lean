@@ -31,8 +31,9 @@ private def fillShapeTag (shape : List Nat) : String :=
 
 /-- MSL right-hand side for a constant fill of the given dtype.
 
-    Floating storage (including bf16, which `storeIndexedAs` casts)
-    uses a float literal; int32 uses a truncated integer literal.
+    Floating values use a float literal; `storeScalarStmts` performs the
+    dtype-specific storage lowering (including portable bf16 packing).
+    int32 uses a truncated integer literal.
     Unsupported dtypes refuse rather than invent a spelling. -/
 def fillValueLiteral (ty : Dtype) (fill : Float) : Option String :=
   match ty with
@@ -56,7 +57,7 @@ def fillValueTag (ty : Dtype) (fill : Float) : String :=
 def fillKernelDecl (shape : List Nat) (ty : Dtype) (fill : Float) :
     Option KernelDecl :=
   if shape.length > 3 then none else
-  match mslScalarType ty, fillValueLiteral ty fill with
+  match mslStorageType ty, fillValueLiteral ty fill with
   | some outS, some lit =>
     let tag := fillValueTag ty fill
     let vars := (List.range shape.length).map (fun i =>
@@ -72,9 +73,8 @@ def fillKernelDecl (shape : List Nat) (ty : Dtype) (fill : Float) :
           .attr   { baseType := "uint3", name := "gid",
                     attrStr := "[[threadgroup_position_in_grid]]" },
         ],
-        body     := coordDecls ++ [
-          .storeIndexedAs outS "data0" outIdx lit
-        ],
+        body     := coordDecls ++
+          storeScalarStmts "result" ty outS "data0" outIdx lit,
         trailingNewline := false }
   | _, _ => none
 
@@ -101,6 +101,16 @@ theorem fill_names_separate_float_dtypes :
     plausible one with a guessed MSL type. -/
 theorem fill_rejects_float64 :
     (fillKernelDecl [2, 2] .float64_ 1.0).isNone := by
+  native_decide
+
+/-- Constant creation has no load, but its rendered destination and packing
+    must obey the same portable bf16 storage contract.  This is the structural
+    check that distinguishes the fix from the old native-`bfloat` kernel even
+    on an M4 where both versions compile and produce the same numbers. -/
+theorem bf16_fill_render_is_portable :
+    portableBf16ScalarSource
+      ((fillKernelDecl [2, 2] .bfloat16_ 1.0).map renderKernel |>.getD "")
+      ["data0"] false = true := by
   native_decide
 
 end Metal

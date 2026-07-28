@@ -115,14 +115,16 @@ cheap_preflight() {
     scripts.spec.test_broadcast_add_relation \
     scripts.spec.test_broadcast_add_manifest || return 1
 
-  # The ranked-broadcast and int32-elementwise Metal regressions are
+  # The ranked-broadcast, reduction, int32-elementwise, and creation Metal regressions are
   # explicitly registered because unittest discovery is not used here.
   # A unique log avoids adding another process-global /tmp collision.
   local ranked_broadcast_log
   ranked_broadcast_log="$(mktemp "${TMPDIR:-/tmp}/tgrad_ranked_broadcast.XXXXXX")"
   if ! run_cmd "$PY" -m unittest \
       scripts.spec.test_ranked_broadcast \
+      scripts.spec.test_reduction \
       scripts.spec.test_int32_elementwise \
+      scripts.spec.test_tensor_creation \
       >"$ranked_broadcast_log" 2>&1; then
     if skip_metal_runtime_smoke "ranked broadcast regression" "$ranked_broadcast_log"; then
       rm -f "$ranked_broadcast_log"
@@ -185,6 +187,28 @@ smoke_timing() {
     cat /tmp/tgrad_devcheck_timing.txt
     return 1
   }
+}
+
+smoke_fused_reduce() {
+  local fused_reduce_log
+  fused_reduce_log="$(mktemp "${TMPDIR:-/tmp}/tgrad_fused_reduce.XXXXXX")"
+  if ! run_cmd "$PY" "$TGRAD_DIR/scripts/parity/fused_matmul_differential.py" \
+      >"$fused_reduce_log" 2>&1; then
+    if skip_metal_runtime_smoke "fused-reduction differential" "$fused_reduce_log"; then
+      rm -f "$fused_reduce_log"
+      return 0
+    fi
+    sed 's/^/      /' "$fused_reduce_log"
+    rm -f "$fused_reduce_log"
+    return 1
+  fi
+  if ! grep -qF "FAILS: 0" "$fused_reduce_log"; then
+    echo "  ✗ fused-reduction differential omitted its zero-failure verdict"
+    sed 's/^/      /' "$fused_reduce_log"
+    rm -f "$fused_reduce_log"
+    return 1
+  fi
+  rm -f "$fused_reduce_log"
 }
 
 smoke_render_algebraic() {
@@ -298,6 +322,7 @@ case "$gate" in
   --all|all)
     run_cmd bash "$TGRAD_DIR/scripts/check_no_tinygrad_deps.sh"
     smoke_basic_matmul
+    smoke_fused_reduce
     smoke_render_algebraic
     smoke_tc_general
     smoke_views

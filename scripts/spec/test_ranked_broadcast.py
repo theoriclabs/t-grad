@@ -68,6 +68,17 @@ class RankedBroadcastTests(unittest.TestCase):
         self.assertEqual(result.shape, (2, 2, 3))
         self.assertEqual(result.dtype, "bf16")
 
+    def test_bfloat16_store_rounds_to_nearest_even(self):
+        # 2^-8 is exactly half a bf16 ULP at 1.0.  The first lower value
+        # has an even low mantissa bit and rounds down; the second has an
+        # odd bit and rounds up.  Both operands are themselves exact bf16.
+        left = np.asarray([1.0, 1.0078125], dtype=np.float32)
+        half_ulp = np.asarray([0.00390625], dtype=np.float32)
+        expected = np.asarray([1.0, 1.015625], dtype=np.float32)
+        result = self.assertOp(
+            left, half_ulp, lambda a, b: a + b, expected, dtype="bf16")
+        self.assertEqual(result.dtype, "bf16")
+
     def test_right_incompatible_shape_is_rejected(self):
         left = tgrad.Tensor(np.zeros((2, 3), dtype=np.float32), dtype="f32")
         right = tgrad.Tensor(np.zeros((2,), dtype=np.float32), dtype="f32")

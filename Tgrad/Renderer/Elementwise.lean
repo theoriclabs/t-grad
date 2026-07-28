@@ -37,6 +37,73 @@ def mslScalarType : Dtype → Option String
   | .int32_    => some "int"
   | _          => none
 
+/-- Device-buffer representation used by the general scalar kernels.
+
+    `bfloat` is not a portable Metal storage type: the macOS-14 hosted
+    runner exposes a Metal device but rejects kernels containing native
+    `bfloat`.  The value is nevertheless always stored as the upper 16
+    bits of an IEEE float, so `ushort` plus explicit conversion is both
+    portable and the same lowering used by pinned tinygrad when a
+    backend has no native bf16 arithmetic.  Tensor-core matmul keeps its
+    separately capability-gated native `bfloat` generator. -/
+def mslStorageType : Dtype → Option String
+  | .bfloat16_ => some "ushort"
+  | ty         => mslScalarType ty
+
+/-- Load one stored scalar into its compute representation.  bf16 widens
+    exactly by placing its 16 bits in the high half of an IEEE float. -/
+def loadScalarStmt (localName buf : String) (idx : UOp) (ty : Dtype)
+    (storageTy : String) : Stmt :=
+  if ty == .bfloat16_ then
+    .assign s!"float {localName}"
+      s!"as_type<float>(((uint)(*({buf}+{idx.renderIndexExpr}))) << 16)"
+  else
+    .loadIndexed s!"{storageTy} {localName}" buf idx
+
+/-- Round an IEEE-float bit pattern to bf16 exactly as pinned tinygrad does:
+    finite values use round-to-nearest-even; infinities are preserved; a NaN
+    whose payload lives only in the discarded low bits remains a NaN. -/
+def roundedBf16BitsExpr (bits : String) : String :=
+  s!"((({bits} & 0x7f800000u) != 0x7f800000u) ? " ++
+  s!"({bits} + (({bits} >> 16) & 1u) + 0x7fffu) : " ++
+  s!"((({bits} & 0xffffu) != 0u) ? ({bits} | 0x10000u) : {bits}))"
+
+/-- Store one compute value in the destination representation.  The prefix
+    makes temporary names local to a call site when a future kernel stores
+    more than one value. -/
+def storeScalarStmts (tempPrefix : String) (ty : Dtype) (storageTy buf : String)
+    (idx : UOp) (rhs : String) : List Stmt :=
+  if ty == .bfloat16_ then
+    [ .assign s!"float {tempPrefix}_value" rhs,
+      .assign s!"uint {tempPrefix}_bits" s!"as_type<uint>({tempPrefix}_value)",
+      .assign s!"uint {tempPrefix}_rounded"
+        (roundedBf16BitsExpr s!"{tempPrefix}_bits"),
+      .assign s!"*({buf}+{idx.renderIndexExpr})"
+        s!"((ushort)({tempPrefix}_rounded >> 16))" ]
+  else
+    [ .storeIndexedAs storageTy buf idx rhs ]
+
+/-- Mechanical portability predicate for rendered scalar bf16 kernels.
+
+    Numeric tests on a device with native bf16 support cannot distinguish the
+    portable lowering from the old `device bfloat*` lowering that failed to
+    compile on the macOS-14 CI runner.  This predicate pins the actual source
+    property: every named buffer uses ushort storage, stores explicitly pack
+    through float bits, loads explicitly widen when requested, and no native
+    `bfloat` type token occurs.  Kernel identities legitimately contain the
+    dtype fragment `bfloat16_`; removing that exact fragment before searching
+    makes the prohibition cover pointer types, locals, vectors, and casts
+    without confusing a name with executable MSL. -/
+def portableBf16ScalarSource (source : String) (buffers : List String)
+    (loadsValues : Bool) : Bool :=
+  buffers.all (fun name => source.contains s!"device ushort* {name}") &&
+  source.contains "as_type<uint>" &&
+  (!loadsValues || source.contains "as_type<float>") &&
+  !(source.replace "bfloat16_" "").contains "bfloat"
+
+private def renderOrEmpty (decl : Option KernelDecl) : String :=
+  (decl.map renderKernel).getD ""
+
 /-- MSL spelling of the pointwise operators that are meaningful for a
     float dtype. The integer and comparison members of `BinOp`
     (`shl`, `andB`, `cmplt`, …) are deliberately absent: they are not
@@ -83,8 +150,8 @@ per-operand index expressions so either side may be an arbitrary view. -/
 def elementwiseKernelDeclRanked (op : BinOp) (outShape : List Nat)
     (aIdx bIdx : UOp) (aTy bTy outTy : Dtype) (tag : String) : Option KernelDecl :=
   if outShape.length > 3 then none else
-  match elementwiseOpStr op, mslScalarType aTy, mslScalarType bTy,
-        mslScalarType outTy with
+  match elementwiseOpStr op, mslStorageType aTy, mslStorageType bTy,
+        mslStorageType outTy with
   | some opStr, some aS, some bS, some outS =>
     let vars := (List.range outShape.length).map (fun i =>
       UOp.var s!"gidx{i}" .int32_)
@@ -101,14 +168,11 @@ def elementwiseKernelDeclRanked (op : BinOp) (outShape : List Nat)
           .attr   { baseType := "uint3", name := "gid",
                     attrStr := "[[threadgroup_position_in_grid]]" },
         ],
-        body     := coordDecls ++ [
-          .loadIndexed s!"{aS} val0" "data1" aIdx,
-          .loadIndexed s!"{bS} val1" "data2" bIdx,
-          -- Compute in fp32 and let `storeIndexed` apply the bf16 cast,
-          -- matching how the matmul kernels accumulate.
-          .storeIndexedAs outS "data0" outIdx
-            (elementwiseComputeExpr outTy opStr)
-        ],
+        body     := coordDecls ++
+          [ loadScalarStmt "val0" "data1" aIdx aTy aS,
+            loadScalarStmt "val1" "data2" bIdx bTy bS ] ++
+          storeScalarStmts "result" outTy outS "data0" outIdx
+            (elementwiseComputeExpr outTy opStr),
         trailingNewline := false }
   | _, _, _, _ => none
 
@@ -148,6 +212,17 @@ theorem elementwise_rejects_unsupported :
     (elementwiseKernelDecl .andB 4 4 (.var "i" .int32_) (.var "j" .int32_) .bfloat16_ .bfloat16_ .bfloat16_ "t").isNone := by
   native_decide
 
+/-- The rendered pointwise kernel itself, not merely its arithmetic result,
+    uses the portable bf16 representation.  Reinstating `mslScalarType` at
+    any of the three buffer sites makes this compile-time check fail. -/
+theorem bf16_elementwise_render_is_portable :
+    portableBf16ScalarSource
+      (renderOrEmpty (elementwiseKernelDeclRanked .add [2, 1, 3]
+        (.var "i" .int32_) (.var "j" .int32_)
+        .bfloat16_ .bfloat16_ .bfloat16_ "portable_probe"))
+      ["data0", "data1", "data2"] true = true := by
+  native_decide
+
 
 /-! ## Reduction
 
@@ -181,7 +256,7 @@ def reduceOpName : BinOp → String
     contracted and views cost nothing. -/
 def reduceKernelDecl (op : BinOp) (rows cols axis : Nat)
     (operandIdx : UOp) (aTy outTy : Dtype) (tag : String) : Option KernelDecl :=
-  match elementwiseOpStr op, reduceInit op, mslScalarType aTy, mslScalarType outTy with
+  match elementwiseOpStr op, reduceInit op, mslStorageType aTy, mslStorageType outTy with
   | some opStr, some init, some aS, some outS =>
     let bound := if axis == 1 then cols else rows
     let outLen := if axis == 1 then rows else cols
@@ -198,11 +273,11 @@ def reduceKernelDecl (op : BinOp) (rows cols axis : Nat)
           .declInt "gidx0" "gid.x" (some s!"{outLen}"),
           .declFloat "acc" init,
           .forLoop "ridx0" bound [
-            .loadIndexed s!"{aS} val0" "data1" operandIdx,
+            loadScalarStmt "val0" "data1" operandIdx aTy aS,
             .assign "acc" s!"acc{opStr}((float)val0)"
-          ],
-          .storeIndexedAs outS "data0" (.var "gidx0" .int32_) "acc"
-        ],
+          ] ] ++
+          storeScalarStmts "result" outTy outS "data0"
+            (.var "gidx0" .int32_) "acc",
         trailingNewline := false }
   | _, _, _, _ => none
 
@@ -221,6 +296,19 @@ theorem reduce_names_separate_axes :
         (fun d => d.name)
       ≠ (reduceKernelDecl .add 4 4 1 (.var "i" .int32_) .bfloat16_ .bfloat16_ "t").map
         (fun d => d.name) := by
+  native_decide
+
+/-- Standalone reductions share the same portable bf16 load/store contract as
+    pointwise kernels. -/
+theorem bf16_reduce_render_is_portable :
+    portableBf16ScalarSource
+      (renderOrEmpty (reduceKernelDecl .add 2 3 1
+        (.binop .add
+          (.binop .mul (.var "gidx0" .int32_)
+            (.const .int32_ (.i 3)) .int32_)
+          (.var "ridx0" .int32_) .int32_)
+        .bfloat16_ .bfloat16_ "portable_probe"))
+      ["data0", "data1"] true = true := by
   native_decide
 
 
@@ -253,7 +341,7 @@ def fusedReduceKernelDecl (redOp ewOp : BinOp) (outRows outCols bound : Nat)
     (aIdx bIdx : UOp) (aTy bTy outTy : Dtype) (tag : String) :
     Option KernelDecl :=
   match elementwiseOpStr redOp, reduceInit redOp, elementwiseOpStr ewOp,
-        mslScalarType aTy, mslScalarType bTy, mslScalarType outTy with
+        mslStorageType aTy, mslStorageType bTy, mslStorageType outTy with
   | some redStr, some init, some ewStr, some aS, some bS, some outS =>
     let outIdx : UOp :=
       .binop .add
@@ -275,12 +363,11 @@ def fusedReduceKernelDecl (redOp ewOp : BinOp) (outRows outCols bound : Nat)
           .declInt "gidx1" "gid.y" (some s!"{outCols}"),
           .declFloat "acc" init,
           .forLoop "ridx0" bound [
-            .loadIndexed s!"{aS} val0" "data1" aIdx,
-            .loadIndexed s!"{bS} val1" "data2" bIdx,
+            loadScalarStmt "val0" "data1" aIdx aTy aS,
+            loadScalarStmt "val1" "data2" bIdx bTy bS,
             .assign "acc" s!"acc{redStr}(((float)val0){ewStr}((float)val1))"
-          ],
-          .storeIndexedAs outS "data0" outIdx "acc"
-        ],
+          ] ] ++
+          storeScalarStmts "result" outTy outS "data0" outIdx "acc",
         trailingNewline := false }
   | _, _, _, _, _, _ => none
 
@@ -292,6 +379,16 @@ theorem fused_names_separate_inner_operator :
         .bfloat16_ .bfloat16_ .bfloat16_ "t").map (fun d => d.name)
       ≠ (fusedReduceKernelDecl .add .add 4 4 4 (.var "i" .int32_) (.var "j" .int32_)
         .bfloat16_ .bfloat16_ .bfloat16_ "t").map (fun d => d.name) := by
+  native_decide
+
+/-- The fused reduce-of-elementwise fallback is independently pinned because
+    it is a different generator and cache from standalone reduction. -/
+theorem bf16_fused_reduce_render_is_portable :
+    portableBf16ScalarSource
+      (renderOrEmpty (fusedReduceKernelDecl .add .mul 2 3 4
+        (.var "i" .int32_) (.var "j" .int32_)
+        .bfloat16_ .bfloat16_ .bfloat16_ "portable_probe"))
+      ["data0", "data1", "data2"] true = true := by
   native_decide
 
 end Metal

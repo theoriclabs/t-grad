@@ -454,11 +454,52 @@ class ObserverError(Exception):
     """Clean, user-facing observer failure (printed without a traceback)."""
 
 
-def probe_python_facts(probe_python: Path) -> dict:
-    # Recorded `executable` is Path(sys.executable).resolve() — the bare
-    # interpreter binary identity. That intentionally differs from the
-    # spawn path: a venv wrapper must be invoked unresolved so its
-    # site-packages apply (see build_document).
+def tokenize_install_path(path_text: str, roots: list[tuple[Path, str]]) -> str:
+    """Replace a known install root with its token (most specific root first).
+
+    Mirrors the diagnostic path tokenization idiom: ordered (root, token)
+    pairs, longest/most-specific root first. Paths under no known root are
+    kept verbatim behind an ${ABSOLUTE}: marker so they stay distinguishable.
+    """
+    for root, token in roots:
+        root_text = str(root)
+        if path_text == root_text or path_text.startswith(root_text + os.sep):
+            return token + path_text[len(root_text):]
+    return f"${{ABSOLUTE}}:{path_text}"
+
+
+def tokenize_environment_facts(facts: dict) -> dict:
+    """Tokenize install-path facts; leave content hashes and machine facts alone."""
+    facts = dict(facts)
+    venv_prefix = facts.pop("venv_prefix", None)
+    roots: list[tuple[Path, str]] = []
+    if venv_prefix:
+        roots.append((Path(venv_prefix), "${VENV}"))
+    roots.append((REPO, "${REPO}"))
+    roots.append((Path.home(), "${HOME}"))
+
+    untokenized: list[str] = []
+    for key in ("executable", "dependency_root", "numpy_init"):
+        tokenized = tokenize_install_path(str(facts[key]), roots)
+        if tokenized.startswith("${ABSOLUTE}:"):
+            untokenized.append(f"{key}={facts[key]}")
+        facts[key] = tokenized
+    if untokenized:
+        print(
+            "observe_pilot: install path(s) outside venv/repo/home "
+            "(interpreter location will not match a venv observation): "
+            + "; ".join(untokenized),
+            file=sys.stderr,
+        )
+    return facts
+
+
+def probe_python_facts(probe_python: Path) -> tuple[dict, Path]:
+    # Location paths stay absolute-but-unresolved so a venv reached via
+    # different symlink aliases still tokenizes to the same ${VENV}/... form.
+    # Content identity stays on the resolved bytes (executable_sha256 /
+    # numpy_init_sha256). Spawn must still use the unresolved venv wrapper
+    # so site-packages apply (see build_document).
     code = r'''
 import hashlib
 import json
@@ -467,21 +508,36 @@ import sys
 from pathlib import Path
 import numpy
 
-executable = Path(sys.executable).resolve()
-numpy_init = Path(numpy.__file__).resolve()
+def absolute_noreolve(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    raise SystemExit(f"refusing cwd-dependent relative path: {path}")
+
+executable = absolute_noreolve(Path(sys.executable))
+numpy_init = absolute_noreolve(Path(numpy.__file__))
+venv_prefix = (
+    str(absolute_noreolve(Path(sys.prefix)))
+    if sys.prefix != sys.base_prefix
+    else None
+)
 print(json.dumps({
     "python": platform.python_version(),
     "implementation": platform.python_implementation(),
     "executable": str(executable),
-    "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+    "executable_sha256": hashlib.sha256(
+        executable.resolve().read_bytes()
+    ).hexdigest(),
     "cache_tag": sys.implementation.cache_tag,
     "platform": platform.system(),
     "platform_release": platform.release(),
     "machine": platform.machine(),
     "numpy_version": numpy.__version__,
     "numpy_init": str(numpy_init),
-    "numpy_init_sha256": hashlib.sha256(numpy_init.read_bytes()).hexdigest(),
+    "numpy_init_sha256": hashlib.sha256(
+        numpy_init.resolve().read_bytes()
+    ).hexdigest(),
     "dependency_root": str(numpy_init.parents[1]),
+    "venv_prefix": venv_prefix,
 }, sort_keys=True))
 '''.strip()
     result = subprocess.run(
@@ -504,7 +560,8 @@ print(json.dumps({
     facts = json.loads(result.stdout)
     if not isinstance(facts, dict):
         raise ObserverError("probe interpreter returned invalid environment facts")
-    return facts
+    dependency_root = Path(facts["dependency_root"])
+    return tokenize_environment_facts(facts), dependency_root
 
 
 def json_field_diffs(expected: object, actual: object, prefix: str = "") -> list[str]:
@@ -545,9 +602,9 @@ def build_document(shim_root: Path, product_revision: str,
     # world, so a relative path like .venv/bin/python would miss; but
     # resolve() follows the venv symlink to bare CPython and drops the
     # wrapper's site-packages (numpy disappears). Spawn the absolute
-    # wrapper path. Recorded environment identity still resolves inside
-    # the probe (Path(sys.executable).resolve()) — that is the bare
-    # binary hash, and intentionally differs from the spawn path.
+    # wrapper path. Recorded install-path facts stay absolute-but-
+    # unresolved and are then tokenized (${VENV}/${REPO}/${HOME});
+    # content identity is the resolved byte hashes inside the probe.
     probe_python = probe_python.absolute()
     if not probe_python.exists():
         raise ObserverError(f"probe interpreter does not exist: {probe_python}")
@@ -581,13 +638,12 @@ def build_document(shim_root: Path, product_revision: str,
         "runtime_library_sha256": digest(RUNTIME_LIBRARY.read_bytes()),
     }
     runtime_artifact_hash = digest(canonical(runtime_artifacts))
-    environment = probe_python_facts(probe_python)
+    environment, dependency_root = probe_python_facts(probe_python)
     environment_doc = {
         "id": "python-import-pilot-v1",
         "hash": digest(canonical(environment)),
         "facts": environment,
     }
-    dependency_root = Path(environment["dependency_root"])
     with tempfile.TemporaryDirectory(prefix="tgrad_req_pilot_") as tmp:
         root = Path(tmp)
         fake_upstream = set_up_world(root)

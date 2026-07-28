@@ -153,6 +153,30 @@ ensure_dylib() {
 }
 
 # -----------------------------------------------------------------------
+# check_real_chronology — the declared growth cycles really were prospective.
+#
+# `check_cycle_chronology.py` proves Git ancestry mechanics on SYNTHETIC
+# repositories and says so; it never looks at Tgrad's own freezes. That
+# left the property in prose in docs/growth_log_2026-07-27.md. This runs
+# the same mechanics against the real history: freeze must be an ancestor
+# of its candidate, and the judging closure (observer + relation +
+# immutable baseline) must be byte-identical at EVERY commit on the
+# ancestry path, not merely at the endpoints. Endpoint comparison accepts
+# an observer that was mutated mid-interval and reverted before landing.
+# Costs ~0.6s; git object reads only.
+# -----------------------------------------------------------------------
+check_real_chronology() {
+  local log=/tmp/tgrad_real_chronology.log
+  if python3 "$TGRAD_DIR/scripts/contract/check_real_chronology.py" \
+       --repo "$TGRAD_DIR" >"$log" 2>&1; then
+    return 0
+  fi
+  echo "  ✗ declared growth cycles are not chronology-clean"
+  sed 's/^/      /' "$log"
+  return 1
+}
+
+# -----------------------------------------------------------------------
 # check_shell_continuation — reject `\` continuation followed by a comment.
 #
 # Bash joins the continued line into the comment, so every flag after it

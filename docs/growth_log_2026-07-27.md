@@ -266,3 +266,72 @@ partition and work partition. Two separate requirements shared one
 implementation cause; the frozen packet named both consumers and predicted the
 full causal fan-out. Adding an artificial mixed-dtype guard would have made the
 work less compatible merely to preserve a scenario-shaped sequence.
+
+## Authenticated source-closure integration — 2026-07-28
+
+The mechanical-completion program reordered its next two packets after review.
+The first `mechanics.synthetic-completion-v1` candidate, `5c6b96e`, was not
+merged: it attacked a locally consistent certificate graph before the target
+and product-source identities were authenticated. Passing that campaign could
+not establish the dependency it was intended to test. The branch remains a
+rejected candidate and must not be merged.
+
+`contract.source-closure-v1` was therefore executed first. Its initial commit,
+`0101e03`, was rejected by an exact-commit hostile audit despite passing its
+own focused checks:
+
+1. `scripts/parity/upstream_target.py` differed by one trailing byte from the
+   source identity recorded in the generated closure;
+2. the extractor derived 307 selected Tensor declarations but did not pin that
+   exact count, so a coherent `306 declarations / 47 direct methods / 295
+   unique method names / 5 properties` omission stayed green; and
+3. the contract claimed CPython 3.12–3.14 parser stability while CI exercised
+   only 3.12.
+
+Repair `39dc383` closed all three gaps and was accepted under a second
+read-only audit of that exact commit. It:
+
+- authenticates the pinned tinygrad revision
+  `19c4d736f2bc8e26d21f08b28ffd6298408da00f` and tree
+  `855cca3b00c38841a6d3a043284f3a2ca696d4b0`;
+- walks and byte-authenticates all 1,562 blobs in the pinned Git tree;
+- distinguishes all 331 upstream Python test files from the explicit
+  138-file API-surface policy subset;
+- records 307 selected Tensor declarations, 295 unique method names, 47
+  methods declared directly on `Tensor`, 5 unique properties, 82 `Ops`
+  members, 52 dtype names and 16 backend declarations;
+- rejects the 306-declaration mutant in both Python and Lean; and
+- runs the complete closure generation/check path in CI on CPython 3.12,
+  3.13 and 3.14.
+
+Independent local verification used CPython 3.13 and 3.14; this machine did
+not have a local 3.12 interpreter, so the 3.12 result remains a CI obligation
+until GitHub Actions records it. On 3.14, all 28 discovered tests passed with
+the live oracle. Explicit offline execution ran 23 meaningful tests and
+reported exactly five live-checkout skips rather than silently shrinking test
+discovery. The generated Lean projection and all `TgradSpec` targets built.
+
+The accepted identities are:
+
+- source closure:
+  `ae93a447ecd98b7bcb9abd3c282e46c56a1cf313b13648253c276a91a5eb1c73`;
+- local extractor-source bundle:
+  `71fe03337e22fbf91c30b0354143af05101647c19cf3825e63c7e0ec026d0052`;
+- `scripts/parity/extract_upstream.py`:
+  `979ce7104197f27058c004de9e2913e774a45af49b99953c18659edd5224faa1`;
+- `scripts/parity/upstream_target.py`:
+  `4f78ee91f8926ee1e14355ec659edf53fa28e8f98bde593a82a7941ca4984ab3`.
+
+The branch was merged into `main` as `be22819`, preserving accepted commit
+`39dc383` and rejected-then-repaired chronology in the graph. The merge also
+preserved the newer architecture-boundary preflight; source-closure tests and
+the offline projection check now run alongside it.
+
+This result closes source identity, not the compatibility denominator. The
+closure's target disposition is still `extracted_candidate`; its typed limits
+explicitly leave target promotion, catalog closure, requirement interpretation,
+the 590 candidate rows, pytest node IDs, documentation/workload anchors,
+runtime/build attestation, adequacy and runtime parity open. The next action is
+the explicit owner judgment `contract.target-promotion-v1`. That judgment may
+accept the target and closure only. It must not infer catalog closure,
+requirement discharge or Tgrad completion.

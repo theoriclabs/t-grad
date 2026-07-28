@@ -898,6 +898,16 @@ used to rewrite the meaning of old evidence.
 
 ## Mechanical completion architecture
 
+The forgery-resistance details and current implementation boundary are
+maintained in [`completeness_model.md`](completeness_model.md). As of
+2026-07-28, the pinned target's source identity is mechanically closed as an
+**extracted candidate**: 1,562 Git blobs; 331 upstream test files; a distinct
+138-file API-surface subset; 307 selected Tensor declarations collapsing to
+295 unique method names and 5 properties; 82 Ops; 52 dtypes; and 16 backends.
+That result authenticates the material to be interpreted. It does not promote
+the target, close the catalog, interpret the 590 candidate rows, attest a built
+runtime, or discharge a compatibility requirement.
+
 The rewrite should be agent-driven but mechanically judged. An agent is a
 search procedure over candidate repository trees. It may propose an
 interpretation, observer, work packet, or implementation. It must not be able

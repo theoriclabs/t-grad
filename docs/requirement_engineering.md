@@ -877,3 +877,18 @@ predict every affected requirement independently. This gives a useful rule:
 > the smallest implementation cause and all of its predictable consumers.
 
 The two decompositions are related but are not the same partition.
+
+The resulting experiment confirmed that rule. The packet predicted both int32
+requirements would move from `0/5/6` to `11/0/0`; evidence
+`006ceb03875aaf932a6038866e5e3bf1de20f9b621b608129f9fe74866fe5fdd`
+recorded exactly that transition, with no movement in the unrelated exception
+front. This is stronger method evidence than two independent green tests: the
+model predicted the shared cause, both consumers, and the non-consumer.
+
+It also demonstrates why conformance and adequacy must remain separate. A
+precision-stress regression rejects float-laundered int32 arithmetic, but the
+frozen observer's calibrated scenarios still contain only small integers and
+reconstruct storage bytes from logical readback. The implementation can be
+better tested without the requirement claim becoming better grounded. A future
+observer amendment must be prospective; successful focused tests cannot be
+used to rewrite the meaning of old evidence.

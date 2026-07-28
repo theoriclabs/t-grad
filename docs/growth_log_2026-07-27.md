@@ -224,3 +224,45 @@ use values above `2^24` and negative bit patterns. That regression strengthens
 implementation evidence but does not retrospectively strengthen the frozen
 observer; promotion remains blocked pending a prospective storage/precision
 observer amendment.
+
+## Int32 causal-cone execution result
+
+- Frozen packet: `aeb30e0` (`WORK-DTYPE-I32-ELEMENTWISE-V1`).
+- Product/adapter implementation: `c4984c8`.
+- Immutable evidence:
+  `006ceb03875aaf932a6038866e5e3bf1de20f9b621b608129f9fe74866fe5fdd`.
+
+The implementation stayed inside the frozen boundary. Python now encodes and
+decodes four-byte int32; Pipeline materializes int32 views through a
+bit-preserving `uint` copy; the elementwise renderer spells MSL `int` and uses
+native integer expressions whenever the promoted output is int32; and the
+strict adapter exposes `dtypes.int32` without upstream fallback. Existing Lean
+dtype codes, size, LUB, shape/view algebra, FFI, C, and observer were untouched.
+
+The transition prediction held exactly:
+
+| Scenario class | Predicted | Observed |
+|---|---:|---:|
+| Three existing f32 scenarios | each remains `11/0/0` | exact |
+| Rank-extension int32 | `0/5/6 → 11/0/0` | exact |
+| int32 + float32 scalar promotion | `0/5/6 → 11/0/0` | exact |
+| Incompatible shapes | remains `2/3/1` | exact |
+| Aggregate | `35/13/13 → 57/3/1` | exact |
+
+The focused verifier adds evidence the frozen observer cannot provide: negative
+int32 bit patterns and values above `2^24` survive construction, reshape-view
+copy, add, subtract, and multiply without float laundering. Mixed addition
+returns float32 through the existing LUB. Int32 reductions remain explicitly
+rejected because their current kernel accumulates in float.
+
+Five of six designed scenarios now match pinned upstream in every applicable
+dimension. This remains a scenario result, not requirement promotion. The
+incompatible-shape exception relation differs, backing-buffer width is not
+directly observed, precision stress is not mutation-calibrated in the frozen
+observer, and source-to-binary provenance remains open.
+
+Methodologically, this cycle validates the distinction between requirement
+partition and work partition. Two separate requirements shared one
+implementation cause; the frozen packet named both consumers and predicted the
+full causal fan-out. Adding an artificial mixed-dtype guard would have made the
+work less compatible merely to preserve a scenario-shaped sequence.

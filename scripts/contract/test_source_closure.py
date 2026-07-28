@@ -361,6 +361,40 @@ class SourceClosureTests(unittest.TestCase):
         self.assertEqual(mutant["tensor_api"]["method_count"], 47)
         self.assertPureRejects(mutant)
 
+    def test_duplicate_name_declaration_undercount_306_is_rejected(self) -> None:
+        """Remove one duplicate-name declaration; unique-name pins alone must not pass."""
+
+        def mutate(doc: dict) -> None:
+            tensor = doc["tensor_api"]
+            removed = False
+            kept: list[dict] = []
+            for row in tensor["declarations"]:
+                if (
+                    not removed
+                    and row["kind"] == "method"
+                    and row["name"] == "alu"
+                    and row["source"] == "tinygrad/mixin/elementwise.py"
+                    and row["declaring_class"] == "ElementwiseMixin"
+                ):
+                    removed = True
+                    continue
+                kept.append(row)
+            if not removed:
+                raise AssertionError("expected ElementwiseMixin.alu duplicate-name declaration")
+            tensor["declarations"] = kept
+
+        mutant = self.coherent(mutate)
+        tensor = mutant["tensor_api"]
+        self.assertEqual(tensor["declaration_count"], 306)
+        self.assertEqual(tensor["direct_method_count"], 47)
+        self.assertEqual(tensor["method_count"], 295)
+        self.assertEqual(tensor["property_count"], 5)
+        self.assertEqual(len(tensor["direct_methods"]), 47)
+        self.assertEqual(len(tensor["method_names"]), 295)
+        self.assertEqual(len(tensor["property_names"]), 5)
+        self.assertIn("alu", tensor["method_names"])
+        self.assertPureRejects(mutant)
+
     def test_legacy_helper_contamination_297_is_named_and_rejected(self) -> None:
         self.assertEqual(extract_upstream.LEGACY_HELPER_CONTAMINATION_METHOD_COUNT, 297)
 

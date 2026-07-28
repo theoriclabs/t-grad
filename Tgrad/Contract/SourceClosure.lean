@@ -31,11 +31,11 @@ def sourceClosureApiTestPolicy : String :=
 
 /-- Exact canonical source-closure identity expected by this contract. -/
 def expectedSourceClosureSha256 : String :=
-  "c856751566ec51019bf57af8383afc0ed1224cbe04d5d2da31ed773c22009137"
+  "ae93a447ecd98b7bcb9abd3c282e46c56a1cf313b13648253c276a91a5eb1c73"
 
 /-- Exact local extractor-source bundle expected by the pinned artifact. -/
 def expectedExtractorSourceBundleSha256 : String :=
-  "0512760dda67509880c4ad597920d434dea6e4f3c832407d737cce7d47a5bce3"
+  "71fe03337e22fbf91c30b0354143af05101647c19cf3825e63c7e0ec026d0052"
 
 inductive SourceCategoryId where
   | apiSurfaceTests
@@ -479,6 +479,7 @@ private def tensorApiWellFormed (candidate : SourceClosureCandidate) : Bool :=
 private def tensorSourceTrapPasses (candidate : SourceClosureCandidate) : Bool :=
   candidate.tensorApi.sources.contains "tinygrad/tensor.py" &&
   candidate.tensorApi.sources.length > 1 &&
+  candidate.tensorApi.declarationCount == 307 &&
   candidate.tensorApi.directMethodCount == 47 &&
   candidate.tensorApi.methodCount == 295 &&
   candidate.tensorApi.propertyCount == 5

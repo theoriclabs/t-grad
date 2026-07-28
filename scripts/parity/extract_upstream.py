@@ -107,6 +107,7 @@ LIMIT_STATEMENTS = {
 }
 
 EXPECTED_PIN_COUNTS = {
+    "tensor_declarations": 307,
     "tensor_direct_methods": 47,
     "tensor_methods": 295,
     "tensor_properties": 5,
@@ -1348,7 +1349,8 @@ def validate_source_closure_document(
     ):
         raise ExtractionError("tensor_api: counts are not derived")
     if (
-        direct_count != EXPECTED_PIN_COUNTS["tensor_direct_methods"]
+        len(declarations) != EXPECTED_PIN_COUNTS["tensor_declarations"]
+        or direct_count != EXPECTED_PIN_COUNTS["tensor_direct_methods"]
         or len(method_names) != EXPECTED_PIN_COUNTS["tensor_methods"]
         or len(property_names) != EXPECTED_PIN_COUNTS["tensor_properties"]
         or len(tensor_sources) <= 1

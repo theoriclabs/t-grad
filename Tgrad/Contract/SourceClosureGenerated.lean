@@ -22,10 +22,10 @@ def sourceClosureCandidate : SourceClosureCandidate :=
         sourceFiles := [
           { path := "scripts/contract/generate_source_closure.py", byteSize := 12201, sha256 := "c6c30bb13920dd7861745f99c4a824e1670e00d12debe09f25de7eeae9079f22" },
           { path := "scripts/parity/ensure_oracle.py", byteSize := 14615, sha256 := "55eff5e230436eda8835f9ce2cb6145626a678ed0f2d6f82b3d841f6f6f26df1" },
-          { path := "scripts/parity/extract_upstream.py", byteSize := 65033, sha256 := "c08012c3f9234397430bb3387d36016c00638783313e9fa89cb1c184f43233ee" },
-          { path := "scripts/parity/upstream_target.py", byteSize := 681, sha256 := "29d8c582d14d86783252c7617eee0b596682d743f25cc9650c875ff3006120be" }
+          { path := "scripts/parity/extract_upstream.py", byteSize := 65140, sha256 := "979ce7104197f27058c004de9e2913e774a45af49b99953c18659edd5224faa1" },
+          { path := "scripts/parity/upstream_target.py", byteSize := 680, sha256 := "4f78ee91f8926ee1e14355ec659edf53fa28e8f98bde593a82a7941ca4984ab3" }
         ]
-        sourceBundleSha256 := "0512760dda67509880c4ad597920d434dea6e4f3c832407d737cce7d47a5bce3" }
+        sourceBundleSha256 := "71fe03337e22fbf91c30b0354143af05101647c19cf3825e63c7e0ec026d0052" }
     files := [
       { path := ".coveragerc", mode := "100644", blobOid := "4bb4e50c36e9a0694ea0e2826b6610247f8099aa", byteSize := 38, sha256 := "94d165f3cb616e684b735b32954d7b0035877c6ba855917f6ad6167122136dbf" },
       { path := ".github/actions/process-replay/action.yml", mode := "100644", blobOid := "a5cec6ecc241b98ef6a66fe6385207c694db2c7e", byteSize := 853, sha256 := "34830890cbdc64b660fdf32bb6120d64a9276b48b7fe5af78256dd3f377743c1" },
@@ -1757,7 +1757,7 @@ def sourceClosureCandidate : SourceClosureCandidate :=
         "scripts/parity/ensure_oracle.py",
         "scripts/parity/extract_upstream.py",
         "scripts/parity/upstream_target.py"
-      ], fileCount := 4, inventorySha256 := "0512760dda67509880c4ad597920d434dea6e4f3c832407d737cce7d47a5bce3" },
+      ], fileCount := 4, inventorySha256 := "71fe03337e22fbf91c30b0354143af05101647c19cf3825e63c7e0ec026d0052" },
       { id := .ops, status := .complete, sourceKind := .foreignGit, paths := [
         "tinygrad/uop/__init__.py"
       ], fileCount := 1, inventorySha256 := "1ec2db03c570841c9ede40c51caa110b1c0fbe4c20976f7e076a8135553c932c" },
@@ -3323,7 +3323,7 @@ def sourceClosureCandidate : SourceClosureCandidate :=
         ]
         count := 138 }
     limits := [.backendExecution, .catalogClosure, .docsAnchors, .officialWorkloads, .publicExportSemantics, .pytestNodeIds, .requirementInterpretation, .requirementRows590, .runtimeBuildAttestation, .runtimeParity, .runtimeResolvedTensorBehavior, .scenarioAdequacy, .targetPromotion]
-    closureSha256 := "c856751566ec51019bf57af8383afc0ed1224cbe04d5d2da31ed773c22009137" }
+    closureSha256 := "ae93a447ecd98b7bcb9abd3c282e46c56a1cf313b13648253c276a91a5eb1c73" }
 
 set_option maxRecDepth 100000 in
 theorem sourceClosureCandidateValid :

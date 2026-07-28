@@ -16,6 +16,13 @@ class _DTypes:
     float32 = _F32
     float = _F32
     default_float = _F32
+    # Upstream: `default_int: ClassVar[DType] = int32` (tinygrad/dtype.py:142).
+    # Tgrad has native int32 since c4984c8, and the shim already exposes it as
+    # `int32`/`ints`; it simply never declared the default. That omission was
+    # the single most frequent blocker in the promoted api_surface observation
+    # (35 `_DTypes.default_int` AttributeErrors), so this exposes capability
+    # Tgrad already has rather than implementing anything.
+    default_int = _I32
     floats = (_BF16, _F32)
     ints = (_I32,)
     fp8s = ()

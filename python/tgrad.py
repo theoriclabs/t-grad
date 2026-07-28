@@ -174,6 +174,13 @@ _lib.tgrad_realize.restype  = ctypes.c_uint64
 _lib.tgrad_tensor_dtype.argtypes = [ctypes.c_uint64]
 _lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
 
+# Constant-fill creation. Lean owns dtype default/admission and the GPU
+# fill; Python only marshals shape / fill / dtype code.
+_lib.tgrad_tensor_full.argtypes = [
+    ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t,
+    ctypes.c_double, ctypes.c_uint8]
+_lib.tgrad_tensor_full.restype  = ctypes.c_uint64
+
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_view.restype  = ctypes.c_uint64
 
@@ -182,10 +189,20 @@ _DTYPE_BF16 = 0
 _DTYPE_F32  = 1
 _DTYPE_F16  = 2
 _DTYPE_I32  = 3
+# Creation-surface sentinels (matches PythonFFI.creationDtype?):
+_CREATION_DTYPE_DEFAULT = 255  # dtype=None → Lean applies float32
+_CREATION_DTYPE_UNKNOWN = 254  # unrecognised name → Lean rejects
 _DTYPE_CODES = {"bf16": _DTYPE_BF16, "f32": _DTYPE_F32,
                 "f16": _DTYPE_F16, "i32": _DTYPE_I32}
 def _dtype_code(name: str) -> int:
     return _DTYPE_CODES.get(name, _DTYPE_BF16)
+
+def _creation_dtype_code(dtype: str | None) -> int:
+    """Marshal a creation dtype kwarg for Lean. Does not validate —
+    Lean owns admission and the float32 default."""
+    if dtype is None:
+        return _CREATION_DTYPE_DEFAULT
+    return _DTYPE_CODES.get(dtype, _CREATION_DTYPE_UNKNOWN)
 
 # Legacy L12 cache toggle. Both entries execute the generated declaration;
 # the alternate symbol remains as an observable cache-isolation probe.
@@ -483,31 +500,49 @@ class Tensor:
     def full(cls, shape, fill_value, dtype: str | None = None, **kwargs) -> "Tensor":
         """Create a tensor filled with ``fill_value``.
 
-        Matches upstream ``Tensor.full`` shape handling via ``_argfix``.
-        Default dtype is ``"f32"`` (upstream ``dtypes.default_float``).
-        Only ``dtype`` is accepted among kwargs — unknown keys (e.g.
-        ``device=``) raise rather than being silently ignored.
-
-        Scalar shape ``()`` is supported (one element). A zero-sized
-        dimension is rejected by the existing materialization path
-        (``NotInLeanScope``): Tgrad does not allocate empty buffers.
+        Python owns the calling convention (``_argfix``, kwargs).
+        Lean owns dtype default/admission, GPU allocation, and the
+        constant-fill kernel. Unknown kwargs (e.g. ``device=``) raise
+        rather than being silently ignored.
         """
         if kwargs:
             raise TypeError(
                 f"Tensor.full: unsupported keyword argument(s) "
                 f"{sorted(kwargs)}; Tgrad accepts only dtype= "
                 f"(supported dtypes: {sorted(_SUPPORTED_DTYPES)})")
-        if dtype is None:
-            dtype = "f32"
-        if dtype not in _SUPPORTED_DTYPES:
-            raise TgradTypeError(
-                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
-        shape = _argfix(shape)
-        # Host array is f32 for floating storage (bf16 truncates on write)
-        # and i32 for integer storage — same path as Tensor.__init__.
-        np_dtype = np.int32 if dtype == "i32" else np.float32
-        arr = np.full(shape, fill_value, dtype=np_dtype)
-        return cls(arr, dtype=dtype)
+        shape = tuple(int(s) for s in _argfix(shape))
+        code = _creation_dtype_code(dtype)
+        shape_arr = (ctypes.c_size_t * len(shape))(*shape)
+        h = _lib.tgrad_tensor_full(
+            shape_arr, len(shape), float(fill_value), code)
+        if h == 0:
+            # Lean refused. Map known refusals to the public exceptions
+            # without re-implementing admission before the call.
+            if code not in (_DTYPE_BF16, _DTYPE_F32, _DTYPE_I32,
+                            _CREATION_DTYPE_DEFAULT):
+                raise TgradTypeError(
+                    f"unsupported dtype {dtype!r}; "
+                    f"supported: {sorted(_SUPPORTED_DTYPES)}")
+            if any(s < 1 for s in shape):
+                raise NotInLeanScope(
+                    f"materialized Tensor dimensions must be positive "
+                    f"(got {shape})")
+            if len(shape) > 3:
+                raise NotInLeanScope(
+                    f"public Tensor construction supports rank 0 through 3 "
+                    f"(got ndim={len(shape)})")
+            raise TgradError(
+                f"tgrad_tensor_full(shape={shape}, fill={fill_value!r}) "
+                f"returned 0")
+        out_buf = _lib.tgrad_tensor_raw_buffer(h)
+        out_rank = int(_lib.tgrad_tensor_rank(h))
+        out_shape = tuple(
+            int(_lib.tgrad_tensor_shape_dim(h, i))
+            for i in range(out_rank))
+        out_dtype = _dtype_of_handle(h)
+        return cls._from_buffer(
+            out_buf, _numel(out_shape) * _DTYPE_BYTES[out_dtype],
+            out_shape, out_dtype, handle=h, owns_buf=True)
 
     @classmethod
     def zeros(cls, *shape, **kwargs) -> "Tensor":

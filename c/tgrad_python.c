@@ -505,3 +505,18 @@ uint8_t tgrad_tensor_dtype(uint64_t h) {
     lean_dec_ref(result);
     return v;
 }
+
+/* Constant-fill creation. Lean owns dtype default/admission, GPU
+ * allocation, fill-kernel dispatch, and registry insert. Python only
+ * marshals shape / fill / dtype code. dtype_code 255 = default float32. */
+extern lean_object* tgrad_tensor_full_lean(
+    lean_object* shape_arr, double fill, uint8_t dtype_code);
+
+uint64_t tgrad_tensor_full(
+    const size_t* shape, size_t ndim, double fill, uint8_t dtype_code) {
+    lean_object* arr = lean_alloc_array(ndim, ndim);
+    for (size_t i = 0; i < ndim; i++) {
+        lean_array_set_core(arr, i, lean_box_usize(shape ? shape[i] : 0));
+    }
+    return tgrad_unbox_handle(tgrad_tensor_full_lean(arr, fill, dtype_code));
+}

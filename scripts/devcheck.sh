@@ -73,6 +73,7 @@ cheap_preflight() {
   check_no_gate_regression || return 1
   check_shell_continuation || return 1
   check_real_chronology   || return 1
+  check_architecture_boundary || return 1
 
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/observe_pilot.py" --check-generated \
     || return 1

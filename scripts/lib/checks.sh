@@ -153,6 +153,27 @@ ensure_dylib() {
 }
 
 # -----------------------------------------------------------------------
+# check_architecture_boundary — Lean implements, Python only marshals.
+#
+# AGENTS.md rule 1. numpy computing inside python/tgrad.py outside the
+# host/device boundary means semantics were written in the authoring
+# surface. `Tensor.ones` was added that way -- np.full built the array,
+# Python chose and validated the dtype -- and it PASSED the upstream test
+# it targeted. A green test cannot tell "written in Lean" from "written
+# in Python", so no existing gate would ever have caught it.
+# -----------------------------------------------------------------------
+check_architecture_boundary() {
+  local log=/tmp/tgrad_arch_boundary.log
+  if python3 "$TGRAD_DIR/scripts/dev/architecture_boundary_audit.py" \
+       >"$log" 2>&1; then
+    return 0
+  fi
+  echo "  ✗ architecture boundary violated (semantics in the authoring surface)"
+  sed 's/^/      /' "$log"
+  return 1
+}
+
+# -----------------------------------------------------------------------
 # check_real_chronology — the declared growth cycles really were prospective.
 #
 # `check_cycle_chronology.py` proves Git ancestry mechanics on SYNTHETIC

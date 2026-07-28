@@ -4,6 +4,7 @@ import Tgrad.Runtime.Cache
 import Tgrad.Pipeline
 import Tgrad.Tensor
 import Tgrad.Renderer.Elementwise
+import Tgrad.Renderer.Creation
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Codegen.Opt.Heuristic
@@ -873,5 +874,71 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
       | some out => TensorRegistry.register out
   | _ => return 0
 
+
+-- ----------------------------------------------------------------------
+-- Constant-fill creation (`Tensor.full` / `ones` / `zeros`).
+--
+-- Python normalises the calling convention (`_argfix`, kwargs) and
+-- marshals shape + fill + dtype code. Lean owns the dtype default
+-- (`255` → float32), dtype admission (bf16/f32/i32 only), GPU
+-- allocation, fill-kernel compile/dispatch, and registry insert.
+-- A host-side `numpy.full` upload is deliberately not a path.
+-- ----------------------------------------------------------------------
+
+/-- Creation-surface dtype codes. `255` is the Python `dtype=None`
+    default sentinel — Lean applies float32. Unsupported codes are
+    `none` (never silently remapped to a supported dtype). -/
+def creationDtype? : UInt8 → Option Tgrad.Dtype
+  | 0   => some .bfloat16_
+  | 1   => some .float32_
+  | 3   => some .int32_
+  | 255 => some .float32_
+  | _   => none
+
+initialize libCacheFill : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
+    (fill : Float) : IO (Option (UInt64 × String)) := do
+  match Tgrad.Renderer.Metal.fillKernelDecl shape ty fill with
+  | none => return none
+  | some decl =>
+    let key := decl.name
+    let cache ← libCacheFill.get
+    let cached := cacheLookup key cache
+    if cached != 0 then return some (cached, decl.name)
+    let msl := Tgrad.Renderer.Metal.renderKernel decl
+    if msl.isEmpty then return none
+    let lib ← Tgrad.Runtime.Metal.metalCompile msl
+    if lib == 0 then return none
+    libCacheFill.modify (fun c => (key, lib) :: c)
+    pure (some (lib, decl.name))
+
+/-- Allocate a GPU buffer, fill it with a constant via the generated
+    kernel, register the tensor, return its handle. `0` on any refusal
+    (unsupported dtype, empty/oversized rank, compile/dispatch failure). -/
+@[export tgrad_tensor_full_lean]
+def tensorFull (shape : @& Array USize) (fill : Float) (dtypeCode : UInt8) :
+    IO UInt64 := do
+  let some ty := creationDtype? dtypeCode | return 0
+  let dims : List Nat := shape.toList.map USize.toNat
+  if dims.length > 3 then return 0
+  if dims.any (fun d => d < 1) then return 0
+  match (← compileOrCacheGetFill dims ty fill) with
+  | none => return 0
+  | some (lib, fnName) => do
+    let outBytes := Tgrad.numel dims * ty.sizeBytes
+    let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+    if outBuf == 0 then return 0
+    let dx := (dims[0]?).getD 1
+    let dy := (dims[1]?).getD 1
+    let dz := (dims[2]?).getD 1
+    let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName
+      #[outBuf]
+      (USize.ofNat dx) (USize.ofNat dy) (USize.ofNat dz) 1 1 1
+    if rc != 0 then
+      Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+      return 0
+    TensorRegistry.register
+      (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes } dims ty)
 
 end Tgrad.PythonFFI

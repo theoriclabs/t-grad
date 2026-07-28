@@ -20,9 +20,13 @@ import sys
 from typing import Final
 
 REPO = Path(__file__).resolve().parents[2]
+if str(REPO) not in sys.path:
+  sys.path.insert(0, str(REPO))
+
+from scripts.parity import upstream_target
 
 
-UPSTREAM_COMMIT: Final = "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
+UPSTREAM_COMMIT: Final = upstream_target.REVISION
 GROUPS: Final = ("null", "unit", "backend")
 CLASSES: Final = ("api_surface", "internal_repr", "infrastructure", "ambiguous")
 CLASS_DEFINITIONS: Final = {
@@ -256,7 +260,7 @@ def build_document(tinygrad_root: Path) -> dict:
   return {
     "schema_version": 1,
     "upstream": {
-      "repository": "tinygrad/tinygrad",
+      "repository": upstream_target.REPOSITORY_SLUG,
       "commit": commit,
       "test_directories": [f"test/{group}" for group in GROUPS],
     },

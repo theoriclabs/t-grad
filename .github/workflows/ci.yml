@@ -44,8 +44,34 @@ jobs:
           bash scripts/check_no_tinygrad_deps.sh
           python -m build
 
+      - name: Authenticate source closure (Python 3.12)
+        run: |
+          set -euxo pipefail
+          python scripts/parity/ensure_oracle.py
+          python scripts/contract/generate_source_closure.py --check
+
       - name: Smoke tests
         run: |
           set -euxo pipefail
           .lake/build/bin/tgrad-tests
           bash scripts/devcheck.sh --all
+
+  source-closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Authenticate source closure (Python ${{ matrix.python-version }})
+        run: |
+          set -euxo pipefail
+          python scripts/parity/ensure_oracle.py
+          python scripts/contract/generate_source_closure.py --check

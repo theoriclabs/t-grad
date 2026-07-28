@@ -1298,10 +1298,35 @@ def validate_upstream_baseline(path: Path, identity: dict,
         raise RuntimeError("upstream baseline did not use the declared oracle backend")
     if current_backend.get("default_device") != backend_profile.get("tgrad"):
         raise RuntimeError("Tgrad did not use the declared subject backend")
+    # `PATH` and `path_sha256` are RECORDED (above, for provenance) but are
+    # deliberately NOT compared.
+    #
+    # They add no discriminating power here. The toolchain that actually
+    # executes the suite is already pinned exactly, a few lines up: the
+    # `facts` comparison covers the interpreter's absolute path, its
+    # sha256, and the numpy version and content hash. What a `PATH`
+    # difference can change beyond that is which *other* binaries resolve,
+    # and this observer never shells out to them --- it spawns one explicit
+    # `--python` and runs an in-process pytest.
+    #
+    # What they did do was make the canonical score irreproducible. Any
+    # shell that has installed a tool since the baseline was recorded ---
+    # a `.railway/bin` on the front of PATH was enough --- fails the whole
+    # comparison with "controlled-environment policy differs", so the
+    # number could only be reproduced from the one session that recorded
+    # it. A metric reproducible in exactly one shell is not a metric.
+    # Note this file already normalizes every other location-dependent
+    # value (see `python_path` above, which tokenizes repo/checkout/temp
+    # roots); raw `PATH` was the lone exception to its own convention.
+    #
+    # This does NOT yet make the score reproducible on another MACHINE:
+    # `facts` still pins absolute interpreter paths. Tokenizing those is
+    # the same treatment already proven on the pilot observer, and is the
+    # remaining step.
     common_policy = (
         "LANG", "LC_ALL", "PYTHONHASHSEED", "PYTHONNOUSERSITE",
-        "PYTHONSAFEPATH", "isolated_home", "isolated_tmp", "PATH",
-        "path_sha256", "inherited_backend_overrides",
+        "PYTHONSAFEPATH", "isolated_home", "isolated_tmp",
+        "inherited_backend_overrides",
     )
     if any(
         baseline_environment.get("policy", {}).get(key) !=

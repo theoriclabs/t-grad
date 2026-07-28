@@ -1,0 +1,8 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestMLA", "request"], "marks": [], "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_mla_attention_matches_naive", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestMLA", "request"], "marks": [], "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_shared_expert_gate_optional", "parameters": {}}], "count": 2, "event": "collection_finish", "nodeids": ["test/unit/test_llm_mla.py::TestMLA::test_mla_attention_matches_naive", "test/unit/test_llm_mla.py::TestMLA::test_shared_expert_gate_optional"]}
+{"event": "test_report", "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_mla_attention_matches_naive", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_mla_attention_matches_naive", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_mla_attention_matches_naive", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_shared_expert_gate_optional", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_shared_expert_gate_optional", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_llm_mla.py::TestMLA::test_shared_expert_gate_optional", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 1}

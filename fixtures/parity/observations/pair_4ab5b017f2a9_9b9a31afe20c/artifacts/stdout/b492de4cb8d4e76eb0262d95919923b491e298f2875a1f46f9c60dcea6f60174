@@ -1,0 +1,329 @@
+FFFsFFFFFssFss                                                           [100%]
+=================================== FAILURES ===================================
+___________________________ TestTypeSpec.test_arange ___________________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_arange>
+
+    @given(strat.sampled_from(dtype_ints), strat.sampled_from(dtype_floats))
+>   def test_arange(self, default_int, default_float):
+                 ^^^^^^^
+
+test/unit/test_dtype_spec.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_arange>
+default_int = 'i32', default_float = 'bf16'
+
+    @given(strat.sampled_from(dtype_ints), strat.sampled_from(dtype_floats))
+    def test_arange(self, default_int, default_float):
+      dtypes.default_int, dtypes.default_float = default_int, default_float
+    
+>     _assert_eq(Tensor.arange(5), dtypes.default_int, np.arange(5))
+                 ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+E     Failing test case: test_arange(
+E         self=<test.unit.test_dtype_spec.TestTypeSpec testMethod=test_arange>,
+E         default_int='i32',
+E         default_float='bf16',
+E     )
+
+test/unit/test_dtype_spec.py:134: AttributeError
+__________________________ TestTypeSpec.test_creation __________________________
+
+tensor = <tgrad.Tensor object at 0x10e344520>
+target_dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.bool>
+target = True, tol_target_dtype = 1e-07
+
+    def _assert_eq(tensor:Tensor, target_dtype:DType, target, tol_target_dtype:float=1e-7):
+      if DEBUG >= 2: print(tensor.numpy())
+      try:
+>       assert tensor.dtype == target_dtype
+E       AssertionError: assert 'f32' == <unsupported Tgrad capability tinygrad.dtype.dtypes.bool>
+E        +  where 'f32' = <tgrad.Tensor object at 0x10e344520>.dtype
+
+test/unit/test_dtype_spec.py:27: AssertionError
+
+The above exception was the direct cause of the following exception:
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_creation>
+
+    @given(strat.sampled_from(dtype_ints), strat.sampled_from(dtype_floats))
+>   def test_creation(self, default_int, default_float):
+                 ^^^^^^^
+
+test/unit/test_dtype_spec.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_dtype_spec.py:83: in test_creation
+    _assert_eq(Tensor(True), dtypes.bool, True)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tensor = <tgrad.Tensor object at 0x10e344520>
+target_dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.bool>
+target = True, tol_target_dtype = 1e-07
+
+    def _assert_eq(tensor:Tensor, target_dtype:DType, target, tol_target_dtype:float=1e-7):
+      if DEBUG >= 2: print(tensor.numpy())
+      try:
+        assert tensor.dtype == target_dtype
+        # denormals are zero
+        if target_dtype in dtypes.floats and (target_dtype not in supported_dtypes or target_dtype in EMULATED_DTYPES.tolist(dtypes)):
+          fe, fm = dtypes.finfo(target_dtype)
+          kwargs = {"atol":2 ** (2 - (1 << (fe - 1))), "rtol": 2 ** (-fm)}
+        else: kwargs = {"rtol": {dtypes.float16:1e-3, dtypes.bfloat16:1e-2, dtypes.fp8e4m3:1e-1, dtypes.fp8e5m2:5e-1,
+                                 dtypes.fp8e4m3fnuz:1e-1, dtypes.fp8e5m2fnuz:5e-1}.get(target_dtype, tol_target_dtype)}
+        np.testing.assert_allclose(tensor.numpy(), target, **kwargs)
+    
+      except AssertionError as e:
+>       raise AssertionError(f"\ntensor {tensor.numpy()} dtype {tensor.dtype} does not match target {target} with dtype {target_dtype}") from e
+E       AssertionError: 
+E       tensor 1.0 dtype f32 does not match target True with dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.bool>
+E       Failing test case: test_creation(
+E           self=<test.unit.test_dtype_spec.TestTypeSpec testMethod=test_creation>,
+E           default_int='i32',
+E           default_float='bf16',
+E       )
+
+test/unit/test_dtype_spec.py:37: AssertionError
+_______________________ TestTypeSpec.test_dtype_str_arg ________________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_dtype_str_arg>
+
+    def test_dtype_str_arg(self):
+      n = np.random.normal(0, 1, (10, 10)).astype(np.float32)
+      tested = 0
+      for dtype_str, dtype in [
+        ("bool", dtypes.bool), ("int8", dtypes.int8), ("int", dtypes.int), ("uint32", dtypes.uint32), ("float32", dtypes.float32)]:
+        with np.errstate(invalid='ignore'):
+>         np.testing.assert_equal(Tensor(n, dtype=dtype_str).numpy(), Tensor(n, dtype=dtype).numpy())
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_dtype_spec.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x10e345160>
+arr = array([[-9.6734738e-01,  4.6243137e-01,  1.0049918e+00, -2.1805487e+00,
+        -1.8600595e+00, -3.9125627e-01, -1.979...2.4133748e-01,  1.1269177e+00,  1.1672204e+00,  4.2214042e-01,
+        -7.5096488e-01,  1.6540666e+00]], dtype=float32)
+dtype = 'bool'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+>           raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+E           tgrad.TgradTypeError: unsupported dtype 'bool'; supported: ['bf16', 'f32', 'i32']
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:438: TgradTypeError
+____________________________ TestTypeSpec.test_full ____________________________
+  + Exception Group Traceback (most recent call last):
+  |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/test/unit/test_dtype_spec.py", line 100, in test_full
+  |     def test_full(self, default_int, default_float):
+  |                  ^^^^^^^
+  |   File "/Users/harshwork/code/Tgrad/.venv/lib/python3.13/site-packages/hypothesis/core.py", line 2297, in wrapped_test
+  |     raise the_error_hypothesis_found
+  | ExceptionGroup: Hypothesis found 2 distinct failures. (2 sub-exceptions)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/test/unit/test_dtype_spec.py", line 103, in test_full
+    |     _assert_eq(Tensor.zeros((2, 3)), dtypes.default_float, np.zeros((2, 3)))
+    |     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/test/unit/test_dtype_spec.py", line 29, in _assert_eq
+    |     if target_dtype in dtypes.floats and (target_dtype not in supported_dtypes or target_dtype in EMULATED_DTYPES.tolist(dtypes)):
+    |                                                                                                   ^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/shim/tinygrad/_unsupported.py", line 36, in __getattr__
+    |     self._raise()
+    |     ~~~~~~~~~~~^^
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/shim/tinygrad/_unsupported.py", line 30, in _raise
+    |     raise TgradCapabilityError(_message(self.name))
+    | tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.EMULATED_DTYPES'; the strict shim refuses to implement or import it from upstream tinygrad
+    | Failing test case: test_full(
+    |     self=<test.unit.test_dtype_spec.TestTypeSpec testMethod=test_full>,
+    |     default_int='i32',
+    |     default_float='f32',
+    | )
+    +---------------- 2 ----------------
+    | Traceback (most recent call last):
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/test/unit/test_dtype_spec.py", line 27, in _assert_eq
+    |     assert tensor.dtype == target_dtype
+    | AssertionError: assert 'f32' == 'bf16'
+    |   
+    |   - bf16
+    |   + f32
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/test/unit/test_dtype_spec.py", line 103, in test_full
+    |     _assert_eq(Tensor.zeros((2, 3)), dtypes.default_float, np.zeros((2, 3)))
+    |     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/test/unit/test_dtype_spec.py", line 37, in _assert_eq
+    |     raise AssertionError(f"\ntensor {tensor.numpy()} dtype {tensor.dtype} does not match target {target} with dtype {target_dtype}") from e
+    | AssertionError: 
+    | tensor [[0. 0. 0.]
+    |  [0. 0. 0.]] dtype f32 does not match target [[0. 0. 0.]
+    |  [0. 0. 0.]] with dtype bf16
+    | Failing test case: test_full(
+    |     self=<test.unit.test_dtype_spec.TestTypeSpec testMethod=test_full>,
+    |     default_int='i32',
+    |     default_float='bf16',
+    | )
+    +------------------------------------
+_____________________ TestTypeSpec.test_reduce_0d_default ______________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_reduce_0d_default>
+
+    @given(strat.sampled_from(dtype_ints), strat.sampled_from(dtype_floats))
+>   def test_reduce_0d_default(self, default_int, default_float):
+                 ^^^^^^^
+
+test/unit/test_dtype_spec.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_dtype_spec.py:125: in test_reduce_0d_default
+    _assert_eq(Tensor.ones((2,3,0)).sum(2), dtypes.default_float, np.zeros((2, 3)))
+               ^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:520: in ones
+    return cls.full(_argfix(*shape), 1.0, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:510: in full
+    return cls(arr, dtype=dtype)
+           ^^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x10e41ee40>
+arr = array([], shape=(2, 3, 0), dtype=float32), dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+        if arr.dtype.kind not in "biuf":
+            raise TgradTypeError(
+                f"Tensor data must be a rectangular bool/int/float array "
+                f"(got dtype={arr.dtype})")
+        shape = tuple(int(s) for s in arr.shape)
+        if any(s < 1 for s in shape):
+>           raise NotInLeanScope(
+                f"materialized Tensor dimensions must be positive (got {shape})")
+E           tgrad.NotInLeanScope: materialized Tensor dimensions must be positive (got (2, 3, 0))
+E           Failing test case: test_reduce_0d_default(
+E               self=<test.unit.test_dtype_spec.TestTypeSpec testMethod=test_reduce_0d_default>,
+E               default_int='i32',
+E               default_float='bf16',
+E           )
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:450: NotInLeanScope
+_____________________ TestAutoCastType.test_gradient_dtype _____________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_gradient_dtype>
+
+    def test_gradient_dtype(self):
+      old_default_float = dtypes.default_float
+    
+      for default_dtype in dtypes.floats:
+        if default_dtype not in supported_dtypes: continue
+        dtypes.default_float = default_dtype
+        for dtype in dtypes.floats:
+          if dtype not in supported_dtypes: continue
+          if DEBUG >= 2:
+            print(f"testing {default_dtype=}, {dtype=}")
+          a = Tensor([1, 2, 3], dtype=dtype)
+>         b = (a * 5).sum()
+               ^^^^^
+E         TypeError: unsupported operand type(s) for *: 'Tensor' and 'int'
+
+test/unit/test_dtype_spec.py:203: TypeError
+________________________ TestAutoCastType.test_int_sqrt ________________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_int_sqrt>
+
+    def test_int_sqrt(self):
+>     _assert_eq(Tensor([1, 4, 9, 16]).sqrt(), dtypes.default_float, [1, 2, 3, 4])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'sqrt'
+
+test/unit/test_dtype_spec.py:155: AttributeError
+________________ TestAutoCastType.test_int_to_float_unary_func _________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_int_to_float_unary_func>
+
+    @given(strat.sampled_from([d for d in core_dtypes if dtypes.is_int(d) and d in supported_dtypes]))
+>   def test_int_to_float_unary_func(self, dtype):
+                 ^^^^^^^
+
+test/unit/test_dtype_spec.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_dtype_spec.py:173: in test_int_to_float_unary_func
+    np.testing.assert_allclose(func(Tensor(a, dtype=dtype)).numpy(), func(torch.tensor(a)), rtol=1e-3, atol=1e-3)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+t = <tgrad.Tensor object at 0x10e308980>
+
+>     lambda t: t.exp(),
+                ^^^^^
+      lambda t: t.exp2(),
+      lambda t: t.log(),
+      lambda t: t.log2(),
+      lambda t: t.sqrt(),
+      lambda t: t.rsqrt(),
+      lambda t: t.sin(),
+      lambda t: t.cos(),
+      lambda t: t.tan(),
+      lambda t: t.sigmoid(),
+    ]:
+E   AttributeError: 'Tensor' object has no attribute 'exp'
+E   Failing test case: test_int_to_float_unary_func(
+E       self=<test.unit.test_dtype_spec.TestAutoCastType testMethod=test_int_to_float_unary_func>,
+E       dtype='i32',
+E   )
+
+test/unit/test_dtype_spec.py:160: AttributeError
+_____________________ TestAutoCastType.test_prod_dtype_arg _____________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_prod_dtype_arg>
+
+    def test_prod_dtype_arg(self):
+      t = Tensor([100, 200], dtype=dtypes.int32)
+>     assert t.prod().dtype == dtypes.int32
+             ^^^^^^^^
+
+test/unit/test_dtype_spec.py:187: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:793: in prod
+    return self._reduce(_BINOP_MUL, axis, "prod")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x10e308d00>, op_code = 1, axis = 1
+name = 'prod'
+
+    def _reduce(self, op_code: int, axis: int, name: str) -> "Tensor":
+        if axis not in (0, 1):
+            raise TgradTypeError(f"{name}: axis must be 0 or 1 (got {axis})")
+        # The current reduction renderer accumulates in float. Int32 is a
+        # pointwise/storage capability only until a native integer reduction
+        # packet lands; admitting it here would silently launder precision.
+        if self._dtype not in _REDUCE_DTYPES:
+>           raise TgradTypeError(f"{name}: unsupported dtype {self._dtype!r}")
+E           tgrad.TgradTypeError: prod: unsupported dtype 'i32'
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:774: TgradTypeError
+=========================== short test summary info ============================
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_arange - AttributeErr...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_creation - AssertionE...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_dtype_str_arg - tgrad...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_full - ExceptionGroup...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_reduce_0d_default - t...
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_gradient_dtype - ...
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_int_sqrt - Attrib...
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_int_to_float_unary_func
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_prod_dtype_arg - ...
+9 failed, 5 skipped in 0.77s

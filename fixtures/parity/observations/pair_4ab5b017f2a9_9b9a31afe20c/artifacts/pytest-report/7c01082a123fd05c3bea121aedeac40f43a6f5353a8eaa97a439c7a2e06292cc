@@ -1,0 +1,29 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestCanLosslessCast", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestCanLosslessCast::test_can_lossless_cast", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestCastConvenienceMethod", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestCastConvenienceMethod::test_method", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestDtypeTolist", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_bfloat16", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestDtypeTolist", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_fp8", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestEqStrDType", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestEqStrDType::test_strs", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestInvalidSingleton", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_pickle", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestInvalidSingleton", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_singleton", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestToDtype", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestToDtype::test_dtype_to_dtype", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestToDtype", "request"], "marks": [], "nodeid": "test/null/test_dtype.py::TestToDtype::test_str_to_dtype", "parameters": {}}], "count": 9, "event": "collection_finish", "nodeids": ["test/null/test_dtype.py::TestCanLosslessCast::test_can_lossless_cast", "test/null/test_dtype.py::TestCastConvenienceMethod::test_method", "test/null/test_dtype.py::TestDtypeTolist::test_bfloat16", "test/null/test_dtype.py::TestDtypeTolist::test_fp8", "test/null/test_dtype.py::TestEqStrDType::test_strs", "test/null/test_dtype.py::TestInvalidSingleton::test_pickle", "test/null/test_dtype.py::TestInvalidSingleton::test_singleton", "test/null/test_dtype.py::TestToDtype::test_dtype_to_dtype", "test/null/test_dtype.py::TestToDtype::test_str_to_dtype"]}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestEqStrDType::test_strs", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestEqStrDType::test_strs", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestEqStrDType::test_strs", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestToDtype::test_dtype_to_dtype", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestToDtype::test_dtype_to_dtype", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestToDtype::test_dtype_to_dtype", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestToDtype::test_str_to_dtype", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestToDtype::test_str_to_dtype", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestToDtype::test_str_to_dtype", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestCastConvenienceMethod::test_method", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestCastConvenienceMethod::test_method", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestCastConvenienceMethod::test_method", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_bfloat16", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_bfloat16", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_bfloat16", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_fp8", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_fp8", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestDtypeTolist::test_fp8", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestCanLosslessCast::test_can_lossless_cast", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestCanLosslessCast::test_can_lossless_cast", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestCanLosslessCast::test_can_lossless_cast", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_pickle", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_pickle", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_pickle", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_singleton", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_singleton", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/null/test_dtype.py::TestInvalidSingleton::test_singleton", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 0}

@@ -1,0 +1,200 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+___________ test_rearrange_examples.test_tensor_train_example_numpy ____________
+
+self = <test.unit.test_rearrange_einops.test_rearrange_examples testMethod=test_tensor_train_example_numpy>
+
+    def test_tensor_train_example_numpy(self):
+      # kept here just for a collection, only tested for numpy
+      # https://arxiv.org/pdf/1509.06569.pdf, (5)
+>     x = Tensor.ones([3, 4, 5, 6])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_rearrange_einops.py:15: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:520: in ones
+    return cls.full(_argfix(*shape), 1.0, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:510: in full
+    return cls(arr, dtype=dtype)
+           ^^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x104fc6040>
+arr = array([[[[1., 1., 1., 1., 1., 1.],
+         [1., 1., 1., 1., 1., 1.],
+         [1., 1., 1., 1., 1., 1.],
+         [1.,...      [1., 1., 1., 1., 1., 1.],
+         [1., 1., 1., 1., 1., 1.],
+         [1., 1., 1., 1., 1., 1.]]]], dtype=float32)
+dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+>           raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+E           tgrad.NotInLeanScope: public Tensor construction supports rank 0 through 3 (got ndim=4)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:441: NotInLeanScope
+________________ test_rearrange_ops.test_rearrange_consistency _________________
+
+self = <test.unit.test_rearrange_einops.test_rearrange_ops testMethod=test_rearrange_consistency>
+
+    def test_rearrange_consistency(self):
+      shape = [1, 2, 3, 5, 7, 11]
+      xnp = np.arange(np.prod(shape), dtype=np.int32).reshape(shape)
+>     x = Tensor(xnp)
+          ^^^^^^^^^^^
+
+test/unit/test_rearrange_einops.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x104fc7d90>
+arr = array([[[[[[   0,    1,    2, ...,    8,    9,   10],
+           [  11,   12,   13, ...,   19,   20,   21],
+          ..., 2297, 2298],
+           [2299, 2300, 2301, ..., 2307, 2308, 2309]]]]]],
+      shape=(1, 2, 3, 5, 7, 11), dtype=int32)
+dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+>           raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+E           tgrad.NotInLeanScope: public Tensor construction supports rank 0 through 3 (got ndim=6)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:441: NotInLeanScope
+________________ test_rearrange_ops.test_rearrange_ellipsis_ops ________________
+
+self = <test.unit.test_rearrange_einops.test_rearrange_ops testMethod=test_rearrange_ellipsis_ops>
+
+    def test_rearrange_ellipsis_ops(self):
+      identity_patterns = [
+        "...->...",
+        "a b c d e-> a b c d e",
+        "a b c d e ...-> ... a b c d e",
+        "a b c d e ...-> a ... b c d e",
+        "... a b c d e -> ... a b c d e",
+        "a ... e-> a ... e",
+        "a ... -> a ... ",
+        "a ... c d e -> a (...) c d e",
+      ]
+    
+      equivalent_rearrange_patterns = [
+        ("a b c d e -> (a b) c d e", "a b ... -> (a b) ... "),
+        ("a b c d e -> a b (c d) e", "... c d e -> ... (c d) e"),
+        ("a b c d e -> a b c d e", "... -> ... "),
+        ("a b c d e -> (a b c d e)", "... ->  (...)"),
+        ("a b c d e -> b (c d e) a", "a b ... -> b (...) a"),
+        ("a b c d e -> b (a c d) e", "a b ... e -> b (a ...) e"),
+      ]
+    
+      xnp = np.arange(2 * 3 * 4 * 5 * 6, dtype=np.int32).reshape([2, 3, 4, 5, 6])
+>     x = Tensor(xnp)
+          ^^^^^^^^^^^
+
+test/unit/test_rearrange_einops.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x10504bb60>
+arr = array([[[[[  0,   1,   2,   3,   4,   5],
+          [  6,   7,   8,   9,  10,  11],
+          [ 12,  13,  14,  15,  16...4, 705, 706, 707],
+          [708, 709, 710, 711, 712, 713],
+          [714, 715, 716, 717, 718, 719]]]]], dtype=int32)
+dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+>           raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+E           tgrad.NotInLeanScope: public Tensor construction supports rank 0 through 3 (got ndim=5)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:441: NotInLeanScope
+________________ test_rearrange_ops.test_rearrange_permutations ________________
+
+self = <test.unit.test_rearrange_einops.test_rearrange_ops testMethod=test_rearrange_permutations>
+
+    def test_rearrange_permutations(self):
+      # tests random permutation of axes against two independent numpy ways
+      for n_axes in range(1, 10):
+        x = np.arange(2**n_axes, dtype=np.int32).reshape([2] * n_axes)
+        permutation = np.random.permutation(n_axes)
+        left_expression = " ".join("i" + str(axis) for axis in range(n_axes))
+        right_expression = " ".join("i" + str(axis) for axis in permutation)
+        expression = left_expression + " -> " + right_expression
+>       result = Tensor(x).rearrange(expression).numpy()
+                 ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Tensor' object has no attribute 'rearrange'
+
+test/unit/test_rearrange_einops.py:127: AttributeError
+_________________ test_rearrange_parsing.test_unicode_ellipsis _________________
+
+self = <test.unit.test_rearrange_einops.test_rearrange_parsing testMethod=test_unicode_ellipsis>
+
+    def test_unicode_ellipsis(self):
+      equivalent_rearrange_patterns = [
+        ("a b … -> (a b) … ", "a b ... -> (a b) ... "),
+        ("… c d e -> … (c d) e", "... c d e -> ... (c d) e"),
+        ("… -> … ", "... -> ... "),
+        ("… ->  (…)", "... ->  (...)"),
+        ("a b … -> b (…) a", "a b ... -> b (...) a"),
+        ("a b … e -> b (a …) e", "a b ... e -> b (a ...) e"),
+      ]
+    
+      xnp = np.arange(2 * 3 * 4 * 5 * 6, dtype=np.int32).reshape([2, 3, 4, 5, 6])
+>     x = Tensor(xnp)
+          ^^^^^^^^^^^
+
+test/unit/test_rearrange_einops.py:159: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x104fb0910>
+arr = array([[[[[  0,   1,   2,   3,   4,   5],
+          [  6,   7,   8,   9,  10,  11],
+          [ 12,  13,  14,  15,  16...4, 705, 706, 707],
+          [708, 709, 710, 711, 712, 713],
+          [714, 715, 716, 717, 718, 719]]]]], dtype=int32)
+dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+>           raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+E           tgrad.NotInLeanScope: public Tensor construction supports rank 0 through 3 (got ndim=5)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:441: NotInLeanScope
+=========================== short test summary info ============================
+FAILED test/unit/test_rearrange_einops.py::test_rearrange_examples::test_tensor_train_example_numpy
+FAILED test/unit/test_rearrange_einops.py::test_rearrange_ops::test_rearrange_consistency
+FAILED test/unit/test_rearrange_einops.py::test_rearrange_ops::test_rearrange_ellipsis_ops
+FAILED test/unit/test_rearrange_einops.py::test_rearrange_ops::test_rearrange_permutations
+FAILED test/unit/test_rearrange_einops.py::test_rearrange_parsing::test_unicode_ellipsis
+5 failed in 0.17s

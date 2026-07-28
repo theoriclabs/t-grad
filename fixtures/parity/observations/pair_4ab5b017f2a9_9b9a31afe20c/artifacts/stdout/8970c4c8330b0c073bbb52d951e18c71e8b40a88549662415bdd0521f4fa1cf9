@@ -1,0 +1,196 @@
+FFFFFFFFFFFFF                                                            [100%]
+=================================== FAILURES ===================================
+____________________________ TestCallify.test_basic ____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_basic>
+
+    def test_basic(self):
+      a = Tensor([1.,2,3])
+      b = Tensor([4.,5,6])
+      out = a + b
+>     out.callify()
+      ^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:9: AttributeError
+_______________________ TestCallify.test_chained_callify _______________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_chained_callify>
+
+    def test_chained_callify(self):
+      a = Tensor([1.,2,3])
+>     b = a + 1
+          ^^^^^
+E     TypeError: unsupported operand type(s) for +: 'Tensor' and 'int'
+
+test/unit/test_callify.py:56: TypeError
+____________________________ TestCallify.test_const ____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_const>
+
+    def test_const(self):
+      out = Tensor(2.0) + Tensor(3.0)
+>     out.callify()
+      ^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:14: AttributeError
+_______________________ TestCallify.test_double_callify ________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_double_callify>
+
+    def test_double_callify(self):
+      a = Tensor([1.,2,3])
+      b = Tensor([4.,5,6])
+      out = a + b
+>     out.callify()
+      ^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:96: AttributeError
+_________________ TestCallify.test_double_callify_multi_output _________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_double_callify_multi_output>
+
+    def test_double_callify_multi_output(self):
+      a = Tensor([1.,2,3])
+      b = Tensor([4.,5,6])
+      c = a + b
+      d = a * b
+>     c.callify(d)
+      ^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:105: AttributeError
+____________________________ TestCallify.test_gemm _____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_gemm>
+
+    def test_gemm(self):
+>     a = Tensor.ones(8, 8).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/unit/test_callify.py:64: AttributeError
+__________________________ TestCallify.test_int_dtype __________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_int_dtype>
+
+    def test_int_dtype(self):
+      a = Tensor([1,2,3], dtype=dtypes.int)
+      b = Tensor([4,5,6], dtype=dtypes.int)
+      out = a + b
+>     out.callify()
+      ^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:77: AttributeError
+________________________ TestCallify.test_multi_output _________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_multi_output>
+
+    def test_multi_output(self):
+      a = Tensor([1.,2,3])
+      b = Tensor([4.,5,6])
+      c = a + b
+      d = a * b
+>     c.callify(d)
+      ^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:27: AttributeError
+________________________ TestCallify.test_multiple_ops _________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_multiple_ops>
+
+    def test_multiple_ops(self):
+      a = Tensor([1.,2,3])
+      b = Tensor([4.,5,6])
+      out = (a + b) * (a - b)
+>     out.callify()
+      ^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:89: AttributeError
+___________________________ TestCallify.test_reduce ____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_reduce>
+
+    def test_reduce(self):
+>     out = Tensor([1.,2,3,4]).sum()
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_callify.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:790: in sum
+    return self._reduce(_BINOP_ADD, axis, "sum")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x105653a10>, op_code = 0, axis = 1, name = 'sum'
+
+    def _reduce(self, op_code: int, axis: int, name: str) -> "Tensor":
+        if axis not in (0, 1):
+            raise TgradTypeError(f"{name}: axis must be 0 or 1 (got {axis})")
+        # The current reduction renderer accumulates in float. Int32 is a
+        # pointwise/storage capability only until a native integer reduction
+        # packet lands; admitting it here would silently launder precision.
+        if self._dtype not in _REDUCE_DTYPES:
+            raise TgradTypeError(f"{name}: unsupported dtype {self._dtype!r}")
+        h = _lib.tgrad_tensor_reduce(op_code, self._handle, axis)
+        if h == 0:
+            raise TgradError(f"tgrad_tensor_reduce({name}) returned 0")
+        out_handle = _lib.tgrad_realize(h)
+        if out_handle == 0:
+>           raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
+E           tgrad.TgradError: tgrad_realize(sum) failed for (4,)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:780: TgradError
+_____________________________ TestCallify.test_sum _____________________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_sum>
+
+    def test_sum(self):
+>     out = Tensor.ones(16).contiguous().sum()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/unit/test_callify.py:18: AttributeError
+___________________ TestCallify.test_two_callify_independent ___________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_two_callify_independent>
+
+    def test_two_callify_independent(self):
+      a = Tensor([1.,2,3])
+      b = Tensor([4.,5,6])
+      c = a + b
+>     c.callify()
+      ^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'callify'
+
+test/unit/test_callify.py:35: AttributeError
+__________________ TestCallify.test_two_callify_shared_input ___________________
+
+self = <test.unit.test_callify.TestCallify testMethod=test_two_callify_shared_input>
+
+    def test_two_callify_shared_input(self):
+>     a = Tensor([1.,2,3]).contiguous().realize()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/unit/test_callify.py:46: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_callify.py::TestCallify::test_basic - AttributeError: '...
+FAILED test/unit/test_callify.py::TestCallify::test_chained_callify - TypeErr...
+FAILED test/unit/test_callify.py::TestCallify::test_const - AttributeError: '...
+FAILED test/unit/test_callify.py::TestCallify::test_double_callify - Attribut...
+FAILED test/unit/test_callify.py::TestCallify::test_double_callify_multi_output
+FAILED test/unit/test_callify.py::TestCallify::test_gemm - AttributeError: 'T...
+FAILED test/unit/test_callify.py::TestCallify::test_int_dtype - AttributeErro...
+FAILED test/unit/test_callify.py::TestCallify::test_multi_output - AttributeE...
+FAILED test/unit/test_callify.py::TestCallify::test_multiple_ops - AttributeE...
+FAILED test/unit/test_callify.py::TestCallify::test_reduce - tgrad.TgradError...
+FAILED test/unit/test_callify.py::TestCallify::test_sum - AttributeError: 'Te...
+FAILED test/unit/test_callify.py::TestCallify::test_two_callify_independent
+FAILED test/unit/test_callify.py::TestCallify::test_two_callify_shared_input
+13 failed in 0.14s

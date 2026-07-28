@@ -1,0 +1,537 @@
+FFFFFFFFFFFFFsFFFFFFFFFFFFFFFFFFFFFFFFF                                  [100%]
+=================================== FAILURES ===================================
+__________________ TestSetitem.test_cross_assign_independence __________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_cross_assign_independence>
+
+    def test_cross_assign_independence(self):
+      # when assigning to two tensors using computations from both,
+      # both assigns should see the OLD values of both tensors
+>     a = Tensor.arange(4, dtype=dtypes.float).clone().realize()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:273: AttributeError
+________________________ TestSetitem.test_fancy_setitem ________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_fancy_setitem>
+
+    def test_fancy_setitem(self):
+>     t = Tensor.zeros(6,6).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:140: AttributeError
+_________________ TestSetitem.test_jit_setitem_variable_offset _________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_jit_setitem_variable_offset>
+
+    def test_jit_setitem_variable_offset(self):
+>     with Context(CHECK_OOB=0):
+           ^^^^^^^^^^^^^^^^^^^^
+
+test/backend/test_setitem.py:163: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.helpers.Context'>, args = (), kwargs = {'CHECK_OOB': 0}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+___________________ TestSetitem.test_lazy_sum_between_writes ___________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_lazy_sum_between_writes>
+
+    def test_lazy_sum_between_writes(self):
+      # lazy sums should capture buffer state at the time they were created
+>     t = Tensor.zeros(6).contiguous().realize()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:249: AttributeError
+_______________________ TestSetitem.test_padded_setitem ________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_padded_setitem>
+
+    def test_padded_setitem(self):
+>     t = Tensor.arange(10)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:30: AttributeError
+_________________ TestSetitem.test_setitem_2d_tensor_indexing __________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_2d_tensor_indexing>
+
+    def test_setitem_2d_tensor_indexing(self):
+>     t = Tensor.zeros(2, dtype=dtypes.int).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:224: AttributeError
+__________________ TestSetitem.test_setitem_advanced_indexing __________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_advanced_indexing>
+
+    def test_setitem_advanced_indexing(self):
+      # Example from https://numpy.org/doc/stable/user/basics.indexing.html#combining-advanced-and-basic-indexing
+>     t = Tensor.zeros(10,20,30,40,50, dtype=dtypes.int).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/backend/test_setitem.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:515: in zeros
+    return cls.full(_argfix(*shape), 0.0, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:510: in full
+    return cls(arr, dtype=dtype)
+           ^^^^^^^^^^^^^^^^^^^^^
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:373: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x1031589f0>
+arr = array([[[[[0, 0, 0, ..., 0, 0, 0],
+          [0, 0, 0, ..., 0, 0, 0],
+          [0, 0, 0, ..., 0, 0, 0],
+          ......         [0, 0, 0, ..., 0, 0, 0],
+          [0, 0, 0, ..., 0, 0, 0]]]]],
+      shape=(10, 20, 30, 40, 50), dtype=int32)
+dtype = 'i32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+>           raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+E           tgrad.NotInLeanScope: public Tensor construction supports rank 0 through 3 (got ndim=5)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:441: NotInLeanScope
+_________________________ TestSetitem.test_setitem_big _________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_big>
+
+    @unittest.skipIf(Device.DEFAULT == "WEBGPU", "WEBGPU pipeline validation error")
+    def test_setitem_big(self):
+      idx_size, val = 256, 4
+>     t = Tensor.arange(0, idx_size+1)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:193: AttributeError
+__________________ TestSetitem.test_setitem_chained_indexing ___________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_chained_indexing>
+
+    def test_setitem_chained_indexing(self):
+      # N[i][j] must work the same as N[i, j]
+>     N1 = Tensor.zeros((3, 3)).contiguous().realize()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:63: AttributeError
+____________ TestSetitem.test_setitem_consecutive_inplace_operator _____________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_consecutive_inplace_operator>
+
+    def test_setitem_consecutive_inplace_operator(self):
+>     t = Tensor.arange(4).reshape(2, 2).contiguous()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:114: AttributeError
+_______________________ TestSetitem.test_setitem_detach ________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_detach>
+
+    def test_setitem_detach(self):
+      # setitem on detached tensor should work
+>     t = Tensor.zeros((3, 3)).contiguous().realize()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:71: AttributeError
+________________________ TestSetitem.test_setitem_dtype ________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_dtype>
+
+    def test_setitem_dtype(self):
+      for dt in (dtypes.int, dtypes.float, dtypes.bool):
+        for v in (5., 5, True):
+>         t = Tensor.ones(6,6, dtype=dt).contiguous()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:53: AttributeError
+___________________ TestSetitem.test_setitem_dtype_mismatch ____________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_dtype_mismatch>
+
+    def test_setitem_dtype_mismatch(self):
+>     t = Tensor.zeros(6, dtype=dtypes.float).contiguous().realize()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:58: AttributeError
+________________________ TestSetitem.test_setitem_flip _________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_flip>
+
+    def test_setitem_flip(self):
+      # setitem on flipped tensor should modify original
+>     t = Tensor.zeros((3,)).contiguous().realize()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:83: AttributeError
+_____________________ TestSetitem.test_setitem_inplace_mul _____________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_inplace_mul>
+
+    def test_setitem_inplace_mul(self):
+>     t = Tensor.arange(10).clone().realize()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:35: AttributeError
+__________________ TestSetitem.test_setitem_inplace_operator ___________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_inplace_operator>
+
+    def test_setitem_inplace_operator(self):
+>     t = Tensor.arange(4).reshape(2, 2).contiguous()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:88: AttributeError
+____________ TestSetitem.test_setitem_multiple_disjoint_on_invalid _____________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_multiple_disjoint_on_invalid>
+
+    def test_setitem_multiple_disjoint_on_invalid(self):
+>     z = Tensor.invalids(10, dtype="int").realize()
+          ^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'invalids'
+
+test/backend/test_setitem.py:297: AttributeError
+_________________ TestSetitem.test_setitem_overlapping_indices _________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_overlapping_indices>
+
+    def test_setitem_overlapping_indices(self):
+      t = Tensor([1,2,3,4])
+      # regular overlapping indices
+>     t[[1,1]] = Tensor([5,6])
+      ^^^^^^^^
+E     TypeError: 'Tensor' object does not support item assignment
+
+test/backend/test_setitem.py:122: TypeError
+_____________ TestSetitem.test_setitem_overlapping_indices_with_0 ______________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_overlapping_indices_with_0>
+
+    def test_setitem_overlapping_indices_with_0(self):
+      t = Tensor([1,2,3,4])
+>     t[[1,1]] = Tensor([1,0])
+      ^^^^^^^^
+E     TypeError: 'Tensor' object does not support item assignment
+
+test/backend/test_setitem.py:131: TypeError
+________________ TestSetitem.test_setitem_overlapping_inplace1 _________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_overlapping_inplace1>
+
+    def test_setitem_overlapping_inplace1(self):
+>     t = Tensor([[3.0], [2.0], [1.0]]).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:180: AttributeError
+________________ TestSetitem.test_setitem_overlapping_inplace2 _________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_overlapping_inplace2>
+
+    def test_setitem_overlapping_inplace2(self):
+>     t = Tensor([[3.0], [2.0], [1.0]]).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:185: AttributeError
+_______________________ TestSetitem.test_setitem_permute _______________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_permute>
+
+    def test_setitem_permute(self):
+      # setitem on permuted tensor should modify original
+>     t = Tensor.zeros((2, 3)).contiguous().realize()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:77: AttributeError
+______________________ TestSetitem.test_setitem_swap_rows ______________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_swap_rows>
+
+    def test_setitem_swap_rows(self):
+>     t = Tensor.arange(6, dtype=dtypes.float).reshape(3, 2).clone().realize()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_setitem.py:233: AttributeError
+_________________ TestSetitem.test_setitem_tensor_int_indexing _________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_tensor_int_indexing>
+
+    def test_setitem_tensor_int_indexing(self):
+>     t = Tensor.zeros(4, 3, dtype=dtypes.int).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:210: AttributeError
+________________ TestSetitem.test_setitem_tensor_slice_indexing ________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_tensor_slice_indexing>
+
+    def test_setitem_tensor_slice_indexing(self):
+>     t = Tensor.zeros(4, 3, dtype=dtypes.int).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:217: AttributeError
+___________________ TestSetitem.test_setitem_with_1_in_shape ___________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_setitem_with_1_in_shape>
+
+    def test_setitem_with_1_in_shape(self):
+      t = Tensor([[1],[2],[3]])
+>     t[[0,0]] = Tensor([[1],[2]])
+      ^^^^^^^^
+E     TypeError: 'Tensor' object does not support item assignment
+
+test/backend/test_setitem.py:136: TypeError
+_____________________ TestSetitem.test_simple_jit_setitem ______________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_simple_jit_setitem>
+
+    def test_simple_jit_setitem(self):
+>     @TinyJit
+       ^^^^^^^
+
+test/backend/test_setitem.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSetitem.test_simple_jit_setitem.<locals>.f at 0x10314ee80>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________________ TestSetitem.test_simple_setitem ________________________
+
+self = <test.backend.test_setitem.TestSetitem testMethod=test_simple_setitem>
+
+    def test_simple_setitem(self):
+      cases = (
+        ((6,6), (slice(2,4), slice(3,5)), Tensor.ones(2,2)),
+        ((6,6), (slice(2,4), slice(3,5)), Tensor([1.,2.])),
+        ((6,6), (slice(2,4), slice(3,5)), 1.0),
+        ((6,6), (3, 4), 1.0),
+        ((6,6), (3, None, 4, None), 1.0),
+        ((4,4,4,4), (Ellipsis, slice(1,3), slice(None)), Tensor(4.0)),
+        ((4,4,4,4), (Ellipsis, slice(1,3)), 4),
+        ((4,4,4,4), (2, slice(1,3), None, 1), 4),
+        ((4,4,4,4), (slice(1,3), slice(None), slice(0,4,2)), 4),
+        ((4,4,4,4), (slice(1,3), slice(None), slice(None), slice(0,3)), 4),
+        ((6,6), (slice(1,5,2), slice(0,5,3)), 1.0),
+        ((6,6), (slice(5,1,-2), slice(5,0,-3)), 1.0),
+      )
+      for shp, slc, val in cases:
+>       t = Tensor.zeros(shp).contiguous()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:23: AttributeError
+____________________ TestWithGrad.test_basic_setitem_works _____________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_basic_setitem_works>
+
+    def test_basic_setitem_works(self):
+>     z = Tensor.rand(8, 8)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/backend/test_setitem.py:306: AttributeError
+________________________ TestWithGrad.test_set_backward ________________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_set_backward>
+
+    def test_set_backward(self):
+      z = Tensor.ones(8, 8)
+>     x = Tensor.rand(8, 8)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/backend/test_setitem.py:312: AttributeError
+_____________________ TestWithGrad.test_set_iadd_backward ______________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_set_iadd_backward>
+
+    def test_set_iadd_backward(self):
+      z = Tensor([1.0, 2.0, 3.0, 4.0])
+      x = Tensor([10.0, 20.0])
+>     z[:2] += x
+      ^^^^^
+E     TypeError: 'Tensor' object does not support item assignment
+
+test/backend/test_setitem.py:337: TypeError
+____________________ TestWithGrad.test_set_nonleaf_backward ____________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_set_nonleaf_backward>
+
+    def test_set_nonleaf_backward(self):
+      x = Tensor([1.0, 2.0, 3.0, 4.0])
+>     z = x * 2
+          ^^^^^
+E     TypeError: unsupported operand type(s) for *: 'Tensor' and 'int'
+
+test/backend/test_setitem.py:319: TypeError
+__________________ TestWithGrad.test_set_overlapping_backward __________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_set_overlapping_backward>
+
+    def test_set_overlapping_backward(self):
+      z = Tensor.zeros(6)
+>     x = Tensor.ones(4).contiguous()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'contiguous'
+
+test/backend/test_setitem.py:326: AttributeError
+__________________ TestWithGrad.test_set_used_before_setitem ___________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_set_used_before_setitem>
+
+    def test_set_used_before_setitem(self):
+      z = Tensor([1.0, 2.0, 3.0, 4.0])
+>     _ = z.sum()
+          ^^^^^^^
+
+test/backend/test_setitem.py:344: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:790: in sum
+    return self._reduce(_BINOP_ADD, axis, "sum")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x103d87540>, op_code = 0, axis = 1, name = 'sum'
+
+    def _reduce(self, op_code: int, axis: int, name: str) -> "Tensor":
+        if axis not in (0, 1):
+            raise TgradTypeError(f"{name}: axis must be 0 or 1 (got {axis})")
+        # The current reduction renderer accumulates in float. Int32 is a
+        # pointwise/storage capability only until a native integer reduction
+        # packet lands; admitting it here would silently launder precision.
+        if self._dtype not in _REDUCE_DTYPES:
+            raise TgradTypeError(f"{name}: unsupported dtype {self._dtype!r}")
+        h = _lib.tgrad_tensor_reduce(op_code, self._handle, axis)
+        if h == 0:
+            raise TgradError(f"tgrad_tensor_reduce({name}) returned 0")
+        out_handle = _lib.tgrad_realize(h)
+        if out_handle == 0:
+>           raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
+E           tgrad.TgradError: tgrad_realize(sum) failed for (4,)
+
+/tmp/tgrad_parity_observer_f65hizdx/snapshot/python/tgrad.py:780: TgradError
+_______________ TestWithGrad.test_setitem_raises_on_aliased_uop ________________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_setitem_raises_on_aliased_uop>
+
+    def test_setitem_raises_on_aliased_uop(self):
+      # two Tensor objects sharing the exact same unrealized uop. setitem on one updates its uop, the other keeps the stale graph reference.
+      x = Tensor([1.0, 2.0, 3.0, 4.0]).realize()
+>     y = x * 2.0
+          ^^^^^^^
+E     TypeError: unsupported operand type(s) for *: 'Tensor' and 'float'
+
+test/backend/test_setitem.py:365: TypeError
+_________ TestWithGrad.test_setitem_raises_on_unrealized_compute_base __________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_setitem_raises_on_unrealized_compute_base>
+
+    def test_setitem_raises_on_unrealized_compute_base(self):
+      # y has a compute (unrealized) base; tmp is a view of y. eager: tmp would follow y's mutation. lazy: tmp keeps the old MUL graph.
+      x = Tensor([1.0, 2.0, 3.0, 4.0]).realize()
+>     y = x * 2.0
+          ^^^^^^^
+E     TypeError: unsupported operand type(s) for *: 'Tensor' and 'float'
+
+test/backend/test_setitem.py:357: TypeError
+_________ TestWithGrad.test_setitem_raises_with_unrealized_downstream __________
+
+self = <test.backend.test_setitem.TestWithGrad testMethod=test_setitem_raises_with_unrealized_downstream>
+
+    def test_setitem_raises_with_unrealized_downstream(self):
+      x = Tensor([1.0, 2.0, 3.0, 4.0]).realize()
+>     _y = x * 2.0
+           ^^^^^^^
+E     TypeError: unsupported operand type(s) for *: 'Tensor' and 'float'
+
+test/backend/test_setitem.py:350: TypeError
+_________________________ TestSetitemLoop.test_arange __________________________
+
+self = <test.backend.test_setitem.TestSetitemLoop testMethod=test_arange>
+
+    def test_arange(self):
+      N = 10
+>     cmp = Tensor.empty(N)
+            ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'empty'
+
+test/backend/test_setitem.py:373: AttributeError
+=========================== short test summary info ============================
+FAILED test/backend/test_setitem.py::TestSetitem::test_cross_assign_independence
+FAILED test/backend/test_setitem.py::TestSetitem::test_fancy_setitem - Attrib...
+FAILED test/backend/test_setitem.py::TestSetitem::test_jit_setitem_variable_offset
+FAILED test/backend/test_setitem.py::TestSetitem::test_lazy_sum_between_writes
+FAILED test/backend/test_setitem.py::TestSetitem::test_padded_setitem - Attri...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_2d_tensor_indexing
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_advanced_indexing
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_big - Attribut...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_chained_indexing
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_consecutive_inplace_operator
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_detach - Attri...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_dtype - Attrib...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_dtype_mismatch
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_flip - Attribu...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_inplace_mul - ...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_inplace_operator
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_multiple_disjoint_on_invalid
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_overlapping_indices
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_overlapping_indices_with_0
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_overlapping_inplace1
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_overlapping_inplace2
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_permute - Attr...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_swap_rows - At...
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_tensor_int_indexing
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_tensor_slice_indexing
+FAILED test/backend/test_setitem.py::TestSetitem::test_setitem_with_1_in_shape
+FAILED test/backend/test_setitem.py::TestSetitem::test_simple_jit_setitem - t...
+FAILED test/backend/test_setitem.py::TestSetitem::test_simple_setitem - Attri...
+FAILED test/backend/test_setitem.py::TestWithGrad::test_basic_setitem_works
+FAILED test/backend/test_setitem.py::TestWithGrad::test_set_backward - Attrib...
+FAILED test/backend/test_setitem.py::TestWithGrad::test_set_iadd_backward - T...
+FAILED test/backend/test_setitem.py::TestWithGrad::test_set_nonleaf_backward
+FAILED test/backend/test_setitem.py::TestWithGrad::test_set_overlapping_backward
+FAILED test/backend/test_setitem.py::TestWithGrad::test_set_used_before_setitem
+FAILED test/backend/test_setitem.py::TestWithGrad::test_setitem_raises_on_aliased_uop
+FAILED test/backend/test_setitem.py::TestWithGrad::test_setitem_raises_on_unrealized_compute_base
+FAILED test/backend/test_setitem.py::TestWithGrad::test_setitem_raises_with_unrealized_downstream
+FAILED test/backend/test_setitem.py::TestSetitemLoop::test_arange - Attribute...
+38 failed, 1 skipped in 0.31s

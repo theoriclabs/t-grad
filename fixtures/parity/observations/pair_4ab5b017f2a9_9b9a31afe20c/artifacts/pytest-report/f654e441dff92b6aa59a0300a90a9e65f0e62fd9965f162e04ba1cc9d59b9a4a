@@ -1,0 +1,8 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestWinograd", "request"], "marks": [], "nodeid": "test/unit/test_winograd.py::TestWinograd::test_padded_conv2d", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestWinogradClose", "request"], "marks": [], "nodeid": "test/unit/test_winograd.py::TestWinogradClose::test_close", "parameters": {}}], "count": 2, "event": "collection_finish", "nodeids": ["test/unit/test_winograd.py::TestWinograd::test_padded_conv2d", "test/unit/test_winograd.py::TestWinogradClose::test_close"]}
+{"event": "test_report", "nodeid": "test/unit/test_winograd.py::TestWinogradClose::test_close", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "AttributeError", "nodeid": "test/unit/test_winograd.py::TestWinogradClose::test_close", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_winograd.py::TestWinogradClose::test_close", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_winograd.py::TestWinograd::test_padded_conv2d", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_winograd.py::TestWinograd::test_padded_conv2d", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_winograd.py::TestWinograd::test_padded_conv2d", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 1}

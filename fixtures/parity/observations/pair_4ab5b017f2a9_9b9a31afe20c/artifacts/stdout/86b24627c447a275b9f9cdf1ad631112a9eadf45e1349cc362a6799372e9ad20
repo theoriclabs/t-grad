@@ -1,0 +1,179 @@
+FFFFFFsFFFFF                                                             [100%]
+=================================== FAILURES ===================================
+________________________ TestLinAlg.test_newton_schulz _________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_newton_schulz>
+
+    def test_newton_schulz(self):
+      coefficients = [(2, -1.5, 0.5), (2.0, -1.4, 0.2, 0.2)]#these params map to the sign function
+      sizes = [(2,2), (3,2), (2,3), (2,2,2)]
+      for coefs in coefficients:
+        for size in sizes:
+>         a = Tensor.randn(size)
+              ^^^^^^^^^^^^
+E         AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_linalg.py:110: AttributeError
+__________________________ TestLinAlg.test_qr_general __________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_qr_general>
+
+    def test_qr_general(self):
+      sizes = [(3,3),(3,6),(6,3),(2,2,2,2,2)]
+      for size in sizes:
+>       a = Tensor.randn(size).realize()
+            ^^^^^^^^^^^^
+E       AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_linalg.py:64: AttributeError
+________________________ TestLinAlg.test_qr_zero_column ________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_qr_zero_column>
+
+    def test_qr_zero_column(self):
+      a = Tensor([[0.0, 1.0], [0.0, 2.0]]).realize()
+>     Q,R = a.qr()
+            ^^^^
+E     AttributeError: 'Tensor' object has no attribute 'qr'
+
+test/unit/test_linalg.py:72: AttributeError
+_________________________ TestLinAlg.test_svd_general __________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_general>
+
+    def test_svd_general(self):
+      sizes = [(2,2),(5,3),(3,5),(3,4,4),(2,2,2,2,3)]
+      for size in sizes:
+>       a = Tensor.randn(size).realize()
+            ^^^^^^^^^^^^
+E       AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_linalg.py:18: AttributeError
+_________________________ TestLinAlg.test_svd_identity _________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_identity>
+
+    def test_svd_identity(self):
+>     for a in (Tensor.eye(2).clone(), Tensor.zeros(2, 2)):
+                ^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'eye'
+
+test/unit/test_linalg.py:79: AttributeError
+_______________________ TestLinAlg.test_svd_identity_4x4 _______________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_identity_4x4>
+
+    def test_svd_identity_4x4(self):
+>     a = Tensor.eye(4).clone()
+          ^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'eye'
+
+test/unit/test_linalg.py:90: AttributeError
+_______________________ TestLinAlg.test_svd_nonfull_2_2 ________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_nonfull_2_2>
+
+>   def test_svd_nonfull_2_2(self): self._test_svd_nonfull((2,2))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_linalg.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_linalg.py:30: in _test_svd_nonfull
+    with Context(CHECK_OOB=0):  # sometimes this is slow in CI
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.helpers.Context'>, args = (), kwargs = {'CHECK_OOB': 0}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+____________________ TestLinAlg.test_svd_nonfull_2_2_2_2_3 _____________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_nonfull_2_2_2_2_3>
+
+>   def test_svd_nonfull_2_2_2_2_3(self): self._test_svd_nonfull((2,2,2,2,3))
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_linalg.py:46: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_linalg.py:30: in _test_svd_nonfull
+    with Context(CHECK_OOB=0):  # sometimes this is slow in CI
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.helpers.Context'>, args = (), kwargs = {'CHECK_OOB': 0}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________________ TestLinAlg.test_svd_nonfull_3_5 ________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_nonfull_3_5>
+
+>   def test_svd_nonfull_3_5(self): self._test_svd_nonfull((3,5))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_linalg.py:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_linalg.py:30: in _test_svd_nonfull
+    with Context(CHECK_OOB=0):  # sometimes this is slow in CI
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.helpers.Context'>, args = (), kwargs = {'CHECK_OOB': 0}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________________ TestLinAlg.test_svd_nonfull_5_3 ________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_nonfull_5_3>
+
+>   def test_svd_nonfull_5_3(self): self._test_svd_nonfull((5,3))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_linalg.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_linalg.py:30: in _test_svd_nonfull
+    with Context(CHECK_OOB=0):  # sometimes this is slow in CI
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.helpers.Context'>, args = (), kwargs = {'CHECK_OOB': 0}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.Context'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+__________________________ TestLinAlg.test_svd_rank1 ___________________________
+
+self = <test.unit.test_linalg.TestLinAlg testMethod=test_svd_rank1>
+
+    def test_svd_rank1(self):
+      a = Tensor([[1.0, 1.0], [2.0, 2.0]]).realize()
+>     U, S, V = a.svd()
+                ^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'svd'
+
+test/unit/test_linalg.py:101: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_linalg.py::TestLinAlg::test_newton_schulz - AttributeEr...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_qr_general - AttributeError...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_qr_zero_column - AttributeE...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_general - AttributeErro...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_identity - AttributeErr...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_identity_4x4 - Attribut...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_nonfull_2_2 - tinygrad....
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_nonfull_2_2_2_2_3 - tin...
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_nonfull_3_5 - tinygrad....
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_nonfull_5_3 - tinygrad....
+FAILED test/unit/test_linalg.py::TestLinAlg::test_svd_rank1 - AttributeError:...
+11 failed, 1 skipped in 0.13s

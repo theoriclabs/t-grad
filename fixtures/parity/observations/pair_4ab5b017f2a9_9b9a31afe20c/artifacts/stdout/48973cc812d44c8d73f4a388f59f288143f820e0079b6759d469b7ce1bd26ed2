@@ -1,0 +1,13 @@
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting test/backend/test_dtype_alu.py ________________
+test/backend/test_dtype_alu.py:25: in <module>
+    integer_binary_operations = binary_operations + [(Tensor.bitwise_xor, np.bitwise_xor), (Tensor.bitwise_and, np.bitwise_and),
+                                                      ^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'Tensor' has no attribute 'bitwise_xor'
+------------------------------- Captured stdout --------------------------------
+settings(backend='hypothesis', database=DirectoryBasedExampleDatabase(PosixPath('/private/tmp/tgrad_parity_observer_f65hizdx/snapshot/upstream/.hypothesis/examples')), deadline=None, derandomize=False, max_examples=200, phases=(Phase.explicit, Phase.reuse, Phase.generate, Phase.target, Phase.shrink, Phase.explain), print_blob=False, report_multiple_bugs=True, stateful_step_count=50, suppress_health_check=(), verbosity=Verbosity.normal)
+=========================== short test summary info ============================
+ERROR test/backend/test_dtype_alu.py - AttributeError: type object 'Tensor' h...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.12s

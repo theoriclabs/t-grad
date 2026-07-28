@@ -1,0 +1,479 @@
+FFFFFFFFFFFFFFFFFFFFF                                                    [100%]
+=================================== FAILURES ===================================
+___________________________ TestSymbolicJit.test_add ___________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_add>
+
+    def test_add(self):
+      def f(a, b): return (a+b).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_add.<locals>.f at 0x1034d45e0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+________________________ TestSymbolicJit.test_attention ________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_attention>
+
+    def test_attention(self):
+      def f(q, k, v): return Tensor.scaled_dot_product_attention(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_attention.<locals>.f at 0x103433c40>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+________________________ TestSymbolicJit.test_cat_dim0 _________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_cat_dim0>
+
+    def test_cat_dim0(self):
+      def f(a, b): return a.cat(b, dim=0).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:87: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_cat_dim0.<locals>.f at 0x103433f60>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+____________________ TestSymbolicJit.test_cat_dim0_two_vars ____________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_cat_dim0_two_vars>
+
+    def test_cat_dim0_two_vars(self):
+      def f(a, b): return a.cat(b, dim=0).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:111: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_cat_dim0_two_vars.<locals>.f at 0x103433b00>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+________________________ TestSymbolicJit.test_cat_dim1 _________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_cat_dim1>
+
+    def test_cat_dim1(self):
+      def f(a, b): return a.cat(b, dim=1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:99: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_cat_dim1.<locals>.f at 0x101820900>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+____________________ TestSymbolicJit.test_cat_dim1_two_vars ____________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_cat_dim1_two_vars>
+
+    def test_cat_dim1_two_vars(self):
+      def f(a, b): return a.cat(b, dim=1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_cat_dim1_two_vars.<locals>.f at 0x1034332e0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________ TestSymbolicJit.test_jit_symbolic_shape_mismatch _______________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_jit_symbolic_shape_mismatch>
+
+    def test_jit_symbolic_shape_mismatch(self):
+>     @TinyJit
+       ^^^^^^^
+
+test/backend/test_symbolic_jit.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_jit_symbolic_shape_mismatch.<locals>.add at 0x103433560>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_________________________ TestSymbolicJit.test_matmul __________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_matmul>
+
+    def test_matmul(self):
+      def f(a, b): return (a@b).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_matmul.<locals>.f at 0x103433ba0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+__________________________ TestSymbolicJit.test_mean ___________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_mean>
+
+    def test_mean(self):
+      def f(a): return a.mean().realize()
+      def f0(a): return a.mean(0).realize()
+      def f1(a): return a.mean(1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_mean.<locals>.f at 0x1034334c0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_________________________ TestSymbolicJit.test_mean_2d _________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_mean_2d>
+
+    def test_mean_2d(self):
+      def f(a): return a.mean().realize()
+      def f0(a): return a.mean(0).realize()
+      def f1(a): return a.mean(1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:256: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_mean_2d.<locals>.f at 0x103432d40>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________ TestSymbolicJit.test_mixed_with_no_symbol_kernel _______________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_mixed_with_no_symbol_kernel>
+
+    def test_mixed_with_no_symbol_kernel(self):
+      def f(a, b):
+        s = (a@b).realize()
+        s = (s+s).realize() # this one does not have symbols in input
+        return s
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_mixed_with_no_symbol_kernel.<locals>.f at 0x1034331a0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+________________________ TestSymbolicJit.test_ones_sum _________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_ones_sum>
+
+    def test_ones_sum(self):
+      def f(a): return a.sum().realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:219: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_ones_sum.<locals>.f at 0x1034d4360>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+__________________________ TestSymbolicJit.test_plus1 __________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_plus1>
+
+    def test_plus1(self):
+      def f(a): return (a+1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:11: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_plus1.<locals>.f at 0x103433920>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+________________________ TestSymbolicJit.test_plus1_pad ________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_plus1_pad>
+
+    def test_plus1_pad(self):
+      # TODO: without contiguous, the pad is not captured in jit
+      def f(a): return (a+1).pad((None, (0, 10-a.shape[1]))).contiguous().realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_plus1_pad.<locals>.f at 0x1034d4180>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_________________________ TestSymbolicJit.test_shrink __________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_shrink>
+
+    def test_shrink(self):
+      # shrink is a movement, so we pair it with a simple function to test the JIT interaction
+      def f(a): return (a+1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:182: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_shrink.<locals>.f at 0x1034d7ec0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+__________________________ TestSymbolicJit.test_slice __________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_slice>
+
+    def test_slice(self):
+      # slice is a movement, so we pair it with a simple function to test the JIT interaction
+      def f(a): return (a+1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:195: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_slice.<locals>.f at 0x103432ac0>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_____________________ TestSymbolicJit.test_slice_var_shape _____________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_slice_var_shape>
+
+    def test_slice_var_shape(self):
+      def f(a): return (a+1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:207: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_slice_var_shape.<locals>.f at 0x1034d4680>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+____________________ TestSymbolicJit.test_two_vars_plus1_ij ____________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_two_vars_plus1_ij>
+
+    def test_two_vars_plus1_ij(self):
+      def f(a, b): return (a@b+1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_two_vars_plus1_ij.<locals>.f at 0x10350c400>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+____________________ TestSymbolicJit.test_two_vars_plus1_ji ____________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_two_vars_plus1_ji>
+
+    def test_two_vars_plus1_ji(self):
+      def f(a, b): return (a@b+1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_two_vars_plus1_ji.<locals>.f at 0x1034d4360>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+___________________________ TestSymbolicJit.test_var ___________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_var>
+
+    def test_var(self):
+      def f(a): return a.var().realize()
+      def f0(a): return a.var(0).realize()
+      def f1(a): return a.var(1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_var.<locals>.f at 0x103430540>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_________________________ TestSymbolicJit.test_var_2d __________________________
+
+self = <test.backend.test_symbolic_jit.TestSymbolicJit testMethod=test_var_2d>
+
+    def test_var_2d(self):
+      def f(a): return a.var().realize()
+      def f0(a): return a.var(0).realize()
+      def f1(a): return a.var(1).realize()
+>     jf = TinyJit(f)
+           ^^^^^^^^^^
+
+test/backend/test_symbolic_jit.py:308: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestSymbolicJit.test_var_2d.<locals>.f at 0x103432d40>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+=========================== short test summary info ============================
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_add - tinygra...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_attention - t...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_cat_dim0 - ti...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_cat_dim0_two_vars
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_cat_dim1 - ti...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_cat_dim1_two_vars
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_jit_symbolic_shape_mismatch
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_matmul - tiny...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_mean - tinygr...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_mean_2d - tin...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_mixed_with_no_symbol_kernel
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_ones_sum - ti...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_plus1 - tinyg...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_plus1_pad - t...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_shrink - tiny...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_slice - tinyg...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_slice_var_shape
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_two_vars_plus1_ij
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_two_vars_plus1_ji
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_var - tinygra...
+FAILED test/backend/test_symbolic_jit.py::TestSymbolicJit::test_var_2d - tiny...
+21 failed in 0.14s

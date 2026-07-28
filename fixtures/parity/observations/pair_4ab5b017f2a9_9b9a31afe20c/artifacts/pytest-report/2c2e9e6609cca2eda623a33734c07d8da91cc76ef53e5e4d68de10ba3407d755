@@ -1,0 +1,8 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestInterop", "request"], "marks": [], "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestInterop", "request"], "marks": [], "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop_write", "parameters": {}}], "count": 2, "event": "collection_finish", "nodeids": ["test/backend/test_interop.py::TestInterop::test_torch_interop", "test/backend/test_interop.py::TestInterop::test_torch_interop_write"]}
+{"event": "test_report", "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop_write", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop_write", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/backend/test_interop.py::TestInterop::test_torch_interop_write", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 0}

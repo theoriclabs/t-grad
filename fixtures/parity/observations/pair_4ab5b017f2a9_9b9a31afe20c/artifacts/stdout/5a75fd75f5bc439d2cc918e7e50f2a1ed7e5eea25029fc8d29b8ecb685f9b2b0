@@ -1,0 +1,201 @@
+FFFFFFFsFFFFFFF                                                          [100%]
+=================================== FAILURES ===================================
+_________________________ TestRandomness.test_bn_init __________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_bn_init>
+
+    def test_bn_init(self):
+      params = (64,)
+>     assert equal_distribution(lambda *_: nn.BatchNorm2d(*params).weight, lambda _: torch.nn.BatchNorm2d(*params).weight.detach())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_randomness.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tiny_func = <function TestRandomness.test_bn_init.<locals>.<lambda> at 0x10c9c5d00>
+torch_func = <function TestRandomness.test_bn_init.<locals>.<lambda> at 0x10c9c6020>
+numpy_func = None, shape = (40, 43), alpha = 0.04
+
+    def equal_distribution(tiny_func, torch_func=None, numpy_func=None, shape=(40, 43), alpha=0.04):
+>     Tensor.manual_seed(1337)
+      ^^^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'manual_seed'
+
+test/unit/test_randomness.py:42: AttributeError
+_______________________ TestRandomness.test_conv2d_init ________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_conv2d_init>
+
+    def test_conv2d_init(self):
+      params = (32, 64, (3,3))
+>     assert equal_distribution(lambda *_: nn.Conv2d(*params).weight, lambda _: torch.nn.Conv2d(*params).weight.detach())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_randomness.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tiny_func = <function TestRandomness.test_conv2d_init.<locals>.<lambda> at 0x10c9c60c0>
+torch_func = <function TestRandomness.test_conv2d_init.<locals>.<lambda> at 0x10c9c6480>
+numpy_func = None, shape = (40, 43), alpha = 0.04
+
+    def equal_distribution(tiny_func, torch_func=None, numpy_func=None, shape=(40, 43), alpha=0.04):
+>     Tensor.manual_seed(1337)
+      ^^^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'manual_seed'
+
+test/unit/test_randomness.py:42: AttributeError
+______________________ TestRandomness.test_glorot_uniform ______________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_glorot_uniform>
+
+    def test_glorot_uniform(self):
+>     self.assertFalse(normal_test(Tensor.glorot_uniform))
+                                   ^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'glorot_uniform'
+
+test/unit/test_randomness.py:106: AttributeError
+______________________ TestRandomness.test_kaiming_normal ______________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_kaiming_normal>
+
+    def test_kaiming_normal(self):
+      for shape in [(32, 16, 3, 3), (20, 44), (3, 15, 35)]:
+>       self.assertTrue(equal_distribution(Tensor.kaiming_normal, lambda x: torch.nn.init.kaiming_normal_(torch.empty(x)), shape=shape))
+                                           ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'Tensor' has no attribute 'kaiming_normal'
+
+test/unit/test_randomness.py:116: AttributeError
+_____________________ TestRandomness.test_kaiming_uniform ______________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_kaiming_uniform>
+
+    def test_kaiming_uniform(self):
+      for shape in [(32, 16, 3, 3), (20, 44), (5, 15, 35)]:
+>       self.assertTrue(equal_distribution(Tensor.kaiming_uniform, lambda x: torch.nn.init.kaiming_uniform_(torch.empty(x)), shape=shape))
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'Tensor' has no attribute 'kaiming_uniform'
+
+test/unit/test_randomness.py:112: AttributeError
+_______________________ TestRandomness.test_linear_init ________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_linear_init>
+
+    def test_linear_init(self):
+      params = (64, 256)
+>     assert equal_distribution(lambda *_: nn.Linear(*params).weight, lambda _: torch.nn.Linear(*params).weight.detach())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_randomness.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tiny_func = <function TestRandomness.test_linear_init.<locals>.<lambda> at 0x10c9c5da0>
+torch_func = <function TestRandomness.test_linear_init.<locals>.<lambda> at 0x10c9c5580>
+numpy_func = None, shape = (40, 43), alpha = 0.04
+
+    def equal_distribution(tiny_func, torch_func=None, numpy_func=None, shape=(40, 43), alpha=0.04):
+>     Tensor.manual_seed(1337)
+      ^^^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'manual_seed'
+
+test/unit/test_randomness.py:42: AttributeError
+_______________________ TestRandomness.test_multinomial ________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_multinomial>
+
+    def test_multinomial(self):
+>     self.assertRaises(AssertionError, lambda: Tensor(2).multinomial(1, replacement=False))
+
+test/unit/test_randomness.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   self.assertRaises(AssertionError, lambda: Tensor(2).multinomial(1, replacement=False))
+                                              ^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Tensor' object has no attribute 'multinomial'
+
+test/unit/test_randomness.py:119: AttributeError
+__________________________ TestRandomness.test_normal __________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_normal>
+
+    def test_normal(self):
+>     self.assertTrue(normal_test(Tensor.normal))
+                                  ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'normal'
+
+test/unit/test_randomness.py:85: AttributeError
+_________________________ TestRandomness.test_randint __________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_randint>
+
+    def test_randint(self):
+>     self.assertFalse(normal_test(Tensor.randint))
+                                   ^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randint'
+
+test/unit/test_randomness.py:68: AttributeError
+__________________________ TestRandomness.test_randn ___________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_randn>
+
+    def test_randn(self):
+>     self.assertEqual(Tensor.randn(3,3,dtype=dtypes.half).dtype, dtypes.half)
+                       ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_randomness.py:63: AttributeError
+______________________ TestRandomness.test_scaled_uniform ______________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_scaled_uniform>
+
+    def test_scaled_uniform(self):
+>     self.assertFalse(normal_test(Tensor.scaled_uniform))
+                                   ^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'scaled_uniform'
+
+test/unit/test_randomness.py:101: AttributeError
+___ TestRandomness.test_three_lazy_rands_realized_one_at_a_time_are_distinct ___
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_three_lazy_rands_realized_one_at_a_time_are_distinct>
+
+    def test_three_lazy_rands_realized_one_at_a_time_are_distinct(self):
+>     Tensor.manual_seed(123)
+      ^^^^^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'manual_seed'
+
+test/unit/test_randomness.py:57: AttributeError
+_________________________ TestRandomness.test_uniform __________________________
+
+self = <test.unit.test_randomness.TestRandomness testMethod=test_uniform>
+
+    def test_uniform(self):
+>     self.assertFalse(normal_test(Tensor.uniform))
+                                   ^^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'uniform'
+
+test/unit/test_randomness.py:92: AttributeError
+____________________________ TestSample.test_sample ____________________________
+
+self = <test.unit.test_randomness.TestSample testMethod=test_sample>
+
+    def test_sample(self):
+>     X = Tensor.rand(1000, 50).realize()
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_randomness.py:188: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_randomness.py::TestRandomness::test_bn_init - Attribute...
+FAILED test/unit/test_randomness.py::TestRandomness::test_conv2d_init - Attri...
+FAILED test/unit/test_randomness.py::TestRandomness::test_glorot_uniform - At...
+FAILED test/unit/test_randomness.py::TestRandomness::test_kaiming_normal - At...
+FAILED test/unit/test_randomness.py::TestRandomness::test_kaiming_uniform - A...
+FAILED test/unit/test_randomness.py::TestRandomness::test_linear_init - Attri...
+FAILED test/unit/test_randomness.py::TestRandomness::test_multinomial - Attri...
+FAILED test/unit/test_randomness.py::TestRandomness::test_normal - AttributeE...
+FAILED test/unit/test_randomness.py::TestRandomness::test_randint - Attribute...
+FAILED test/unit/test_randomness.py::TestRandomness::test_randn - AttributeEr...
+FAILED test/unit/test_randomness.py::TestRandomness::test_scaled_uniform - At...
+FAILED test/unit/test_randomness.py::TestRandomness::test_three_lazy_rands_realized_one_at_a_time_are_distinct
+FAILED test/unit/test_randomness.py::TestRandomness::test_uniform - Attribute...
+FAILED test/unit/test_randomness.py::TestSample::test_sample - AttributeError...
+14 failed, 1 skipped in 0.50s

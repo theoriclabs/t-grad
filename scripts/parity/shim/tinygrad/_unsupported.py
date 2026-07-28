@@ -50,19 +50,35 @@ class UnsupportedCapability:
     def __exit__(self, exc_type, exc, tb):
         self._raise()
 
-    def __eq__(self, other):
-        self._raise()
-
-    def __ne__(self, other):
-        self._raise()
-
-    def __hash__(self):
-        # Defining __eq__ would otherwise set __hash__ = None (unhashable,
-        # TypeError).  Raise the same capability error so a marker can never
-        # silently serve as a dict/set key.  Shim modules only store these as
-        # attributes; nothing in the shim or substitution tests puts them in
-        # hashed containers, so this does not break import or activation.
-        self._raise()
+    # `__eq__`, `__ne__` and `__hash__` are DELIBERATELY left at Python's
+    # defaults, i.e. identity comparison, and must stay that way.
+    #
+    # They were briefly made to raise, on the theory that
+    # `assert x != dtypes.int32` silently passing was a false positive in
+    # the parity score.  That reasoning was wrong twice over.
+    #
+    # It was wrong semantically: for a capability Tgrad genuinely does not
+    # have, "not equal" and "not present" are the TRUTHFUL answers.
+    # `dtypes.half in renderer.supported_dtypes()` is correctly False --
+    # half really is unsupported -- and a test asserting inequality from an
+    # absent dtype passes for the right reason, not by accident.  Equality
+    # in the other direction already fails safely: `t.dtype == dtypes.int32`
+    # evaluates False and the assertion fails, which is what we want.
+    #
+    # It was wrong empirically, and the cost was measured.  `in` and `==`
+    # are evaluated in CLASS BODIES by decorators such as
+    # `@unittest.skipUnless(dtypes.half in ..., ...)` at
+    # test/backend/test_ops.py:1457, so raising fires during collection and
+    # takes the whole module down.  With the raisers in place that file
+    # yields 0 tests; without them it yields 495 failed / 16 passed / 9
+    # skipped.  Raising therefore destroyed 16 real passes and 495 honest,
+    # localized failures -- it converted the repository's single largest
+    # source of parity information into nothing at all.
+    #
+    # The protection that matters is unaffected: every attempt to USE an
+    # absent capability -- call, attribute, index, iterate, truth-test,
+    # context-manage -- still raises above.  Answering "no, I do not have
+    # that" is not the same as pretending to have it.
 
     def __repr__(self) -> str:
         # Must not raise: pytest assertion rewriting, tracebacks, and

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -269,9 +270,19 @@ class DefinitionTests(unittest.TestCase):
                 observer.validate_v4_definition(path)
 
     def test_python_launcher_identity_is_not_collapsed_to_target(self) -> None:
-        launcher = observer.DEFAULT_PYTHON.expanduser().absolute()
-        self.assertEqual(observer.DEFAULT_PYTHON, launcher)
-        self.assertTrue(launcher.is_file())
+        with tempfile.TemporaryDirectory() as raw:
+            target = Path(sys.executable).resolve()
+            launcher = Path(raw) / "python-launcher"
+            launcher.symlink_to(target)
+            expected_launcher = str(launcher.absolute())
+            facts = observer.interpreter_facts(launcher)
+
+        self.assertEqual(expected_launcher, facts["launcher"])
+        self.assertEqual(str(target), facts["launcher_target"])
+        self.assertNotEqual(facts["launcher"], facts["launcher_target"])
+        self.assertEqual(
+            observer.file_hash(target), facts["launcher_target_sha256"]
+        )
 
 
 class ProtocolTests(unittest.TestCase):

@@ -43,6 +43,8 @@ import Tgrad.Growth.BroadcastAddObservationV3
 import Tgrad.Growth.BroadcastAddRealizeCandidateV1
 import Tgrad.Growth.BroadcastAddObservationV4
 import Tgrad.Growth.BroadcastAddRankedCandidateV1
+import Tgrad.Growth.BroadcastAddObservationV5
+import Tgrad.Growth.BroadcastAddRankedVerificationAmendmentV1
 import Tgrad.Growth.BroadcastAddPacket
 import Tgrad.Growth.PilotReport
 

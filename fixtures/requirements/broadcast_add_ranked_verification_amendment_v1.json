@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-EW-RANKED-BROADCAST-VERIFY-V1",
+  "baseline_revision": "8016524c73cb78681d8d784c79cdfb487b47c6e8",
+  "trigger_evidence_id": "23d0daf8a3a75f29d8deecb52665e5353a6531ad4cfdf3fe76d3e31556ff67bf",
+  "finding": "WORK-EW-RANKED-BROADCAST-V1 created a focused regression module but scripts/devcheck.sh enumerates test modules explicitly, so the new check is not recurring.",
+  "work_class": "verifier_registration",
+  "write_set": {
+    "product": [],
+    "verification": [
+      "scripts/spec/test_ranked_broadcast.py",
+      "scripts/devcheck.sh"
+    ]
+  },
+  "predicted_transition": {
+    "cheap_preflight_invokes": "python -m unittest scripts.spec.test_ranked_broadcast",
+    "product_behavior_changes": false,
+    "evidence_or_conformance_state_changes": false
+  },
+  "fault_model": [
+    "remove ranked-broadcast from the explicit unittest module list",
+    "drop rank-0 or rank-1 output coverage",
+    "drop bf16 coverage while the product packet still claims bf16 scope"
+  ],
+  "frozen_before_verifier_authoring": true
+}

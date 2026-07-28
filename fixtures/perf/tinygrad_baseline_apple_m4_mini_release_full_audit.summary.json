@@ -1,0 +1,14 @@
+{
+  "output": "/tmp/baseline_new.json",
+  "audit_jsonl": "fixtures/perf/tinygrad_baseline_apple_m4_mini_release_full_audit.jsonl",
+  "n_pairs": 50,
+  "selection": "best-p25",
+  "selected_pass_counts": {
+    "0": 50
+  },
+  "within_pass_max_over_min": {
+    "min": 1.0713845249718712,
+    "median": 1.2233498931844622,
+    "max": 3.4551752690164315
+  }
+}

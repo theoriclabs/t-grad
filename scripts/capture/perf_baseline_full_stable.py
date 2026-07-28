@@ -180,7 +180,19 @@ def _import_tinygrad() -> tuple[Any, Any, Any]:
     os.environ.setdefault("USE_TC", "1")
     os.environ.setdefault("BEAM", "0")
     os.environ.setdefault("NOOPT", "0")
-    sys.path.insert(0, str(REPO_ROOT))
+    # Import the PINNED oracle checkout, not whatever `tinygrad` happens to
+    # be importable. This used to do `sys.path.insert(0, REPO_ROOT)` and rely
+    # on a tinygrad sitting at the repo root; once the oracle moved to
+    # var/oracle/ (ac05603, so a disk sweep could not destroy it) that broke
+    # with ModuleNotFoundError. Silently baselining against an unpinned
+    # tinygrad would be worse than failing: every ratio downstream would be
+    # divided by an unknown revision.
+    oracle = REPO_ROOT / "var" / "oracle" / "tinygrad"
+    if not (oracle / "tinygrad" / "__init__.py").is_file():
+        raise SystemExit(
+            f"pinned oracle checkout missing at {oracle}; run "
+            "`python3 scripts/parity/ensure_oracle.py` first")
+    sys.path.insert(0, str(oracle))
     from tinygrad import Device, Tensor, dtypes  # noqa: WPS433
     return Tensor, Device, dtypes
 

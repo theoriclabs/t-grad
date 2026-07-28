@@ -1276,7 +1276,18 @@ def main(argv: list[str]) -> int:
                         f"  PERF_MISS: {f['shape']:20s} {f['dist']:20s} "
                         f"correct={f['correct']} ratio={f['ratio']:.4f}",
                         file=sys.stderr)
-            return 1
+            # Distinct exit codes, because these are distinct claims.
+            #   1 = a NUMERICAL result was wrong
+            #   2 = every result was correct; some pair missed the ratio
+            # They used to share exit 1, which meant a caller that cares
+            # only about correctness was failed by performance. L12 is
+            # exactly such a caller: its own evidence records
+            # "performance_predicate": "not evaluated by semantic gate",
+            # yet it died on this return before reaching its 50/50
+            # correctness assertion. Callers that DO claim performance
+            # (L11) assert on n_ratio_ok themselves and get a better
+            # diagnostic from that than from an opaque non-zero exit.
+            return 1 if correctness_errors else 2
         print(f"py_bench_full_ok: true")
         return 0
     return 1

@@ -185,13 +185,26 @@ BENCH_LOG="$WORK_DIR/bench.log"
 # comment above exists to forbid. It reported perf_miss 30/50 while
 # `--use-algebraic-emit: command not found` scrolled past. Do not move
 # a comment back inside a continued command.
+# Exit 2 means "all correct, some pair missed the ratio". L12 is a
+# SEMANTIC gate -- its own evidence records
+# "performance_predicate": "not evaluated by semantic gate" -- so a perf
+# miss is not its failure to report. Exit 1 (a wrong numerical result)
+# still fails it, and the 50/50 correctness assertion below is what
+# actually enforces the claim this gate makes.
+set +e
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-full \
     --use-algebraic-emit --output "$BENCH_JSONL" --warmup 30 --measured 30) \
-    >"$BENCH_LOG" 2>&1 || {
-  echo "  ✗ generated-emitter bench-full failed"
+    >"$BENCH_LOG" 2>&1
+bench_rc=$?
+set -e
+if [[ "$bench_rc" -ne 0 && "$bench_rc" -ne 2 ]]; then
+  echo "  ✗ generated-emitter bench-full failed (rc=$bench_rc)"
   tail -30 "$BENCH_LOG" | sed 's/^/      /'
   exit 1
-}
+fi
+if [[ "$bench_rc" -eq 2 ]]; then
+  echo "  note: perf ratio misses present; not evaluated by this semantic gate"
+fi
 n_rows="$(wc -l < "$BENCH_JSONL" | awk '{print $1}')"
 [[ "$n_rows" -eq 50 ]] || { echo "  ✗ bench-full produced $n_rows rows (need 50)"; exit 1; }
 

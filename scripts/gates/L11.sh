@@ -111,14 +111,22 @@ fi
 echo "  ✓ tgrad_bench.py is tinygrad-free (runtime independence preserved)"
 
 # ─── LAYER C: behavioural — run the 50-pair sweep ─────────────────────
+# L11 DOES claim performance, and asserts on n_ratio_ok below. Accept
+# exit 2 ("all correct, some ratio miss") here so that assertion is what
+# reports the failure -- it names the offending shapes and ratios, where
+# a bare non-zero exit says only that something went wrong.
+set +e
 (cd "$REPO_ROOT" && "$PY" "$TGRAD_DIR/python/tgrad.py" bench-full \
     --baseline "$BASELINE_FULL" \
     --output /tmp/tgrad_L11_bench.jsonl --warmup 30 --measured 30) \
-    >/tmp/tgrad_L11_bench.txt 2>&1 || {
-  echo "  ✗ python bench-full failed"
+    >/tmp/tgrad_L11_bench.txt 2>&1
+bench_rc=$?
+set -e
+if [[ "$bench_rc" -ne 0 && "$bench_rc" -ne 2 ]]; then
+  echo "  ✗ python bench-full failed (rc=$bench_rc)"
   tail -30 /tmp/tgrad_L11_bench.txt | sed 's/^/      /'
   exit 1
-}
+fi
 
 n_rows="$(wc -l < /tmp/tgrad_L11_bench.jsonl | awk '{print $1}')"
 [[ "$n_rows" -eq 50 ]] || { echo "  ✗ bench-full produced $n_rows rows (need 50)"; exit 1; }

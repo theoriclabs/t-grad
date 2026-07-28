@@ -3,6 +3,16 @@
 # (import, path reference, subprocess call). Comments / provenance
 # notes that merely mention "tinygrad" are permitted per §6 rule 3.
 #
+# var/ is exempt because it holds the upstream oracle CHECKOUT itself --
+# var/oracle/tinygrad literally is tinygrad, so of course it imports
+# tinygrad. It is gitignored working state and the subject of measurement,
+# never code this project ships or runs. It used to sit in /tmp, where
+# this scan simply never saw it; moving it in-repo (so a disk sweep cannot
+# destroy the foreign oracle) is what surfaced the need to say so out loud.
+# This exemption is a path exclusion only -- it does not weaken the
+# predicate for any file Tgrad actually runs, and the falsification below
+# is re-run to confirm a genuine runtime import is still caught.
+#
 # scripts/parity/ is exempt for the same reason as scripts/capture/:
 # it is dev-time tooling whose PURPOSE is to compare against tinygrad.
 # test_substitution_shim.py imports tinygrad deliberately, to prove the
@@ -43,7 +53,8 @@ scan_files() {
     ! -path '*/.lake/*' \
     ! -path '*/build/*' \
     ! -path '*/scripts/capture/*' \
-    ! -path '*/scripts/parity/*'
+    ! -path '*/scripts/parity/*' \
+    ! -path '*/var/*'
 }
 
 while IFS= read -r f; do

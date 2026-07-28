@@ -2,8 +2,8 @@
 # Fast, non-authoritative development checks for agent edit loops.
 #
 # This script is intentionally NOT a gate. It does not write
-# fixtures/gate_evidence/*.json, does not verify falsifiability
-# tables, and does not replace `bash scripts/gate.sh`.
+# fixtures/gate_evidence/*.json (runtime-only; gitignored), does not
+# verify falsifiability tables, and does not replace `bash scripts/gate.sh`.
 #
 # Usage:
 #   bash scripts/devcheck.sh --all
@@ -74,6 +74,7 @@ cheap_preflight() {
   check_shell_continuation || return 1
   check_real_chronology   || return 1
   check_architecture_boundary || return 1
+  check_gate_evidence_not_tracked || return 1
 
   # Source-closure pure/synthetic tests remain useful without a durable
   # foreign checkout; their verbose runner reports any live-only skips and

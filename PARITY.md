@@ -748,7 +748,7 @@ adapter is intentionally thin and included in evidence identity.
 | CPU/property verification | later | safe after temp namespaces and isolated build outputs |
 | Metal correctness in separate processes | logically yes, operationally serial preferred | one GPU; avoid interference and memory pressure |
 | performance | never parallel on this host | exclusive GPU and thermal lane |
-| committed evidence integration | no | single integrator and clean measured tree |
+| runtime evidence integration | no | single integrator; evidence is gitignored per-sweep output |
 
 Parallelism is a property of resources and writes, not an agent count. Three
 agents editing disjoint files may be safe; two agents invoking the same gate are

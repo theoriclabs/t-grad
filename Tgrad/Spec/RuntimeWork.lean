@@ -276,18 +276,18 @@ def workUnits : List WorkUnit :=
       ["python/tgrad_bench.py", "scripts/gates/L11.sh", "scripts/gates/L12.sh"] .bounded
       "repeat an identical benchmark configuration serially and report raw distributions, miss counts, and within-run and between-run variance without promoting a parity verdict"
       "it can falsify a gate's repeatability, but a frozen tinygrad denominator means it cannot validate relative performance",
-    implemented "verify.evidence-audit" "evidence provenance audit"
+    implemented "verify.evidence-audit" "gate evidence must stay untracked"
       .verification .observe [.candidateRevision, .validationEvidence] [.findingSet, .report]
       .evidenceStore [.sourceTree, .evidenceStore] [.evidenceCount]
-      ["scripts/dev/evidence_provenance_audit.py"] .loadBearing
-      "audit commit reachability, hash resolution, child roll-ups, and gate-writer key agreement; calibrate against synthetic good evidence"
-      "the auditor reports failure but is deliberately not yet a fatal release predicate",
-    implemented "verify.evidence-integrity" "evidence provenance validation"
+      ["scripts/dev/gate_evidence_not_tracked.py"] .loadBearing
+      "fail if fixtures/gate_evidence/ is tracked by git or any *.json under it is staged"
+      "re-tracking evidence makes umbrella [[ -f ]] checks vacuous again",
+    implemented "verify.evidence-integrity" "evidence hash integrity validation"
       .verification .validate [.candidateRevision, .validationEvidence] [.validationEvidence]
       .evidenceStore [.sourceTree, .evidenceStore] [.evidenceCount]
       ["scripts/lib/checks.sh", "fixtures/gate_evidence"] .bypassed
-      "resolve recorded commit and recompute every recorded hash"
-      "current checks accept evidence from an absent commit and do not verify recorded hashes",
+      "recompute every recorded hash against runtime evidence produced in this tree"
+      "current checks confirm presence and schema keys but do not recompute recorded hashes",
 
     implemented "spec.query-findings" "finding query"
       .specification .query [.findingSet] [.report]

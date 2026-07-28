@@ -219,6 +219,22 @@ check_shell_continuation() {
 }
 
 # -----------------------------------------------------------------------
+# check_gate_evidence_not_tracked — fixtures/gate_evidence must stay
+# untracked. Committed evidence makes umbrella `[[ -f ]]` checks vacuous
+# (satisfied on every clone without any child gate running).
+# -----------------------------------------------------------------------
+check_gate_evidence_not_tracked() {
+  local log=/tmp/tgrad_gate_evidence_not_tracked.log
+  if python3 "$TGRAD_DIR/scripts/dev/gate_evidence_not_tracked.py" \
+       >"$log" 2>&1; then
+    return 0
+  fi
+  echo "  ✗ fixtures/gate_evidence/ is tracked or staged (vacuous roll-ups)"
+  sed 's/^/      /' "$log"
+  return 1
+}
+
+# -----------------------------------------------------------------------
 # check_no_gate_regression — verify GREEN_GATES never shrinks vs git HEAD.
 #
 # Catches the case where an agent removes a gate from the green list to

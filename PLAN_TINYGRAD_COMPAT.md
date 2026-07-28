@@ -53,19 +53,20 @@ and records the current direction:
 
 | Defect | Fix |
 |---|---|
-| Originally all 37 evidence files cited absent commit `a06d475c…`; after `7c7dc0f`, 26 still do | Gate refuses to write evidence unless the measured tree is clean and every file in a promoted snapshot names it |
+| Originally all 37 evidence files cited absent commit `a06d475c…`; after `7c7dc0f`, 26 still do | **Retired committed evidence.** `fixtures/gate_evidence/` is gitignored; umbrellas require children to have run in this tree. `check_gate_evidence_not_tracked` fails if the directory is re-tracked |
 | Every recorded hash is write-only; none is ever verified | `check_evidence_for` recomputes each hash and fails on mismatch |
-| Writer-key audit originally found broad post-processing; 17 mismatches remain after partial regeneration | One evidence writer in `scripts/lib/`, used by all gates; regenerate one coherent snapshot |
+| Writer-key audit originally found broad post-processing; 17 mismatches remain after partial regeneration | One evidence writer in `scripts/lib/`, used by all gates; regenerate one coherent runtime snapshot |
 | Ratchet is substring-matched; 7 gates incl. the verdict gate can be silently deleted | `grep -Fx` against an array, not `grep -q` against a string |
 | `L14_B_1` could not pass because it read nonexistent `Tgrad/fixtures/` | Fixed at `a62a784`; retain a falsification and add a CI job that runs the substantive ratchet |
 | Gate greens on strings the code emits *for* the gate (`if (false) { threadgroup_barrier(...) }`, unused `tg_a[256]`) | Delete the dead emissions; assert on behaviour (does the kernel produce correct output at the expected occupancy), not on `grep` |
 | `_rendered_kernel_source()` fabricates the source that gates then grep | Delete. Have the gate call the Lean renderer and inspect real output |
 | CI proves nothing about the GPU (`TGRAD_ALLOW_METAL_RUNTIME_SKIP=1`) | Self-hosted Apple Silicon runner, or accept CI-as-lint and stop citing it as evidence |
 
-**Exit criterion**: a clean serial sweep produces all 37 evidence files for
-one measured tree with recomputable hashes; performance compares paired live
+**Exit criterion**: a clean serial sweep produces runtime evidence for all 37
+gates on one measured tree with recomputable hashes; performance compares paired live
 runtimes with a repeatable variance-derived decision rule; and flipping any
-single behavioural bit in the runtime turns a semantic gate red.
+single behavioural bit in the runtime turns a semantic gate red. Evidence remains
+gitignored — never re-commit it.
 
 Also in Phase 0, because they are cheap and currently block users:
 fix `lakefile.lean:16`'s hardcoded Xcode SDK path (use the same

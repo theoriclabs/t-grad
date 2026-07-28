@@ -106,8 +106,8 @@ def findings : List Finding :=
     { id := "F-evidence-provenance", severity := .critical,
       component := .evidenceStore,
       description := "committed evidence names an absent commit and stale hashes",
-      state := .confirmed .open
-        "after 7c7dc0f regenerated 11 reproducible files, 26/37 still name an absent commit, 76/115 hashes are unresolved, 28 roll-ups disagree, and 17 writer keys mismatch" },
+      state := .confirmed (.remediated "gate-evidence-untracked")
+        "fixtures/gate_evidence/ untracked and gitignored; check_gate_evidence_not_tracked fails on re-track; umbrella [[ -f ]] is no longer vacuous" },
     { id := "F-division-semantics", severity := .medium,
       component := .rewriteEngine,
       description := "constant fold, Python oracle, and C renderer disagree for negatives",
@@ -136,8 +136,8 @@ def remediatedFindings : List Finding := findings.filter (fun finding =>
   | some (.remediated _) => true
   | _ => false)
 
-example : openFindings.length = 2 := by native_decide
-example : remediatedFindings.length = 12 := by native_decide
+example : openFindings.length = 1 := by native_decide
+example : remediatedFindings.length = 13 := by native_decide
 example : findings.all (fun finding => finding.state.hasUpgradePath) = true := by
   native_decide
 example : findingCoverage.hasUpgradePath = true := by native_decide

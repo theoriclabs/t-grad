@@ -20,3 +20,9 @@ dist/
 # evidence lives in fixtures/parity/observations/ and IS tracked.
 var/*
 !var/README.md
+
+# Per-sweep gate evidence (runtime artifact; never commit).
+# Committing these made umbrella roll-ups vacuous: a parent hashed a child's
+# committed evidence that every clone already had, so the parent passed
+# without the child ever running in this tree.
+fixtures/gate_evidence/

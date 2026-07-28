@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-EW-RANKED-BROADCAST-V1",
+  "baseline_revision": "2d144bd991d8fa023c0faf05f9c52ee79db7b5e0",
+  "trigger_evidence_id": "bfbde2d1477526daaf84b1b3aa06b8996fe13396d8e36ba3d87899c21718dcc9",
+  "finding": "ADD-TWO-SIDED-BROADCAST-F32 constructs and snapshots both rank-3 operands, then stops at Python's rank-2 pointwise guard. Lean's runElementwise, renderer coordinates, dispatch geometry, and Python result recovery are also rank-2-specific.",
+  "candidate": {
+    "rank_scope": [0, 1, 2, 3],
+    "dtype_scope": ["bf16", "f32"],
+    "operator_scope": ["add", "sub", "mul"],
+    "broadcast_alignment": "right_aligned_by_leading_size_one_axes",
+    "metal_dispatch": {
+      "rank_0": [1, 1, 1],
+      "rank_1": ["d0", 1, 1],
+      "rank_2": ["d0", "d1", 1],
+      "rank_3": ["d0", "d1", "d2"]
+    },
+    "indexing": "one coordinate variable per logical axis; each expanded axis has stride zero; output index is the contiguous view index",
+    "result_shape": "queried from the realized Lean Tensor at every rank"
+  },
+  "predicted_observation_transition": {
+    "full_legal_trace_newly_matches_for": ["ADD-TWO-SIDED-BROADCAST-F32"],
+    "already_matching_scenarios_remain_matching": ["ADD-SAME-SHAPE-F32", "ADD-SINGLETON-AXIS-F32"],
+    "int32_scenarios_unchanged_at": "construct_left",
+    "incompatible_scenario_unchanged_at": "invoke_add",
+    "requirement_promotion_predicted": false
+  },
+  "write_set": {
+    "product": [
+      "python/tgrad.py",
+      "Tgrad/Schedule/View.lean",
+      "Tgrad/Renderer/Elementwise.lean",
+      "Tgrad/PythonFFI.lean"
+    ],
+    "verification": ["scripts/spec/test_ranked_broadcast.py"],
+    "forbidden": [
+      "Tgrad/Pipeline.lean",
+      "Tgrad/Shape.lean",
+      "c/tgrad_python.c",
+      "scripts/spec/observe_broadcast_add.py",
+      "scripts/parity/shim/tinygrad/dtype.py"
+    ]
+  },
+  "fault_model": [
+    "left-align a lower-rank operand instead of prepending size-one axes",
+    "retain a non-zero stride on either expanded axis",
+    "flatten output shape to rank two",
+    "omit the z coordinate from rank-3 output or operand indices",
+    "regress existing rank-2 same-shape or singleton broadcasting",
+    "accept right-incompatible shapes such as (2,3) plus (2,)"
+  ],
+  "verification_sequence": [
+    "Lean theorems for rank padding, stride-zero expansion, and ranked kernel identity",
+    "focused CPU/Metal differential tests for rank 0 through 3",
+    "TgradSpec and product builds",
+    "serial unchanged V6 observation against the immutable upstream baseline"
+  ],
+  "recovery": "Revert all four product files and the focused test together; retain the new observation as a localized rank/indexing diagnostic.",
+  "frozen_before_product_authoring": true
+}

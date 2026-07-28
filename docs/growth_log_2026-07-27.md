@@ -102,6 +102,15 @@ broadcasting. Its true write set must be derived from the Python shape logic,
 Lean view algebra, realization routing, elementwise renderer, and output-shape
 readback before a packet is frozen.
 
+That derivation produced
+[`WORK-EW-RANKED-BROADCAST-V1`](../fixtures/requirements/broadcast_add_ranked_candidate_v1.json).
+Four product files are jointly load-bearing: `python/tgrad.py`,
+`Tgrad/Schedule/View.lean`, `Tgrad/Renderer/Elementwise.lean`, and
+`Tgrad/PythonFFI.lean`. The candidate uses right-aligned leading-one rank
+padding and direct Metal x/y/z coordinates for ranks zero through three. Its
+focused fault model includes wrong left alignment, non-zero expanded strides,
+lost z coordinates, flattened output shape, and rank-2 regressions.
+
 ## Validation performed
 
 - `lake build TgradSpec` after every Lean evidence/packet change.

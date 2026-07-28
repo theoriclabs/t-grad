@@ -195,3 +195,32 @@ mixed-dtype promotion, the incompatible-shape exception relation, adequacy,
 and source-to-binary provenance remain open. The next product packet should be
 selected from those named fronts after a fresh boundary analysis, not inferred
 from the aggregate 3/6 count.
+
+## Next frozen work: the int32 representation cone
+
+The next boundary analysis changed the earlier sequential assumption. Int32
+construction/storage and mixed promotion are distinct requirements, but not
+independent implementation packets: Lean already contains int32 FFI identity,
+four-byte sizing, and the `int32 ⊔ float32 = float32` lattice row. Making
+int32 representable therefore exposes both same-dtype rank extension and mixed
+promotion through the same elementwise path.
+
+`WORK-DTYPE-I32-ELEMENTWISE-V1` freezes that causal cone at `fe82005`. It
+predicts both legal int32 scenarios moving from `0/5/6` to `11/0/0`, the three
+f32 scenarios remaining complete, and the incompatible scenario remaining
+`2/3/1`. Aggregate prediction: `35/13/13 → 57/3/1` over the 61
+relation-classified scenario-dimensions. No requirement promotion is predicted.
+
+The product boundary is three files: Python host representation, typed
+elementwise MSL, and bit-preserving view materialization. The strict dtype
+shim is separately classified as adapter work. Dtype lattice, FFI, shape/view
+algebra, C bridge, observer, and frozen manifest are explicitly excluded.
+
+The upstream review also found an adequacy gap: the calibrated scenario's small
+integers cannot reject float32 compute followed by an int32 cast, and its
+canonical `<i4` readback is reconstructed from `tolist` plus the claimed dtype
+rather than directly proving buffer width. The focused verifier must therefore
+use values above `2^24` and negative bit patterns. That regression strengthens
+implementation evidence but does not retrospectively strengthen the frozen
+observer; promotion remains blocked pending a prospective storage/precision
+observer amendment.

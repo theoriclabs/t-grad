@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "packet_id": "WORK-DTYPE-I32-ELEMENTWISE-V1",
+  "baseline_revision": "fe820050e14cf6746f2a866204b0fade10127b3d",
+  "trigger_evidence_id": "23d0daf8a3a75f29d8deecb52665e5353a6531ad4cfdf3fe76d3e31556ff67bf",
+  "finding": "Both remaining legal scenarios stop because the strict adapter and public Tensor cannot represent int32. Lean already has int32 FFI code 3, four-byte sizing, right-aligned broadcasting, and int32/float32 LUB. The missing functionality is the host/storage boundary plus typed Metal arithmetic and int32 view readback.",
+  "candidate": {
+    "dtype_scope": ["int32"],
+    "operator_scope": ["add", "sub", "mul"],
+    "rank_scope": [0, 1, 2, 3],
+    "same_dtype_compute": "native signed int32 Metal arithmetic; never convert through float",
+    "mixed_compute": "use the existing Dtype.lub; int32 plus float32 computes and stores float32",
+    "view_materialization": "bit-preserving four-byte uint copy for both float32 and int32",
+    "explicitly_excluded": [
+      "int32 reductions",
+      "int32 matmul",
+      "integer overflow adequacy",
+      "empty tensors",
+      "dtypes other than int32"
+    ]
+  },
+  "predicted_observation_transition": {
+    "newly_full_matching": [
+      "ADD-RANK-EXTENSION-I32",
+      "ADD-I32-F32-SCALAR-PROMOTION"
+    ],
+    "already_full_matching_remain_matching": [
+      "ADD-SAME-SHAPE-F32",
+      "ADD-SINGLETON-AXIS-F32",
+      "ADD-TWO-SIDED-BROADCAST-F32"
+    ],
+    "incompatible_scenario_remains": {
+      "same": 2,
+      "different": 3,
+      "unobserved": 1
+    },
+    "aggregate_before": {"same": 35, "different": 13, "unobserved": 13},
+    "aggregate_after": {"same": 57, "different": 3, "unobserved": 1},
+    "requirement_promotion_predicted": false
+  },
+  "write_set": {
+    "product": [
+      "python/tgrad.py",
+      "Tgrad/Renderer/Elementwise.lean",
+      "Tgrad/Pipeline.lean"
+    ],
+    "adapter": [
+      "scripts/parity/shim/tinygrad/dtype.py"
+    ],
+    "verification": [
+      "scripts/spec/test_int32_elementwise.py",
+      "scripts/spec/test_tensor_public_constructor.py",
+      "scripts/parity/test_substitution_shim.py",
+      "scripts/devcheck.sh"
+    ],
+    "forbidden": [
+      "Tgrad/Dtype.lean",
+      "Tgrad/Shape.lean",
+      "Tgrad/Schedule/View.lean",
+      "Tgrad/PythonFFI.lean",
+      "Tgrad/Renderer/Metal.lean",
+      "c/tgrad_python.c",
+      "c/metal_alloc.m",
+      "scripts/spec/observe_broadcast_add.py",
+      "fixtures/requirements/broadcast_add_prospective_v1.json"
+    ]
+  },
+  "fault_model": [
+    "compute int32 through float32 and cast back, losing values above 2^24",
+    "encode int32 inputs as int64 or float32 while reporting int32",
+    "copy int32 reshape views through a 16-bit storage type",
+    "return int32 rather than float32 for int32 plus float32",
+    "left-align the rank-one operand",
+    "globally admit int32 reductions through their float accumulator",
+    "regress bf16 or float32 elementwise behavior",
+    "silently fall back to upstream tinygrad from the strict adapter"
+  ],
+  "verification_sequence": [
+    "Lean checks for int32 MSL spelling, native integer compute expression, four-byte view copy, and unchanged dtype LUB",
+    "focused public-constructor, view-readback, same/mixed elementwise, precision-stress, and rejection tests",
+    "strict substitution-shim isolation test",
+    "TgradSpec and product build",
+    "fused-matmul and existing float/bf16 regressions",
+    "serial unchanged V6 observation against immutable upstream evidence"
+  ],
+  "adequacy_blocker": "The frozen scenario uses small integers and exact_readback reconstructs <i4 bytes from tolist plus the claimed dtype. It cannot prove native four-byte backing storage or reject float32 laundering. Values above 2^24 are therefore required in focused regression, and requirement promotion remains forbidden until a prospective calibrated observer amendment covers storage identity and precision stress.",
+  "recovery": "Revert all three product files, the strict-adapter dtype file, and verifier files together. Preserve any resulting observation as a localized dtype-boundary diagnostic.",
+  "frozen_before_product_authoring": true
+}

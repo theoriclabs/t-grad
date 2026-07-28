@@ -859,3 +859,21 @@ A method-health report should count exact transition predictions, write-set
 precision, survived mutants, localized non-transitions, and cycle cost. It
 should not summarize this result as “50% broadcast parity”: the six scenarios
 are a designed probe set, not a completeness denominator.
+
+### Requirements may be separate while implementation causes are shared
+
+The int32 frontier corrects an overly linear plan. “Same-dtype int32 addition”
+and “int32 plus float32 promotion” are separate requirements and should retain
+separate evidence states. But their observed blockers share one machine cause:
+int32 cannot cross the host/storage boundary. Since promotion order is already
+specified in Lean, removing that representation blocker is predicted to expose
+both requirements.
+
+The work packet should therefore follow the causal cone, not manufacture a
+mixed-dtype rejection merely to make one scenario move at a time. It must still
+predict every affected requirement independently. This gives a useful rule:
+
+> Decompose requirements by stakeholder-observable behavior; decompose work by
+> the smallest implementation cause and all of its predictable consumers.
+
+The two decompositions are related but are not the same partition.

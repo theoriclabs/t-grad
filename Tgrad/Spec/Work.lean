@@ -307,21 +307,22 @@ def workItems : List WorkItem :=
         [.build, .unitRegression, .semantic, .numerical, .differential],
       recovery := "restore files from git while preserving generated routing work",
       progress := .complete "9f2ab91" },
-    { id := ew "evidence.audit-tool", title := "make evidence provenance mechanically auditable",
+    { id := ew "evidence.audit-tool", title := "keep gate evidence untracked",
       phase := .promote, authority := .evidence,
-      closesFindings := [], dependsOn := [],
+      closesFindings := ["F-evidence-provenance"], dependsOn := [],
       runtimeScope := [rw "verify.evidence-audit"],
       touches := [.evidenceStore, .gateHarness],
-      writes := ["scripts/dev/evidence_provenance_audit.py"],
+      writes := ["scripts/dev/gate_evidence_not_tracked.py",
+        "scripts/lib/checks.sh", "scripts/devcheck.sh", ".gitignore"],
       authoringResources := [.sourceTree],
       verificationResources := [.evidenceStore],
       cost := 2, goalDistance := 0,
       validation := plannedValidation
-        "repeatable counts for commit reachability, hashes, roll-ups, and writer agreement"
-        "run against committed evidence and a synthetic HEAD-tied good directory"
-        "committed set fails with 37/37, 73/115, 28, 27; synthetic good evidence passes"
+        "fixtures/gate_evidence/ is untracked; staged JSON under it fails the check"
+        "run gate_evidence_not_tracked.py; force-add a file and confirm failure; unstage"
+        "clean tree passes; force-add fails; umbrellas fail without in-tree child evidence"
         [.semantic, .provenance],
-      recovery := "keep the auditor nonfatal until evidence regeneration is owner-authorized",
+      recovery := "never re-commit evidence; keep the not-tracked check in cheap preflight",
       progress := .complete "bdc01b0" },
     { id := ew "spec.record-regeneration-observation",
       title := "record failed regeneration and performance repeatability",
@@ -378,7 +379,7 @@ def workItems : List WorkItem :=
         [.performance, .provenance, .resourceIsolation],
       recovery := "report regression or indeterminate variance; never substitute a frozen denominator or tune the threshold after observing failures",
       progress := .planned },
-    { id := ew "evidence.regenerate", title := "regenerate evidence at the shipped commit",
+    { id := ew "evidence.regenerate", title := "regenerate runtime evidence at the shipped commit",
       phase := .promote, authority := .evidence,
       closesFindings := [],
       dependsOn := [ew "perf.rebaseline"],
@@ -389,29 +390,29 @@ def workItems : List WorkItem :=
       verificationResources := [.metalGpu, .tmpNamespace, .evidenceStore],
       cost := 4, goalDistance := 0,
       validation := plannedValidation
-        "all 37 evidence files naming one shipped commit with recomputable hashes"
-        "after perf.rebaseline is promoted, run gates serially; retain red results; recompute every recorded hash; reject a partial snapshot"
-        "all 37 files come from their current scripts; commit equals the measured tree; all source, child, and baseline hashes resolve; L11 is not made green by threshold tuning"
+        "all 37 runtime evidence files naming one shipped commit with recomputable hashes"
+        "after perf.rebaseline is promoted, run gates serially; retain red results; recompute every recorded hash; reject a partial snapshot; never commit the JSON"
+        "all 37 files come from their current scripts; commit equals the measured tree; all source, child, and baseline hashes resolve; L11 is not made green by threshold tuning; git ls-files fixtures/gate_evidence is empty"
         [.provenance, .semantic, .humanReview],
-      recovery := "keep reproducible partial files as diagnostic history but do not promote the snapshot while any gate or provenance class remains red",
+      recovery := "keep reproducible partial files as diagnostic history but do not promote while any gate or provenance class remains red; never commit evidence",
       progress := .planned },
-    { id := ew "evidence.enforce-provenance", title := "make provenance audit a fatal release predicate",
+    { id := ew "evidence.enforce-provenance", title := "make runtime hash integrity a fatal release predicate",
       phase := .promote, authority := .evidence,
-      closesFindings := ["F-evidence-provenance"],
+      closesFindings := [],
       dependsOn := [ew "evidence.regenerate", ew "evidence.audit-tool"],
       runtimeScope := [rw "verify.evidence-integrity", rw "verify.evidence-audit"],
       touches := [.evidenceStore, .gateHarness],
-      writes := ["scripts/dev/evidence_provenance_audit.py", "scripts/gate.sh",
+      writes := ["scripts/dev/gate_evidence_not_tracked.py", "scripts/gate.sh",
         "scripts/lib/checks.sh"],
       authoringResources := [.sourceTree],
       verificationResources := [.evidenceStore],
       cost := 1, goalDistance := 0,
       validation := plannedValidation
-        "release entry points fail on any absent commit, unresolved hash, bad roll-up, or writer mismatch"
-        "run the audit after regeneration, then inject one defect from each class"
-        "clean evidence passes; all four mutations fail before release publication"
+        "release entry points fail on unresolved hash or bad roll-up; not-tracked check already fatal in devcheck"
+        "run hash integrity after regeneration, then inject one defect from each class"
+        "clean runtime evidence passes; mutations fail before release publication; re-tracked evidence fails not-tracked check"
         [.provenance, .semantic, .humanReview],
-      recovery := "do not make a known-red audit fatal before the owner-authorized regeneration",
+      recovery := "do not make hash integrity fatal before owner-authorized regeneration; keep not-tracked check always on",
       progress := .planned } ]
 
 private def observe
@@ -602,33 +603,33 @@ def growthCases : List Growth.Case :=
     { id := "G-evidence-provenance",
       findingIds := ["F-evidence-provenance"],
       observations := [
-        observe "verify.evidence-audit" "committed and synthetic evidence"
-          "the committed set fails with exact defect counts while HEAD-tied synthetic evidence passes"
-          "run scripts/dev/evidence_provenance_audit.py against both directories"
-          "commit/hash/roll-up/writer-agreement report",
-        observe "verify.evidence-integrity" "release evidence snapshot"
-          "every commit and hash resolves against the shipped tree"
-          "recompute source, child-evidence, baseline, and memo hashes"
-          "fatal structured provenance validation report"],
+        observe "verify.evidence-audit" "gate evidence stays untracked"
+          "fixtures/gate_evidence/ is gitignored; force-adding JSON fails the not-tracked check"
+          "run scripts/dev/gate_evidence_not_tracked.py; git add -f a file under the directory"
+          "pass on clean tree; fail naming the staged/tracked path",
+        observe "verify.evidence-integrity" "runtime evidence hash integrity"
+          "every recorded hash resolves against evidence produced in this tree"
+          "recompute source, child-evidence, baseline, and memo hashes after a serial sweep"
+          "fatal structured hash-integrity validation report"],
       evolutionWork := [ew "evidence.audit-tool",
         ew "spec.record-regeneration-observation", ew "evidence.regenerate",
         ew "evidence.enforce-provenance"],
       deltas := [
         delta "verify.evidence-audit" .improveObservability
           [.provenance, .observability] .missing .loadBearing
-          "turn the manual evidence audit into a calibrated repeatable capability",
+          "replace committed-evidence provenance audit with a not-tracked guard",
         delta "verify.evidence-integrity" .upgradeEvidence
           [.provenance, .observability] .bypassed .loadBearing
-          "after owner-authorized regeneration, make the known-good audit fatal"],
+          "after owner-authorized runtime regeneration, make hash integrity fatal"],
       stage := .selected,
       promotion := promote ["verify.evidence-audit", "verify.evidence-integrity",
           "spec.check-growth-loop"]
         [.provenance, .semantic, .humanReview]
-        "regenerated evidence passes the calibrated audit and release entry points enforce it"
-        "keep audit diagnostic-only until regeneration; discard any dirty or unresolved snapshot",
+        "runtime evidence passes hash integrity and release entry points enforce it; evidence remains untracked"
+        "keep hash integrity diagnostic-only until regeneration; never re-commit evidence",
       epistemic := .confirmed
-        "7c7dc0f retains 11 script-produced files at e90607f; the current audit still reports 26/37 absent commits, 76/115 unresolved hashes, 28 roll-up disagreements, and 17 writer mismatches"
-        "repeatable auditor calibrated to pass synthetic HEAD-tied evidence; the partial regeneration remains unpromoted" } ]
+        "committed gate evidence was retired; umbrella [[ -f ]] requires in-tree child runs; not-tracked check is load-bearing"
+        "historical 26/37 absent-commit defect closed by untracking; hash recomputation remains planned under evidence.enforce-provenance" } ]
 
 def itemIds : List Growth.EvolutionWorkId := workItems.map (·.id)
 

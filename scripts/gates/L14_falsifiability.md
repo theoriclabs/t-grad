@@ -4,7 +4,9 @@ The L14 umbrella is a roll-up. Strong-done predicates live in L14.A
 (Tensor.uop refactor + BUFFER-bit-identical regression), L14.B (view
 methods + Schedule.Rangeify wired + 16 pinned cases via parametric
 scalar + view-aware index UOps), and L14.C (20 random view chains
-under HEAD-derived seed, all 7 ops sampled at least once). The
+under HEAD-derived seed, all 7 ops sampled at least once). Evidence
+under `fixtures/gate_evidence/` is gitignored runtime output — a clean
+checkout fails the existence checks until children have run. The
 umbrella adds the following sabotage rejections:
 
 | # | Sabotage | What the gate catches it on | Verified |

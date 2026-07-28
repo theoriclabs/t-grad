@@ -15,6 +15,7 @@
 #   1. sources scripts/lib/checks.sh (universal preflight)
 #   2. verifies the gate's own predicates
 #   3. writes evidence to fixtures/gate_evidence/L<n>.json
+#      (runtime artifact, gitignored — never commit these files)
 #
 # Anti-shortcut design — see README.md. Key points:
 #   - GREEN_GATES below is the ratchet. It only grows. Removing entries

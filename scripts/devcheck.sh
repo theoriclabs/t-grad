@@ -2,8 +2,8 @@
 # Fast, non-authoritative development checks for agent edit loops.
 #
 # This script is intentionally NOT a gate. It does not write
-# fixtures/gate_evidence/*.json, does not verify falsifiability
-# tables, and does not replace `bash scripts/gate.sh`.
+# fixtures/gate_evidence/*.json (runtime-only; gitignored), does not
+# verify falsifiability tables, and does not replace `bash scripts/gate.sh`.
 #
 # Usage:
 #   bash scripts/devcheck.sh --all
@@ -72,6 +72,7 @@ cheap_preflight() {
   check_no_unsafe          || return 1
   check_no_gate_regression || return 1
   check_shell_continuation || return 1
+  check_gate_evidence_not_tracked || return 1
 
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/observe_pilot.py" --check-generated \
     || return 1

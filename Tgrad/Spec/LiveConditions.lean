@@ -49,9 +49,9 @@ def resourcePolicies : List ResourcePolicy :=
         "single physical GPU; process-global queue/cache in each runtime" },
     { resource := .evidenceStore, authoringCapacity := 1,
       verificationCapacity := 1,
-      observation := "git status fixtures/gate_evidence before and after",
-      basis := .confirmed "only the integrator writes committed evidence"
-        "gate.sh rewrites committed evidence JSON" } ]
+      observation := "git ls-files fixtures/gate_evidence; confirm directory is gitignored",
+      basis := .confirmed "gate evidence is a runtime artifact, never committed"
+        "check_gate_evidence_not_tracked; umbrellas require children to have run in-tree" } ]
 
 def policyFor? (resource : Resource) : Option ResourcePolicy :=
   resourcePolicies.find? (fun policy => policy.resource == resource)

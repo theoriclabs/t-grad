@@ -68,9 +68,8 @@ def productChannels : List Channel :=
         "f679bf7; fixtures hidden and 64x64 still byte-matched" },
     { name := "runtime-to-evidence", source := .metalRuntime,
       target := .evidenceStore, payload := .evidence,
-      contract := .tentative "gates write JSON evidence"
-        "gate scripts inspected"
-        "regenerate evidence at HEAD and verify every recorded hash" } ]
+      contract := .confirmed "gates write gitignored JSON evidence"
+        "fixtures/gate_evidence/ is runtime-only; umbrellas require in-tree children" } ]
 
 def channelsFrom (component : Component) : List Channel :=
   productChannels.filter (fun channel => channel.source == component)

@@ -89,7 +89,7 @@ bound everything below.
 | **No locks on device state** | `g_device`, `g_queue`, `g_lru`, `g_lru_count` have no mutex; `NSMutableDictionary` pipeline cache is not thread-safe | Correctness runs in *separate processes* are safe. Threads within one process are not. |
 | **141 hardcoded `/tmp/tgrad_*` paths** | `grep -rhoE '/tmp/tgrad_[a-z_.]+' scripts/` → 141 distinct, only 7 files use `mktemp` | Two concurrent gate/devcheck runs clobber each other. **Parallel implementation is safe; parallel verification is not.** |
 | **~239 MB `.lake` per worktree**, 3.5 GB free | `du -sh .lake` | Caps concurrent worktrees at ~3. Prefer shared-checkout + serialized builds over many worktrees. |
-| **Gates rewrite committed fixtures** | `scripts/gate.sh` writes `fixtures/gate_evidence/` | No agent may run `gate.sh` unsupervised. Verification uses `tgrad-tests` + targeted Python checks. |
+| **Gates write runtime evidence** | `scripts/gate.sh` writes gitignored `fixtures/gate_evidence/` | Evidence is per-sweep; never commit it. Umbrellas fail on clean checkouts until children run. Verification uses `tgrad-tests` + targeted Python checks when a full sweep is not appropriate. |
 
 **Design rule that follows:** parallelism is applied to *authoring*,
 not to *verification*. Agents write concurrently; a single integrator
@@ -378,16 +378,18 @@ accurate so the grep turns green.
 The checked graph therefore separates three items:
 
 ```text
-evidence.audit-tool [landed]
-perf.rebaseline -> evidence.regenerate -> evidence.enforce-provenance
+evidence.not-tracked-check [landed]
+perf.rebaseline -> evidence.regenerate-runtime -> evidence.enforce-hash-integrity
 ```
 
-Regeneration is an owner-authorized serial GPU operation that must produce all
-37 evidence files from one measured tree. The `7c7dc0f` tree is recorded as
-an abandoned candidate: its two gate repairs and 11 files are retained, but
+Committed gate evidence was retired: `fixtures/gate_evidence/` is gitignored and
+`check_gate_evidence_not_tracked` fails if it is re-tracked. Regeneration is an
+owner-authorized serial GPU operation that must produce runtime evidence for all
+37 gates from one measured tree. The `7c7dc0f` tree is recorded as
+an abandoned candidate: its two gate repairs are retained, but
 L11 stayed red and no partial snapshot was promoted. Only after the paired
-performance method is stable and complete regeneration succeeds does the
-one-line fatal integration become honest.
+performance method is stable and complete regeneration succeeds does hash
+integrity enforcement become honest.
 
 ## 7. Risks
 

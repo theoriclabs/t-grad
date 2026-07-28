@@ -152,18 +152,10 @@ bash scripts/check_no_tinygrad_deps.sh
 bash scripts/devcheck.sh --all
 ```
 
-Audit the committed evidence provenance separately:
-
-```sh
-python3 scripts/dev/evidence_provenance_audit.py
-```
-
-It currently exits nonzero by design. The partial serial regeneration at
-`7c7dc0f` produced 11 files from their current scripts at `e90607f`; 26/37
-still name an absent commit, 76/115 non-transient hashes are unresolved, 28
-roll-ups disagree, and 17 files use a host key their own gate script does not
-emit. The auditor becomes a fatal release predicate only after a complete
-serial regeneration passes.
+`devcheck` includes `check_gate_evidence_not_tracked`: `fixtures/gate_evidence/`
+must stay gitignored. Committed evidence made umbrella `[[ -f ]]` checks
+vacuous (satisfied on every clone without any child gate running). Re-tracking
+that directory fails the cheap preflight automatically.
 
 Release gates:
 
@@ -174,12 +166,11 @@ bash scripts/gate.sh
 ```
 
 `scripts/gate.sh` runs the historical 37-gate suite and writes evidence JSON to
-`fixtures/gate_evidence/`. Run it only serially: many scripts share fixed
-`/tmp/tgrad_*` paths and the performance cases share one GPU. The committed
-JSON is a mixed audit snapshot, not a release certificate for the current
-tree. Eleven early gates were regenerated honestly; the remaining 26 still
-name an absent commit, and the snapshot as a whole contains stale hashes and
-roll-ups. L11 remains deliberately red and its old evidence was not replaced.
+`fixtures/gate_evidence/` as a **per-sweep runtime artifact** (gitignored). Run
+it only serially: many scripts share fixed `/tmp/tgrad_*` paths and the
+performance cases share one GPU. Umbrella gates require their children to have
+already run in this working tree; a clean checkout has no evidence, so umbrellas
+fail until children produce it. That dependency is intentional.
 
 ## Performance Evidence
 
@@ -190,7 +181,8 @@ L7/L11/L12/L13_F ratios are not a valid kernel/runtime comparison:
 - tinygrad was measured without `TinyJit` while Tgrad used cached,
   pre-selected kernels;
 - the results compare live Tgrad measurements with frozen baselines;
-- the committed evidence hashes do not match the committed baselines;
+- historical committed evidence hashes (since retired from the tree) did not
+  match the committed baselines;
 - the smallest reported sweep ratios are impossible for byte-identical
   kernels dispatched with identical geometry.
 

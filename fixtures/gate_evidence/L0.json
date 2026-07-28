@@ -1,8 +1,0 @@
-{
-  "gate": "L0",
-  "ts_utc": "2026-07-27T06:42:09Z",
-  "host": "Harshs-MacBook-Air.local",
-  "platform": "Darwin 24.5.0 arm64",
-  "commit": "e90607f1b11da91535c11b0cff88d9d47a1be1ef",
-  "hashes": { "tgrad_tests_binary": "96b5d2eaee5ee10638c1e47096b2bd0dc3b384545aea77cf12cc4b5f2052e4b1" }
-}

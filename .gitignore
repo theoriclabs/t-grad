@@ -12,3 +12,6 @@ __pycache__/
 .venv-*/
 dist/
 *.egg-info/
+
+# Per-sweep gate evidence (runtime artifact; never commit)
+fixtures/gate_evidence/

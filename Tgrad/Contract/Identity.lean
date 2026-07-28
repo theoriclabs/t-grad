@@ -112,6 +112,31 @@ structure AdapterId where
   value : String
   deriving DecidableEq, BEq, Repr, Inhabited
 
+/-- Node identity inside a judging-input dependency graph. -/
+structure JudgingNodeId where
+  value : String
+  deriving DecidableEq, BEq, Repr, Inhabited
+
+/-- Exact Git commit identity used by freeze-integrity chronology. -/
+structure CommitId where
+  value : String
+  deriving DecidableEq, BEq, Repr, Inhabited
+
+/-- Promotion / rejection / abandonment cycle event identity. -/
+structure CycleEventId where
+  value : String
+  deriving DecidableEq, BEq, Repr, Inhabited
+
+/-- Blind/freeze protocol identity required for prospective chronology claims. -/
+structure BlindFreezeProtocolId where
+  value : String
+  deriving DecidableEq, BEq, Repr, Inhabited
+
+/-- Extractor/capture identity for an imported ancestry manifest. -/
+structure AncestryCaptureId where
+  value : String
+  deriving DecidableEq, BEq, Repr, Inhabited
+
 def TargetId.wellFormed (id : TargetId) : Bool := !id.value.trimAscii.isEmpty
 def SourceClosureId.wellFormed (id : SourceClosureId) : Bool := id.digest.wellFormed
 def ProfileId.wellFormed (id : ProfileId) : Bool := !id.value.trimAscii.isEmpty
@@ -144,6 +169,13 @@ def DerivedComputationId.wellFormed (id : DerivedComputationId) : Bool :=
 def ImportedSourceId.wellFormed (id : ImportedSourceId) : Bool :=
   !id.value.trimAscii.isEmpty
 def AdapterId.wellFormed (id : AdapterId) : Bool := !id.value.trimAscii.isEmpty
+def JudgingNodeId.wellFormed (id : JudgingNodeId) : Bool := !id.value.trimAscii.isEmpty
+def CommitId.wellFormed (id : CommitId) : Bool := !id.value.trimAscii.isEmpty
+def CycleEventId.wellFormed (id : CycleEventId) : Bool := !id.value.trimAscii.isEmpty
+def BlindFreezeProtocolId.wellFormed (id : BlindFreezeProtocolId) : Bool :=
+  !id.value.trimAscii.isEmpty
+def AncestryCaptureId.wellFormed (id : AncestryCaptureId) : Bool :=
+  !id.value.trimAscii.isEmpty
 
 inductive TargetDisposition where
   | extractedCandidate

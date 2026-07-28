@@ -1,8 +1,13 @@
+import Tgrad.Contract.Identity
+
 /-! # Tgrad.Contract.Assurance — graded assurance, provenance, and profile policy
 
 This is the mechanical-completion assurance kernel (queue item
-`mechanics.assurance-kernel-v1`). It belongs to the `TgradSpec` root only.
-Product/runtime modules must not import it.
+`mechanics.assurance-kernel-v1`), revised by `mechanics.completion-schema` so
+identity carriers and profile policies are content-addressable.
+
+It belongs to the `TgradSpec` root only. Product/runtime modules must not
+import it.
 
 The kernel deliberately separates:
 
@@ -17,80 +22,58 @@ declared acceptance rule.
 
 namespace Tgrad.Contract
 
-/-! ## Identity carriers for assurance references
-
-Full contract identities land in later M0 modules. These carriers are enough
-for the kernel to require typed references instead of bare Booleans.
--/
+/-! ## Identity carriers for assurance references -/
 
 structure BlockerRef where
-  id : String
+  id : BlockerId
   kind : String
   deriving DecidableEq, BEq, Repr, Inhabited
 
 structure CounterexampleRef where
-  id : String
-  artifactHash : String
+  id : CounterexampleId
+  artifact : ContentDigest
   deriving DecidableEq, BEq, Repr, Inhabited
 
 /-- Bound search evidence: generator, closure, seeds, budget and calibration
 identity. Finite survival is not a proof. -/
 structure SearchCertificateRef where
-  id : String
+  id : SearchCertificateId
   generatorId : String
-  sourceClosureHash : String
-  seedsHash : String
+  sourceClosure : SourceClosureId
+  seeds : ContentDigest
   budgetDesc : String
-  partitionHash : String
+  partitions : ContentDigest
   divergenceCount : Nat
-  calibrationId : String
-  deriving DecidableEq, BEq, Repr, Inhabited
-
-structure JudgmentRef where
-  id : String
-  authority : String
-  scopeHash : String
-  invalidationHash : String
-  deriving DecidableEq, BEq, Repr, Inhabited
-
-structure ProofRef where
-  id : String
-  theoremName : String
+  calibration : CalibrationId
   deriving DecidableEq, BEq, Repr, Inhabited
 
 structure ImportedSourceRef where
-  id : String
-  sourceClosureHash : String
+  id : ImportedSourceId
+  sourceClosure : SourceClosureId
   deriving DecidableEq, BEq, Repr, Inhabited
 
 structure DerivedComputationRef where
-  id : String
-  verifierId : String
-  inputClosureHash : String
-  deriving DecidableEq, BEq, Repr, Inhabited
-
-structure CalibrationCampaignRef where
-  id : String
-  faultModel : String
-  campaignHash : String
+  id : DerivedComputationId
+  verifier : ValidatorId
+  inputClosure : ContentDigest
   deriving DecidableEq, BEq, Repr, Inhabited
 
 def BlockerRef.wellFormed (r : BlockerRef) : Bool :=
-  !r.id.trimAscii.isEmpty && !r.kind.trimAscii.isEmpty
+  r.id.wellFormed && !r.kind.trimAscii.isEmpty
 
 def CounterexampleRef.wellFormed (r : CounterexampleRef) : Bool :=
-  !r.id.trimAscii.isEmpty && !r.artifactHash.trimAscii.isEmpty
+  r.id.wellFormed && r.artifact.wellFormed
 
 /-- Structural validity of a search-run record. A divergent run remains valid
 evidence; it simply does not establish survival. -/
 def SearchCertificateRef.wellFormed (r : SearchCertificateRef) : Bool :=
-  !r.id.trimAscii.isEmpty &&
+  r.id.wellFormed &&
   !r.generatorId.trimAscii.isEmpty &&
-  !r.sourceClosureHash.trimAscii.isEmpty &&
-  !r.seedsHash.trimAscii.isEmpty &&
+  r.sourceClosure.wellFormed &&
+  r.seeds.wellFormed &&
   !r.budgetDesc.trimAscii.isEmpty &&
-  !r.partitionHash.trimAscii.isEmpty &&
-  !r.calibrationId.trimAscii.isEmpty
+  r.partitions.wellFormed &&
+  r.calibration.wellFormed
 
 /-- Survival eligibility: structurally valid and zero recorded divergences. -/
 def SearchCertificateRef.supportsSurvival (r : SearchCertificateRef) : Bool :=
@@ -100,27 +83,11 @@ def SearchCertificateRef.supportsSurvival (r : SearchCertificateRef) : Bool :=
 def SearchCertificateRef.establishesNoDivergence (r : SearchCertificateRef) : Bool :=
   r.supportsSurvival
 
-def JudgmentRef.wellFormed (r : JudgmentRef) : Bool :=
-  !r.id.trimAscii.isEmpty &&
-  !r.authority.trimAscii.isEmpty &&
-  !r.scopeHash.trimAscii.isEmpty &&
-  !r.invalidationHash.trimAscii.isEmpty
-
-def ProofRef.wellFormed (r : ProofRef) : Bool :=
-  !r.id.trimAscii.isEmpty && !r.theoremName.trimAscii.isEmpty
-
 def ImportedSourceRef.wellFormed (r : ImportedSourceRef) : Bool :=
-  !r.id.trimAscii.isEmpty && !r.sourceClosureHash.trimAscii.isEmpty
+  r.id.wellFormed && r.sourceClosure.wellFormed
 
 def DerivedComputationRef.wellFormed (r : DerivedComputationRef) : Bool :=
-  !r.id.trimAscii.isEmpty &&
-  !r.verifierId.trimAscii.isEmpty &&
-  !r.inputClosureHash.trimAscii.isEmpty
-
-def CalibrationCampaignRef.wellFormed (r : CalibrationCampaignRef) : Bool :=
-  !r.id.trimAscii.isEmpty &&
-  !r.faultModel.trimAscii.isEmpty &&
-  !r.campaignHash.trimAscii.isEmpty
+  r.id.wellFormed && r.verifier.wellFormed && r.inputClosure.wellFormed
 
 /-! ## Assurance states
 
@@ -133,8 +100,8 @@ inductive AssuranceState where
   | blocked (reference : BlockerRef)
   | refuted (counterexample : CounterexampleRef)
   | survivedSearch (certificate : SearchCertificateRef)
-  | acceptedBy (judgment : JudgmentRef)
-  | proved (proof : ProofRef)
+  | acceptedBy (judgment : JudgmentIdentity)
+  | proved (proof : ProofIdentity)
   deriving DecidableEq, BEq, Repr, Inhabited
 
 /-- Constructor tag only. Used by acceptance predicates so policies name
@@ -174,8 +141,8 @@ unclassified constructor.
 inductive FieldProvenance where
   | imported (source : ImportedSourceRef)
   | derived (computation : DerivedComputationRef)
-  | calibrated (campaign : CalibrationCampaignRef)
-  | judgment (judgment : JudgmentRef)
+  | calibrated (campaign : CalibrationIdentity)
+  | judgment (judgment : JudgmentIdentity)
   deriving DecidableEq, BEq, Repr, Inhabited
 
 def FieldProvenance.wellFormed : FieldProvenance → Bool
@@ -209,6 +176,9 @@ def ClaimField.hasAdmissibleProvenance (field : ClaimField) : Bool :=
 Acceptance rules are named predicates over constructor tags. A profile may
 admit proof for one class and bounded search for another; that does not define
 a lattice where search is “below” proof or judgment is “below” search.
+
+Policies are a finite, total, nodup association list so they admit content
+identity. There is no function field.
 -/
 
 inductive ObligationClass where
@@ -218,6 +188,24 @@ inductive ObligationClass where
   | scenarioObservation
   | performanceQualification
   deriving DecidableEq, BEq, Repr, Inhabited
+
+def allObligationClasses : List ObligationClass :=
+  [.adequacy, .catalogClosure, .requirementDischarge, .scenarioObservation,
+   .performanceQualification]
+
+def ObligationClass.tag : ObligationClass → String
+  | .adequacy => "adequacy"
+  | .catalogClosure => "catalogClosure"
+  | .requirementDischarge => "requirementDischarge"
+  | .scenarioObservation => "scenarioObservation"
+  | .performanceQualification => "performanceQualification"
+
+def ObligationClass.isSemanticCompatibility : ObligationClass → Bool
+  | .adequacy => true
+  | .requirementDischarge => true
+  | .scenarioObservation => true
+  | .catalogClosure => false
+  | .performanceQualification => false
 
 /-- Explicit admission sets. Each constructor lists which assurance grades it
 accepts; omitted constructors fail the rule. -/
@@ -233,6 +221,12 @@ inductive AcceptanceRule where
   | releaseEligible
   deriving DecidableEq, BEq, Repr, Inhabited
 
+def AcceptanceRule.tag : AcceptanceRule → String
+  | .requireProof => "requireProof"
+  | .acceptBoundedSearch => "acceptBoundedSearch"
+  | .acceptJudgment => "acceptJudgment"
+  | .releaseEligible => "releaseEligible"
+
 def AcceptanceRule.admitsConstructor
     (rule : AcceptanceRule) (ctor : AssuranceConstructor) : Bool :=
   match rule with
@@ -245,14 +239,50 @@ def AcceptanceRule.admitsConstructor
 def AcceptanceRule.admits (rule : AcceptanceRule) (state : AssuranceState) : Bool :=
   state.wellFormed && rule.admitsConstructor state.constructor
 
+structure ObligationRule where
+  obligationClass : ObligationClass
+  rule : AcceptanceRule
+  deriving DecidableEq, BEq, Repr, Inhabited
+
 structure ProfileAssurancePolicy where
-  profileId : String
+  profileId : ProfileId
   version : Nat
-  ruleFor : ObligationClass → AcceptanceRule
-  deriving Inhabited
+  rules : List ObligationRule
+  deriving DecidableEq, BEq, Repr, Inhabited
+
+def ProfileAssurancePolicy.classes (policy : ProfileAssurancePolicy) : List ObligationClass :=
+  policy.rules.map (·.obligationClass)
 
 def ProfileAssurancePolicy.wellFormed (policy : ProfileAssurancePolicy) : Bool :=
-  !policy.profileId.trimAscii.isEmpty && policy.version > 0
+  policy.profileId.wellFormed &&
+  policy.version > 0 &&
+  listNodup policy.classes &&
+  listSetEq policy.classes allObligationClasses
+
+def ProfileAssurancePolicy.ruleFor?
+    (policy : ProfileAssurancePolicy) (cls : ObligationClass) : Option AcceptanceRule :=
+  (policy.rules.find? (fun entry => entry.obligationClass == cls)).map (·.rule)
+
+/-- Total lookup; well-formed policies always hit. Ill-formed policies yield none. -/
+def ProfileAssurancePolicy.ruleFor
+    (policy : ProfileAssurancePolicy) (cls : ObligationClass) : Option AcceptanceRule :=
+  if policy.wellFormed then policy.ruleFor? cls else none
+
+/-- Canonical content identity: profile, version, and sorted class→rule pairs. -/
+def ProfileAssurancePolicy.contentId (policy : ProfileAssurancePolicy) : ContentDigest :=
+  let sorted :=
+    policy.rules.mergeSort (fun a b => a.obligationClass.tag ≤ b.obligationClass.tag)
+  let body :=
+    String.intercalate ";"
+      (sorted.map fun entry => s!"{entry.obligationClass.tag}={entry.rule.tag}")
+  digest s!"{policy.profileId.value}|v{policy.version}|{body}"
+
+def uniformPolicy (profileId : ProfileId) (version : Nat) (rule : AcceptanceRule) :
+    ProfileAssurancePolicy :=
+  { profileId := profileId,
+    version := version,
+    rules := allObligationClasses.map fun cls =>
+      { obligationClass := cls, rule := rule } }
 
 /-- Derived policy decision. The verdict is computed from the retained policy,
 class and state; it is not an independently authored evidence field. -/
@@ -267,16 +297,16 @@ structure PolicyDecision where
   policy : ProfileAssurancePolicy
   obligationClass : ObligationClass
   state : AssuranceState
-  deriving Inhabited
+  deriving DecidableEq, BEq, Repr, Inhabited
 
-def PolicyDecision.rule (decision : PolicyDecision) : AcceptanceRule :=
+def PolicyDecision.rule? (decision : PolicyDecision) : Option AcceptanceRule :=
   decision.policy.ruleFor decision.obligationClass
 
 def PolicyDecision.verdict (decision : PolicyDecision) : PolicyVerdict :=
-  if decision.policy.wellFormed && decision.rule.admits decision.state then
-    .meets
-  else
-    .fails
+  match decision.rule? with
+  | some rule =>
+      if decision.policy.wellFormed && rule.admits decision.state then .meets else .fails
+  | none => .fails
 
 def PolicyDecision.meets (decision : PolicyDecision) : Bool :=
   decision.verdict == .meets
@@ -295,71 +325,63 @@ def ProfileAssurancePolicy.meets
 
 /-! ## Kernel fixtures used by the executable checks -/
 
-def sampleProof : ProofRef :=
-  { id := "proof.adeq.demo", theoremName := "D_and_S_entails_R" }
+def sampleProof : ProofIdentity :=
+  { id := { value := "proof.adeq.demo" }, theoremName := "D_and_S_entails_R" }
 
 def sampleSearch : SearchCertificateRef :=
-  { id := "search.scenario.demo",
+  { id := { value := "search.scenario.demo" },
     generatorId := "gen.scenario.v1",
-    sourceClosureHash := "sc-hash",
-    seedsHash := "seeds-hash",
+    sourceClosure := { digest := digest "sc-hash" },
+    seeds := digest "seeds-hash",
     budgetDesc := "seeds=8,cases<=256",
-    partitionHash := "part-hash",
+    partitions := digest "part-hash",
     divergenceCount := 0,
-    calibrationId := "cal.omit-ops-mixin" }
+    calibration := { value := "cal.omit-ops-mixin" } }
 
-def sampleJudgment : JudgmentRef :=
-  { id := "judgment.scope.demo",
+def sampleJudgment : JudgmentIdentity :=
+  { id := { value := "judgment.scope.demo" },
     authority := "owner",
-    scopeHash := "scope-hash",
-    invalidationHash := "inv-hash" }
+    scope := digest "scope-hash",
+    invalidation := digest "inv-hash" }
 
 def sampleBlocker : BlockerRef :=
-  { id := "blocker.env.metal", kind := "environment" }
+  { id := { value := "blocker.env.metal" }, kind := "environment" }
 
 def sampleCounterexample : CounterexampleRef :=
-  { id := "cx.mutant.survived", artifactHash := "cx-hash" }
+  { id := { value := "cx.mutant.survived" }, artifact := digest "cx-hash" }
 
 def sampleImported : ImportedSourceRef :=
-  { id := "import.upstream.closure", sourceClosureHash := "src-hash" }
+  { id := { value := "import.upstream.closure" },
+    sourceClosure := { digest := digest "src-hash" } }
 
 def sampleDerived : DerivedComputationRef :=
-  { id := "derived.status",
-    verifierId := "verifier.pilot-status",
-    inputClosureHash := "in-hash" }
+  { id := { value := "derived.status" },
+    verifier := { value := "verifier.pilot-status" },
+    inputClosure := digest "in-hash" }
 
-def sampleCalibration : CalibrationCampaignRef :=
-  { id := "cal.helpers",
-    faultModel := "missing-public-name",
-    campaignHash := "cal-hash" }
+def sampleCalibration : CalibrationIdentity :=
+  { id := { value := "cal.helpers" },
+    campaign := digest "cal-hash",
+    faultModel := "missing-public-name" }
 
 /-- Proof-required profile: adequacy demands a proof reference. -/
-def proofRequiredPolicy : ProfileAssurancePolicy where
-  profileId := "profile.proof-required.demo"
-  version := 1
-  ruleFor := fun
-    | .adequacy => .requireProof
-    | .catalogClosure => .requireProof
-    | .requirementDischarge => .requireProof
-    | .scenarioObservation => .requireProof
-    | .performanceQualification => .requireProof
+def proofRequiredPolicy : ProfileAssurancePolicy :=
+  uniformPolicy { value := "profile.proof-required.demo" } 1 .requireProof
 
 /-- Bounded-search profile: scenario observation admits search certificates. -/
 def boundedSearchPolicy : ProfileAssurancePolicy where
-  profileId := "profile.bounded-search.demo"
+  profileId := { value := "profile.bounded-search.demo" }
   version := 1
-  ruleFor := fun
-    | .scenarioObservation => .acceptBoundedSearch
-    | .adequacy => .requireProof
-    | .catalogClosure => .requireProof
-    | .requirementDischarge => .requireProof
-    | .performanceQualification => .requireProof
+  rules :=
+    allObligationClasses.map fun cls =>
+      { obligationClass := cls,
+        rule :=
+          if cls == .scenarioObservation then .acceptBoundedSearch
+          else .requireProof }
 
 /-- Release-eligible profile: positive grades only; unresolved states fail. -/
-def releaseEligiblePolicy : ProfileAssurancePolicy where
-  profileId := "profile.release-eligible.demo"
-  version := 1
-  ruleFor := fun _ => .releaseEligible
+def releaseEligiblePolicy : ProfileAssurancePolicy :=
+  uniformPolicy { value := "profile.release-eligible.demo" } 1 .releaseEligible
 
 def claimFieldsDemo : List ClaimField :=
   [ { name := "targetRevision", provenance := .imported sampleImported },
@@ -420,9 +442,15 @@ example :
     (proofRequiredPolicy.decide .adequacy (.survivedSearch sampleSearch)).verdict = .fails := by
   native_decide
 
+theorem proof_required_policy_is_content_identified :
+    proofRequiredPolicy.wellFormed = true ∧
+    proofRequiredPolicy.contentId =
+      digest "profile.proof-required.demo|v1|adequacy=requireProof;catalogClosure=requireProof;performanceQualification=requireProof;requirementDischarge=requireProof;scenarioObservation=requireProof" := by
+  native_decide
+
 /-! ## Negative checks: malformed references cannot meet policy -/
 
-def emptyProof : ProofRef := default
+def emptyProof : ProofIdentity := default
 
 def divergentSearch : SearchCertificateRef :=
   { sampleSearch with divergenceCount := 1 }
@@ -430,10 +458,8 @@ def divergentSearch : SearchCertificateRef :=
 def malformedImportedField : ClaimField :=
   { name := "targetRevision", provenance := .imported default }
 
-def zeroVersionPolicy : ProfileAssurancePolicy where
-  profileId := "profile.zero-version.demo"
-  version := 0
-  ruleFor := fun _ => .requireProof
+def zeroVersionPolicy : ProfileAssurancePolicy :=
+  uniformPolicy { value := "profile.zero-version.demo" } 0 .requireProof
 
 theorem default_proof_does_not_satisfy_proof_required :
     proofRequiredPolicy.meets .adequacy (.proved emptyProof) = false := by

@@ -666,12 +666,16 @@ class Tensor:
         for d in (self._dtype, other._dtype):
             if d not in _SUPPORTED_DTYPES:
                 raise TgradTypeError(f"{name}: unsupported dtype {d!r}")
-        # Broadcasting is resolved in Lean via View.expand (stride 0 on the
-        # stretched axis). Only the numpy-style legality rule is checked
-        # here so the error names the shapes.
-        if len(self._shape) != 2 or len(other._shape) != 2:
-            raise NotInLeanScope(f"{name}: rank-2 only")
-        for x, y in zip(self._shape, other._shape):
+        # Validate numpy-style right-aligned broadcasting at the public
+        # boundary so invalid shapes receive a stable, informative error.
+        # Lean independently pads the shorter View with leading stride-zero
+        # size-one axes before lowering the graph.
+        rank = max(len(self._shape), len(other._shape))
+        if rank > 3:
+            raise NotInLeanScope(f"{name}: ranks above 3 are not supported")
+        a_shape = (1,) * (rank - len(self._shape)) + self._shape
+        b_shape = (1,) * (rank - len(other._shape)) + other._shape
+        for x, y in zip(a_shape, b_shape):
             if x != y and x != 1 and y != 1:
                 raise TgradTypeError(
                     f"{name}: shapes {self._shape} and {other._shape} are not "
@@ -683,11 +687,13 @@ class Tensor:
         if out_handle == 0:
             raise TgradError(f"tgrad_realize({name}) failed for {self._shape}")
         out_buf = _lib.tgrad_tensor_raw_buffer(out_handle)
-        m = _lib.tgrad_tensor_shape_dim(out_handle, 0)
-        n = _lib.tgrad_tensor_shape_dim(out_handle, 1)
+        out_rank = int(_lib.tgrad_tensor_rank(out_handle))
+        out_shape = tuple(
+            int(_lib.tgrad_tensor_shape_dim(out_handle, i))
+            for i in range(out_rank))
         out_dtype = _dtype_of_handle(out_handle)
         return Tensor._from_buffer(
-            out_buf, m * n * _DTYPE_BYTES[out_dtype], (m, n), out_dtype,
+            out_buf, _numel(out_shape) * _DTYPE_BYTES[out_dtype], out_shape, out_dtype,
             handle=out_handle, owns_buf=True, base=None)
 
     def __add__(self, other: "Tensor") -> "Tensor":

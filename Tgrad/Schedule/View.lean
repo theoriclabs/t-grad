@@ -51,6 +51,27 @@ def rank (v : View) : Nat := v.shape.length
 
 def numel (v : View) : Nat := v.shape.foldl (· * ·) 1
 
+/-- Prepend synthetic size-one axes so operands of different ranks can be
+right-aligned for broadcasting. Synthetic axes have stride zero: moving along
+one must continue to address the sole underlying element. -/
+def padLeftToRank (v : View) (targetRank : Nat) : Option View :=
+  if targetRank < v.rank then none
+  else
+    let padding := targetRank - v.rank
+    some
+      { shape := List.replicate padding 1 ++ v.shape
+        strides := List.replicate padding 0 ++ v.strides
+        offset := v.offset }
+
+theorem padLeftToRank_preserves_parallel_axes (v : View) (targetRank : Nat)
+    (hParallel : v.shape.length = v.strides.length) :
+    ∀ padded, v.padLeftToRank targetRank = some padded →
+      padded.shape.length = padded.strides.length := by
+  intro padded hPadded
+  simp [padLeftToRank, View.rank] at hPadded
+  rw [← hPadded.2]
+  simp [hParallel]
+
 /-- True when `v` is exactly what `contiguous v.shape` would produce.
     Reshape is only sound on such a view. -/
 def isContiguous (v : View) : Bool :=

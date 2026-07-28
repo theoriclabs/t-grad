@@ -632,11 +632,11 @@ def tensorDtype (h : UInt64) : IO UInt8 := do
     different view chains never collide on one kernel. -/
 initialize libCacheEw : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
-private def compileOrCacheGetEw (op : BinOp) (rows cols : Nat)
+private def compileOrCacheGetEw (op : BinOp) (outShape : List Nat)
     (aIdx bIdx : UOp) (aTy bTy outTy : Tgrad.Dtype) :
     IO (Option (UInt64 × String)) := do
   let tag := toString (String.hash (aIdx.renderIndexExpr ++ "|" ++ bIdx.renderIndexExpr))
-  match Tgrad.Renderer.Metal.elementwiseKernelDecl op rows cols aIdx bIdx
+  match Tgrad.Renderer.Metal.elementwiseKernelDeclRanked op outShape aIdx bIdx
           aTy bTy outTy tag with
   | none => return none
   | some decl =>
@@ -658,38 +658,43 @@ private def runElementwise (op : BinOp) (a b : Tgrad.Tensor) :
     IO (Option Tgrad.Tensor) := do
   let aShape := a.shape
   let bShape := b.shape
-  if aShape.length != 2 || bShape.length != 2 then return none
+  let rank := Nat.max aShape.length bShape.length
+  if rank > 3 then return none
   -- Broadcast to a common extent. `View.expand` gives the smaller
   -- operand stride 0 on the stretched axis, so the kernel is unchanged
   -- and a broadcast operand costs no extra code — the same reason views
   -- are free here.
   let outShape := Tgrad.broadcast aShape bShape
-  match outShape[0]?, outShape[1]?,
-        (Tgrad.Schedule.viewOfUOp a.uop).bind (fun v => v.expand outShape),
-        (Tgrad.Schedule.viewOfUOp b.uop).bind (fun v => v.expand outShape) with
-  | some rows, some cols, some va, some vb => do
-    let vars : List UOp := [.var "gidx0" .int32_, .var "gidx1" .int32_]
+  match ((Tgrad.Schedule.viewOfUOp a.uop).bind (fun v => v.padLeftToRank rank)).bind
+          (fun v => v.expand outShape),
+        ((Tgrad.Schedule.viewOfUOp b.uop).bind (fun v => v.padLeftToRank rank)).bind
+          (fun v => v.expand outShape) with
+  | some va, some vb => do
+    let vars : List UOp := (List.range rank).map (fun i => .var s!"gidx{i}" .int32_)
     let aIdx := Tgrad.Schedule.View.indexOf va vars
     let bIdx := Tgrad.Schedule.View.indexOf vb vars
     -- The promoted result type comes from the dtype lattice. `Dtype.lub`
     -- has existed and been correct since L1 with no caller outside the
     -- JSON table emitters; this is its first load-bearing use.
     let outTy := Tgrad.Dtype.lub a.dtype b.dtype
-    match (← compileOrCacheGetEw op rows cols aIdx bIdx a.dtype b.dtype outTy) with
+    match (← compileOrCacheGetEw op outShape aIdx bIdx a.dtype b.dtype outTy) with
     | none => return none
     | some (lib, fnName) => do
-      let outBytes := rows * cols * outTy.sizeBytes
+      let outBytes := Tgrad.numel outShape * outTy.sizeBytes
       let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
       if outBuf == 0 then return none
+      let dx := (outShape[0]?).getD 1
+      let dy := (outShape[1]?).getD 1
+      let dz := (outShape[2]?).getD 1
       let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName
         #[outBuf, a.buffer.raw, b.buffer.raw]
-        (USize.ofNat rows) (USize.ofNat cols) 1 1 1 1
+        (USize.ofNat dx) (USize.ofNat dy) (USize.ofNat dz) 1 1 1
       if rc != 0 then
         Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
         return none
       pure (some (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
-                  [rows, cols] outTy))
-  | _, _, _, _ => return none
+                  outShape outTy))
+  | _, _ => return none
 
 
 initialize libCacheRed : IO.Ref (List (String × UInt64)) ← IO.mkRef []

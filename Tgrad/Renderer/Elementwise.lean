@@ -19,9 +19,9 @@ import Tgrad.Schedule.View
   before adding more ops specially: the operator is a table row, and
   everything expensive is shared.
 
-  Scope: rank-2, same output shape, one dtype. Broadcasting between
-  differently-shaped operands is a `View.expand` away but is not wired
-  until the dtype/promotion step, so it is rejected rather than guessed.
+  Scope: rank 0 through 3, matching Metal's dispatch dimensionality and the
+  current public Tensor constructor. Differently-ranked operands are padded
+  on the left with stride-zero size-one axes before `View.expand`.
 -/
 namespace Tgrad
 namespace Renderer
@@ -60,24 +60,30 @@ def elementwiseOpName : BinOp → String
   | .mul => "mul"
   | _    => "unsupported"
 
-/-- Kernel for `out = a OP b` over `rows x cols`, with per-operand
-    index expressions so either side may be an arbitrary view.
+/-- MSL coordinate component for one of Metal's three grid axes. -/
+private def gridComponent : Nat → String
+  | 0 => "gid.x"
+  | 1 => "gid.y"
+  | _ => "gid.z"
 
-    `gidx0` walks rows and `gidx1` walks columns, matching the
-    convention `Pipeline.viewIndexUOpForA/B` already emit, so the same
-    `View`-derived index UOps work unchanged. -/
-def elementwiseKernelDecl (op : BinOp) (rows cols : Nat)
+private def shapeTag (shape : List Nat) : String :=
+  if shape.isEmpty then "scalar" else String.intercalate "x" (shape.map toString)
+
+/-- Kernel for `out = a OP b` over a rank-0-through-3 output shape, with
+per-operand index expressions so either side may be an arbitrary view. -/
+def elementwiseKernelDeclRanked (op : BinOp) (outShape : List Nat)
     (aIdx bIdx : UOp) (aTy bTy outTy : Dtype) (tag : String) : Option KernelDecl :=
+  if outShape.length > 3 then none else
   match elementwiseOpStr op, mslScalarType aTy, mslScalarType bTy,
         mslScalarType outTy with
   | some opStr, some aS, some bS, some outS =>
-    let outIdx : UOp :=
-      .binop .add
-        (.binop .mul (.var "gidx0" .int32_)
-                     (.const .int32_ (.i (Int.ofNat cols))) .int32_)
-        (.var "gidx1" .int32_) .int32_
+    let vars := (List.range outShape.length).map (fun i =>
+      UOp.var s!"gidx{i}" .int32_)
+    let coordDecls := (List.range outShape.length).map (fun i =>
+      Stmt.declInt s!"gidx{i}" (gridComponent i) ((outShape[i]?).map toString))
+    let outIdx := Schedule.View.indexOf (Schedule.View.contiguous outShape) vars
     some
-      { name     := s!"ew_{elementwiseOpName op}_{aTy.toStr}_{bTy.toStr}_{outTy.toStr}_{tag}_{rows}x{cols}",
+      { name     := s!"ew_{elementwiseOpName op}_{aTy.toStr}_{bTy.toStr}_{outTy.toStr}_{tag}_{shapeTag outShape}",
         wmmaArgs := [],
         args     := [
           .buffer { qualifier := "device", baseType := outS, name := "data0" },
@@ -86,9 +92,7 @@ def elementwiseKernelDecl (op : BinOp) (rows cols : Nat)
           .attr   { baseType := "uint3", name := "gid",
                     attrStr := "[[threadgroup_position_in_grid]]" },
         ],
-        body     := [
-          .declInt "gidx0" "gid.x" (some s!"{rows}"),
-          .declInt "gidx1" "gid.y" (some s!"{cols}"),
+        body     := coordDecls ++ [
           .loadIndexed s!"{aS} val0" "data1" aIdx,
           .loadIndexed s!"{bS} val1" "data2" bIdx,
           -- Compute in fp32 and let `storeIndexed` apply the bf16 cast,
@@ -100,6 +104,11 @@ def elementwiseKernelDecl (op : BinOp) (rows cols : Nat)
         ],
         trailingNewline := false }
   | _, _, _, _ => none
+
+/-- Backward-compatible rank-2 entry used by existing callers and theorems. -/
+def elementwiseKernelDecl (op : BinOp) (rows cols : Nat)
+    (aIdx bIdx : UOp) (aTy bTy outTy : Dtype) (tag : String) : Option KernelDecl :=
+  elementwiseKernelDeclRanked op [rows, cols] aIdx bIdx aTy bTy outTy tag
 
 
 /-- **Regression obligation for a bug that shipped in this file.**

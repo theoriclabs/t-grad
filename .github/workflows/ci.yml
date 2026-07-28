@@ -44,6 +44,12 @@ jobs:
           bash scripts/check_no_tinygrad_deps.sh
           python -m build
 
+      - name: Authenticate source closure (Python 3.12)
+        run: |
+          set -euxo pipefail
+          python scripts/parity/ensure_oracle.py
+          python scripts/contract/generate_source_closure.py --check
+
       - name: Smoke tests
         run: |
           set -euxo pipefail

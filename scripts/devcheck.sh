@@ -74,6 +74,13 @@ cheap_preflight() {
   check_shell_continuation || return 1
   check_real_chronology   || return 1
 
+  # Source-closure pure/synthetic tests remain useful without a durable
+  # foreign checkout; their verbose runner reports any live-only skips and
+  # refuses to succeed if test discovery ever falls to zero.
+  run_cmd "$PY" -m scripts.contract.test_source_closure || return 1
+  run_cmd "$PY" "$TGRAD_DIR/scripts/contract/generate_source_closure.py" \
+    --check-projection || return 1
+
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/observe_pilot.py" --check-generated \
     || return 1
   run_cmd "$PY" "$TGRAD_DIR/scripts/spec/generate_broadcast_add_manifest.py" \

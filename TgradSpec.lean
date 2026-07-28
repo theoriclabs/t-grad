@@ -4,6 +4,8 @@ import Tgrad.Contract.Assurance
 import Tgrad.Contract.Completion
 import Tgrad.Contract.Chronology
 import Tgrad.Contract.GeneratedClaim
+import Tgrad.Contract.SourceClosure
+import Tgrad.Contract.SourceClosureGenerated
 import Tgrad.Spec.Epistemic
 import Tgrad.Spec.Architecture
 import Tgrad.Spec.Findings

@@ -280,6 +280,17 @@ def _numel(shape: tuple[int, ...]) -> int:
     return n
 
 
+def _argfix(*x):
+    """Match tinygrad.helpers.argfix: a lone tuple/list is the shape;
+    otherwise the varargs are the shape. ``ones((1,3))`` and ``ones(1,3)``
+    are both valid; ``ones((1,3), 2)`` raises ValueError."""
+    if x and x[0].__class__ in (tuple, list):
+        if len(x) != 1:
+            raise ValueError(f"bad arg {x}")
+        return tuple(x[0])
+    return x
+
+
 # L13.C+ scope: arbitrary 2D operand shapes are accepted. The
 # concrete shape support per matmul `(M, K) @ (K, N)` is decided at
 # __matmul__ time:
@@ -467,6 +478,46 @@ class Tensor:
         tensor = cls.__new__(cls)
         tensor._init_from_numpy(np.asarray(arr), dtype)
         return tensor
+
+    @classmethod
+    def full(cls, shape, fill_value, dtype: str | None = None, **kwargs) -> "Tensor":
+        """Create a tensor filled with ``fill_value``.
+
+        Matches upstream ``Tensor.full`` shape handling via ``_argfix``.
+        Default dtype is ``"f32"`` (upstream ``dtypes.default_float``).
+        Only ``dtype`` is accepted among kwargs — unknown keys (e.g.
+        ``device=``) raise rather than being silently ignored.
+
+        Scalar shape ``()`` is supported (one element). A zero-sized
+        dimension is rejected by the existing materialization path
+        (``NotInLeanScope``): Tgrad does not allocate empty buffers.
+        """
+        if kwargs:
+            raise TypeError(
+                f"Tensor.full: unsupported keyword argument(s) "
+                f"{sorted(kwargs)}; Tgrad accepts only dtype= "
+                f"(supported dtypes: {sorted(_SUPPORTED_DTYPES)})")
+        if dtype is None:
+            dtype = "f32"
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        shape = _argfix(shape)
+        # Host array is f32 for floating storage (bf16 truncates on write)
+        # and i32 for integer storage — same path as Tensor.__init__.
+        np_dtype = np.int32 if dtype == "i32" else np.float32
+        arr = np.full(shape, fill_value, dtype=np_dtype)
+        return cls(arr, dtype=dtype)
+
+    @classmethod
+    def zeros(cls, *shape, **kwargs) -> "Tensor":
+        """Create a tensor filled with zeros. Shape via ``_argfix``."""
+        return cls.full(_argfix(*shape), 0.0, **kwargs)
+
+    @classmethod
+    def ones(cls, *shape, **kwargs) -> "Tensor":
+        """Create a tensor filled with ones. Shape via ``_argfix``."""
+        return cls.full(_argfix(*shape), 1.0, **kwargs)
 
     @classmethod
     def from_bf16_bytes(cls, raw: bytes, shape: tuple[int, ...]) -> "Tensor":

@@ -75,25 +75,27 @@ def WorkPacket.wellFormed (packet : WorkPacket) : Bool :=
   !packet.expectedTransitions.isEmpty &&
   !packet.recovery.trimAscii.isEmpty
 
-def helperClosingGaps : List Gap :=
-  (gapsFor helpersState).filter (fun gap =>
+def helperClosingGapsFor (helpers : RequirementState) : List Gap :=
+  (gapsFor helpers).filter (fun gap =>
     gap.kind == .implementation || gap.kind == .failedBehavior)
 
-def helperBlockedRequirements : List RequirementId :=
+def helperBlockedRequirementsFor (ctx : PromotionContext) : List RequirementId :=
   ((Tgrad.Evidence.PilotGenerated.blockages.filter (fun blockage =>
       blockage.sourceObservationId ==
         Tgrad.Evidence.PilotGenerated.helperObservation.id &&
-      blockage.currentIn context)).flatMap (·.blocks)).eraseDups
+      blockage.currentIn ctx)).flatMap (·.blocks)).eraseDups
 
-def deriveHelperSurfaceWork : Option WorkPacket :=
-  let blocked := helperBlockedRequirements
-  if helpersState.implementation == .noCandidate &&
-     helpersState.observation == .failed &&
-     !helperClosingGaps.isEmpty &&
+def deriveHelperSurfaceWorkFor
+    (helpers : RequirementState) (ctx : PromotionContext) : Option WorkPacket :=
+  let blocked := helperBlockedRequirementsFor ctx
+  let closing := helperClosingGapsFor helpers
+  if helpers.implementation == .noCandidate &&
+     helpers.observation == .failed &&
+     !closing.isEmpty &&
      !blocked.isEmpty then
     some
       { id := "WORK-PY-COMPAT-HELPERS"
-        closes := helperClosingGaps.map (·.id)
+        closes := closing.map (·.id)
         primaryRequirement := importHelpers.id
         requirementsUnblocked := blocked
         problemFrame := importHelpers.frame
@@ -113,7 +115,13 @@ def deriveHelperSurfaceWork : Option WorkPacket :=
         recovery := "Revert the compatibility-surface candidate and regenerate the exact baseline observation." }
   else none
 
-def frontier : List WorkPacket := deriveHelperSurfaceWork.toList
+def deriveHelperSurfaceWork : Option WorkPacket :=
+  deriveHelperSurfaceWorkFor helpersState context
+
+def frontierFor (helpers : RequirementState) (ctx : PromotionContext) : List WorkPacket :=
+  (deriveHelperSurfaceWorkFor helpers ctx).toList
+
+def frontier : List WorkPacket := frontierFor helpersState context
 
 theorem current_helper_state_does_not_emit_the_failure_packet :
     deriveHelperSurfaceWork = none := by
@@ -126,8 +134,8 @@ theorem current_frontier_is_empty_for_the_single_packet_schema :
 private def quote (value : String) : String :=
   "\"" ++ (value.replace "\\" "\\\\").replace "\"" "\\\"" ++ "\""
 
-def workJson : String :=
-  let packets := frontier.map fun packet =>
+def workJsonFor (helpers : RequirementState) (ctx : PromotionContext) : String :=
+  let packets := (frontierFor helpers ctx).map fun packet =>
     "    {\n" ++
     s!"      \"id\": {quote packet.id},\n" ++
     s!"      \"primary_requirement\": {quote packet.primaryRequirement.value},\n" ++
@@ -135,5 +143,7 @@ def workJson : String :=
     "      \"verification\": [\"cpu\", \"lean_build\"]\n" ++
     "    }"
   "[\n" ++ String.intercalate ",\n" packets ++ "\n  ]"
+
+def workJson : String := workJsonFor helpersState context
 
 end Tgrad.Growth.Work

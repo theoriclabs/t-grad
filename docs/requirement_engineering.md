@@ -1,12 +1,15 @@
 # Requirements engineering for the tinygrad-to-Lean rewrite
 
-**Status:** design basis, one retrospective pilot rehearsal, and one canonical
-diagnostic suite baseline, 2026-07-27
+**Status:** design basis, one retrospective pilot rehearsal, one canonical
+diagnostic suite baseline, and a mechanical-completion architecture,
+2026-07-27
 
 **Starting product baseline:** `c465f89` on `main`
 
 **Current canonical suite subject:** `14ffa30` (clean source tree; runtime built
 by the observer from that revision)
+
+**Current integration baseline for the next program:** `d04d333`
 
 **Purpose:** define how Tgrad separates requirements, specification, implementation, evidence, and work before scaling the parity program.
 
@@ -892,3 +895,256 @@ reconstruct storage bytes from logical readback. The implementation can be
 better tested without the requirement claim becoming better grounded. A future
 observer amendment must be prospective; successful focused tests cannot be
 used to rewrite the meaning of old evidence.
+
+## Mechanical completion architecture
+
+The rewrite should be agent-driven but mechanically judged. An agent is a
+search procedure over candidate repository trees. It may propose an
+interpretation, observer, work packet, or implementation. It must not be able
+to make its own proposal true by editing the expected result, current state,
+or completion predicate in the same transaction.
+
+The intended system is therefore not “agents maintain a roadmap.” It is a
+compiler and control loop:
+
+```text
+pinned upstream source closure
+  -> extracted inventory
+  -> reviewed interpretation decisions
+  -> executable requirement and scenario manifests
+  -> total coverage/closure proof
+  -> current observations
+  -> derived requirement states and gaps
+  -> mechanically shaped work packets
+  -> agent-produced candidate tree
+  -> independent validation and falsification
+  -> exact-tree promotion certificate
+  -> recomputation and invalidation
+```
+
+The LLM may perform the creative steps. Every state transition around those
+steps is checked by ordinary programs or Lean.
+
+### The small judgment kernel
+
+Some decisions cannot honestly be inferred from tinygrad source or tests:
+
+- which compatibility profile the project intends to claim;
+- whether ambiguous upstream behavior is normative, accidental, or undefined;
+- whether an exclusion is acceptable;
+- which domain assumptions are allowed;
+- whether an adequacy argument is accepted when it is not proved;
+- which performance and upstream-lag policies are worth adopting.
+
+These are explicit, versioned `Judgment` inputs. A judgment records its
+authority, alternatives considered, rationale, source closure, affected
+requirements, and invalidation conditions. It never records a derived pass,
+priority, or completion state. Agents may draft judgments; a separate
+authority accepts them. Once accepted, downstream artifacts are generated.
+
+Everything else should be mechanical:
+
+| Concern | Mechanical result |
+|---|---|
+| upstream capture | content-addressed source closure and extracted manifests |
+| denominator | one disposition for every inventory item; no missing or duplicate rows |
+| requirement state | derived from promoted target, specification, adequacy, observations and blockers |
+| product support | extracted symbols plus execution traces through declared stages |
+| evidence freshness | computed from the complete input-closure identity |
+| gap set | difference between closed target obligations and current promoted claims |
+| work readiness | dependencies, leases, resources, authority and validator availability |
+| candidate effects | computed Git diff, not the agent report |
+| validation | immutable scenarios through foreign/independent oracles |
+| promotion | certificate validation followed by one atomic state transition |
+| upstream drift | manifest diff followed by typed invalidation and new gaps |
+| completion | generated certificate or generated list of missing obligations |
+
+The goal is not zero human judgment. It is zero hidden judgment and zero
+hand-authored status.
+
+### A closed denominator before a green numerator
+
+`RequirementCatalog.wellFormed` currently checks local shape and references.
+`Contract.complete` checks that every authored required row has a promotable
+cell. Neither establishes that the authored rows exhaust the declared problem
+world. A completion claim therefore needs a separate catalog-closure
+certificate.
+
+For target revision `U` and profile `P`, define:
+
+```text
+CatalogClosed(U, P) :=
+  target U is promoted
+  and the normative source closure for P is fixed
+  and every extracted item has exactly one reviewed disposition
+  and every required disposition maps to known world requirements
+  and every excluded disposition cites accepted scope authority
+  and no applicable item remains ambiguous or uninterpreted
+  and every required requirement has applicability partitions,
+      mandatory observation dimensions and an oracle policy
+```
+
+The source closure is broader than a symbol list. It includes public exports
+and signatures, collected test cases, documented public behavior, declared
+backend/environment profiles, and selected official workloads. It is still a
+bounded interpretation of tinygrad, not metaphysical completeness. The
+certificate makes that boundary explicit.
+
+The mapping is many-to-many. One `Tensor.sum` symbol expands into requirements
+for import/signature behavior, axis handling, shape, dtype/accumulation,
+values, errors, laziness and effects. Several upstream cases may witness one
+of those requirements. Case-level witness manifests replace file-level
+classification as soon as a file mixes public and internal assertions.
+
+### Executable requirements rather than behavioral prose alone
+
+The current `ObservationRelation` is a typed descriptor. Mechanical
+completion needs a denotation. Introduce a small neutral trace language:
+
+```text
+Scenario     -- construct values, call operations, realize, read, mutate, release
+Observation  -- import/name/call/result/error/state/runtime events
+Relation     -- exact, normalized, numerical, sequence, identity and state relations
+Partition    -- applicability classes over dtype, shape, value, mode and backend
+```
+
+A requirement binds:
+
+```text
+precondition + scenario family + observable projection + relation + partitions
+```
+
+The same canonical scenario is executed by an upstream adapter and a Tgrad
+adapter. Neither adapter owns the expected result. The relation evaluator is
+neutral and mutation-calibrated. Canonical JSON is the process boundary;
+generated Lean imports the manifest and checks identities, totality and
+promotion rules. Generated Lean is never edited by hand.
+
+Finite scenarios do not prove universal semantics. Each requirement carries
+an assurance policy selected by risk:
+
+- example/differential evidence for narrow API obligations;
+- generated property and metamorphic evidence for data partitions;
+- a pure evaluator for semantic classes;
+- refinement theorems where the semantics and transformation have stabilized;
+- workload traces for stateful composition;
+- paired repeated distributions for performance.
+
+The policy is authored. Whether the required evidence exists and is current
+is derived.
+
+### The completion certificates
+
+The checked model should distinguish three certificates:
+
+```lean
+structure CatalogClosureCertificate where
+  target : TargetRef
+  profile : ProfileId
+  sourceClosureHash : String
+  inventoryHash : String
+  dispositionHash : String
+  requiredRequirementIds : List RequirementId
+  acceptedJudgmentIds : List String
+
+structure RequirementDischargeCertificate where
+  requirement : RequirementId
+  targetRevision : String
+  subjectTree : TreeRef
+  profile : ProfileId
+  requirementSemanticsHash : String
+  boundarySemanticsHash : String
+  adequacyRef : String
+  environmentIds : List String
+  evidenceIds : List String
+
+structure ProfileCompletionCertificate where
+  closure : CatalogClosureCertificate
+  subjectTree : TreeRef
+  discharges : List RequirementDischargeCertificate
+```
+
+Validity is computed. A requirement discharge is valid only when:
+
+```text
+D_r and S_r entail R_r (proved or accepted under recorded authority)
+and the candidate machine satisfies S_r under every required environment
+and every required relation dimension and partition has current evidence
+and each promoting validator is calibrated against relevant faults
+and evidence binds target, subject, source-built runtime, verifier,
+    adapter, relation, scenario and environment identities
+and no current obstacle blocks the observation
+```
+
+A profile certificate is valid only when its catalog is closed and it has one
+valid discharge for every required requirement. Missing hardware remains a
+blocked backend claim. Performance qualification is a separate certificate;
+release policy may require both, but neither can promote the other.
+
+### Invalidation is part of correctness
+
+The system needs a dependency graph over artifact identities:
+
+```text
+source item -> interpretation -> requirement semantics -> boundary semantics
+            -> scenario/relation -> validator/calibration -> observation
+            -> discharge -> profile certificate -> work packet
+```
+
+Changing any node invalidates all reachable consumers. Evidence transport is
+allowed only when the complete input-closure digest is equal, not because two
+commits “look equivalent.” Advancing tinygrad creates a new target; it never
+silently edits the old completion claim.
+
+This graph also keeps codebase architecture and compatibility distinct.
+Product symbols are pinned by compile-time references and runtime stage traces,
+but a source path never establishes behavior. Refinement claims connect the
+abstract tensor/effect semantics to graph, schedule, kernel and backend traces.
+Specialized routes are optimizer choices whose observations must refine the
+same semantic nucleus.
+
+### Agents are candidate generators, not judges
+
+The mechanical agent protocol is:
+
+1. Select a ready packet generated from current gaps.
+2. Re-observe its exact base, target, validators and resources.
+3. Acquire write, build, temporary-path, GPU and evidence-store leases.
+4. Reproduce the baseline observation.
+5. Produce the smallest candidate inside the packet effect set.
+6. Run cheap semantic and property checks.
+7. Run the frozen foreign/independent oracle.
+8. Run or cite version-identical calibrated falsifiers.
+9. Emit a candidate commit and artifacts; do not edit status.
+10. Let an integrator compute actual effects, rerun checks on the integrated
+    tree, and either issue a certificate or retain a typed rejection.
+
+Contract/oracle changes and product changes are separate transactions. An
+agent may perform both sequentially, but the implementation candidate is
+judged only by a contract that was already frozen and promoted.
+
+### What “mostly mechanical” means operationally
+
+The method has reached its intended shape when:
+
+- 100% of coverage, freshness, gap, readiness and completion states are
+  derived rather than edited;
+- 100% of target inventory items have a checked disposition;
+- 100% of promoted claims carry valid exact-tree certificates;
+- every validator version has a replayable calibration result;
+- removing an inventory item, requirement mapping, mandatory dimension,
+  evidence identity or source-build link makes completion false;
+- a candidate cannot modify its oracle, tolerance, exclusion or promotion
+  policy without becoming a different, separately reviewed transaction;
+- a new upstream pin produces a deterministic diff, invalidations and work
+  frontier without changing Lean ontology code;
+- additional agent compute increases independently observed coverage and
+  closes generated gaps rather than increasing prose or authored rows;
+- median cycle cost falls across repeated requirement families.
+
+The decisive falsifier is a toy closed profile. The machinery must be able to
+produce one valid completion certificate, then reject it under mutations for
+missing source coverage, stale subject identity, wrong relation semantics,
+surviving validator fault, blocked environment and target drift. Only after
+that exercise should the program scale from the three pilots to the full
+interpreted public contract.

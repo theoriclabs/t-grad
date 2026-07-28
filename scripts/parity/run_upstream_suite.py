@@ -241,7 +241,39 @@ def copy_execution_snapshot(root: Path, against: str, checkout: Path,
     return result
 
 
-def interpreter_facts(py: Path) -> dict:
+def tokenize_recorded_path(path_text: str, roots: list[tuple[Path | str, str]]) -> str:
+    """Replace a known install/checkout root with its token.
+
+    Same root vocabulary as ``policy.python_path`` (``<tgrad-repo>``,
+    ``<upstream-checkout>``, ``<execution-root>``). Paths under no known
+    root stay distinguishable behind an ``${ABSOLUTE}:`` marker — the
+    pilot observer's precedent — rather than being silently rewritten.
+    Longest/most-specific root wins when several match.
+    """
+    ordered = sorted(
+        ((str(root), token) for root, token in roots),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+    for root_text, token in ordered:
+        if path_text == root_text or path_text.startswith(root_text + os.sep):
+            return token + path_text[len(root_text):]
+    return f"${{ABSOLUTE}}:{path_text}"
+
+
+def recorded_path_roots(checkout: Path | None = None,
+                        execution_root: Path | None = None) -> list[tuple[Path | str, str]]:
+    """Roots used by ``policy.python_path`` and interpreter path tokenization."""
+    roots: list[tuple[Path | str, str]] = [(REPO, "<tgrad-repo>")]
+    if checkout is not None:
+        roots.append((checkout, "<upstream-checkout>"))
+    if execution_root is not None:
+        roots.append((execution_root, "<execution-root>"))
+    return roots
+
+
+def interpreter_facts(py: Path,
+                      path_roots: list[tuple[Path | str, str]] | None = None) -> dict:
     probe = r'''
 import importlib.metadata
 import hashlib
@@ -306,6 +338,16 @@ print(json.dumps({
     facts["launcher"] = str(py.absolute())
     facts["launcher_target"] = str(py.resolve())
     facts["launcher_target_sha256"] = file_hash(py.resolve())
+    # Location is not discriminating once dependency-content hashes and
+    # interpreter identity (python/implementation/cache_tag/machine) are
+    # recorded: the same toolchain reached via a second checkout path must
+    # compare equal. Tokenize the path fields; leave content hashes and
+    # platform_release alone (OS point release is a separate question).
+    roots = recorded_path_roots() if path_roots is None else list(path_roots)
+    if not any(token == "<tgrad-repo>" for _, token in roots):
+        roots.append((REPO, "<tgrad-repo>"))
+    for key in ("runtime_executable", "launcher", "launcher_target"):
+        facts[key] = tokenize_recorded_path(str(facts[key]), roots)
     return facts
 
 
@@ -1044,7 +1086,8 @@ def subject_identity(against: str, checkout: Path, checkout_commit: str,
 
 def revalidate_inputs(identity: dict, checkout: Path,
                       selected: list[dict], execution_snapshot: dict[str, Path],
-                      py: Path, environment: dict[str, str]) -> None:
+                      py: Path, environment: dict[str, str],
+                      path_roots: list[tuple[Path | str, str]] | None = None) -> None:
     errors = []
     upstream = identity["upstream"]
     if checkout_value(checkout, "status", "--porcelain"):
@@ -1120,7 +1163,7 @@ def revalidate_inputs(identity: dict, checkout: Path,
             errors.append("execution shim differs from recorded verifier")
     if errors:
         raise RuntimeError("inputs changed during observation:\n  " + "\n  ".join(errors))
-    if interpreter_facts(py) != identity["environment"]["facts"]:
+    if interpreter_facts(py, path_roots) != identity["environment"]["facts"]:
         raise RuntimeError("Python interpreter or installed dependencies changed during observation")
     if prerequisite_facts(py, environment, selected) != identity["environment"]["prerequisites"]:
         raise RuntimeError("environment prerequisites changed during observation")
@@ -1303,8 +1346,8 @@ def validate_upstream_baseline(path: Path, identity: dict,
     #
     # They add no discriminating power here. The toolchain that actually
     # executes the suite is already pinned exactly, a few lines up: the
-    # `facts` comparison covers the interpreter's absolute path, its
-    # sha256, and the numpy version and content hash. What a `PATH`
+    # `facts` comparison covers the interpreter identity (tokenized path,
+    # sha256) and the numpy version and content hash. What a `PATH`
     # difference can change beyond that is which *other* binaries resolve,
     # and this observer never shells out to them --- it spawns one explicit
     # `--python` and runs an in-process pytest.
@@ -1319,10 +1362,12 @@ def validate_upstream_baseline(path: Path, identity: dict,
     # value (see `python_path` above, which tokenizes repo/checkout/temp
     # roots); raw `PATH` was the lone exception to its own convention.
     #
-    # This does NOT yet make the score reproducible on another MACHINE:
-    # `facts` still pins absolute interpreter paths. Tokenizing those is
-    # the same treatment already proven on the pilot observer, and is the
-    # remaining step.
+    # Interpreter location paths in `facts` are tokenized the same way
+    # (`runtime_executable` / `launcher` / `launcher_target` →
+    # `<tgrad-repo>` or `${ABSOLUTE}:…`). Content hashes and
+    # python/implementation/cache_tag/machine still reject a different
+    # toolchain. `platform_release` is left alone — OS point-release
+    # variance across machines is a separate open question.
     common_policy = (
         "LANG", "LC_ALL", "PYTHONHASHSEED", "PYTHONNOUSERSITE",
         "PYTHONSAFEPATH", "isolated_home", "isolated_tmp",
@@ -1754,8 +1799,13 @@ def main() -> int:
                 "refusing to calibrate the contract in this environment"
             )
         verifier = verifier_identity()
+        path_roots = [
+            (REPO, "<tgrad-repo>"),
+            (args.checkout, "<upstream-checkout>"),
+            (temp_root, "<execution-root>"),
+        ]
         environment_identity = {
-            "facts": interpreter_facts(args.python.absolute()),
+            "facts": interpreter_facts(args.python.absolute(), path_roots),
             "backend": backend_facts(
                 args.python.absolute(), execution_checkout, environment
             ),
@@ -1868,7 +1918,7 @@ def main() -> int:
         try:
             revalidate_inputs(
                 identity, args.checkout, selected, execution_snapshot,
-                args.python.absolute(), environment,
+                args.python.absolute(), environment, path_roots,
             )
         except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
             parser.error(str(exc))

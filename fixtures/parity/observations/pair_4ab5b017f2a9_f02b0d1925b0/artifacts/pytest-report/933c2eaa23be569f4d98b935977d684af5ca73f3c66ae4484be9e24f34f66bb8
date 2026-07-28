@@ -1,0 +1,29 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestHashing", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestHashing::test_abc", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_long", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_referenced", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_224", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_256", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shake_128", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shape_keeping", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestKeccak", "request"], "marks": [], "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs_jit", "parameters": {}}], "count": 9, "event": "collection_finish", "nodeids": ["test/unit/test_hashing.py::TestHashing::test_abc", "test/unit/test_hashing.py::TestKeccak::test_long", "test/unit/test_hashing.py::TestKeccak::test_referenced", "test/unit/test_hashing.py::TestKeccak::test_sha3_224", "test/unit/test_hashing.py::TestKeccak::test_sha3_256", "test/unit/test_hashing.py::TestKeccak::test_shake_128", "test/unit/test_hashing.py::TestKeccak::test_shape_keeping", "test/unit/test_hashing.py::TestKeccak::test_variable_bs", "test/unit/test_hashing.py::TestKeccak::test_variable_bs_jit"]}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestHashing::test_abc", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestHashing::test_abc", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestHashing::test_abc", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_long", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_long", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_long", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_referenced", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_referenced", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_referenced", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_224", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_224", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_224", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_256", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_256", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_sha3_256", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shake_128", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shake_128", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shake_128", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shape_keeping", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shape_keeping", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_shape_keeping", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs_jit", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs_jit", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_hashing.py::TestKeccak::test_variable_bs_jit", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 0}

@@ -1,0 +1,286 @@
+FsssssFssFsFFsFsFssFFFsssFsFFsFFssssssssFs.sFssss                        [100%]
+=================================== FAILURES ===================================
+__________________ TestIndexing.test_basic_advanced_combined ___________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_basic_advanced_combined>
+
+    def test_basic_advanced_combined(self):
+      # From the NumPy indexing example
+>     x = Tensor.arange(0, 12).reshape(4, 3)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:566: AttributeError
+______________________ TestIndexing.test_ellipsis_tensor _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_ellipsis_tensor>
+
+    def test_ellipsis_tensor(self):
+>     x = Tensor.arange(0, 9).reshape(3, 3)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:622: AttributeError
+_______________________ TestIndexing.test_gather_invalid _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_gather_invalid>
+
+    def test_gather_invalid(self):
+      for dtype in (dtypes.int64, dtypes.float32):
+        shape = (2, 3, 1, 4)
+>       t = (Tensor.randint(*shape, low=-9, high=10, dtype=dtype) if dtypes.is_int(dtype)
+                                                                     ^^^^^^^^^^^^^^^^^^^^
+             else Tensor.uniform(*shape, low=-9.0, high=9.0, dtype=dtype))
+
+test/unit/test_indexing.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.int64>
+
+    @staticmethod
+    def is_int(dtype) -> bool:
+        if dtype == _I32:
+            return True
+        if dtype in (_BF16, _F32):
+            return False
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int64>
+
+../shim/tinygrad/dtype.py:55: TgradTypeError
+______________________ TestIndexing.test_getitem_scalars _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_getitem_scalars>
+
+    def test_getitem_scalars(self):
+>     zero = Tensor(0, dtype=dtypes.int64)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_indexing.py:494: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x1058f0a60>, arr = array(0)
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.int64>
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+>           raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+E           tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int64>; supported: ['bf16', 'f32', 'i32']
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:427: TgradTypeError
+___________________ TestIndexing.test_getitem_scalars_simple ___________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_getitem_scalars_simple>
+
+    def test_getitem_scalars_simple(self):
+      src = Tensor([[[1.,2.],[3.,4.]], [[1,1],[1,1]]])
+>     a = src[0].mul(src[1])
+          ^^^^^^
+
+test/unit/test_indexing.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x1058d9470>, key = 0
+
+    def __getitem__(self, key) -> "Tensor":
+        # Accept a single slice or a tuple of slices.
+        if isinstance(key, slice):
+            key = (key,)
+        if not isinstance(key, tuple):
+>           raise TgradTypeError(
+                f"Tensor.__getitem__: only slice or tuple-of-slice supported (got {type(key).__name__})")
+E           tgrad.TgradTypeError: Tensor.__getitem__: only slice or tuple-of-slice supported (got int)
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:626: TgradTypeError
+___________________________ TestIndexing.test_index ____________________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_index>
+
+    def test_index(self):
+    
+>     reference = consec((3, 3, 3))
+                  ^^^^^^^^^^^^^^^^^
+
+test/unit/test_indexing.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+shape = (3, 3, 3), start = 1
+
+    def consec(shape, start=1):
+>     return Tensor.arange(prod(shape)).reshape(shape)+start
+             ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:18: AttributeError
+______________________ TestIndexing.test_index_ind_dtype _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_index_ind_dtype>
+
+    @unittest.skipIf(Device.DEFAULT == "WEBGPU", "WEBGPU doesn't support long indexing: #13624")
+    def test_index_ind_dtype(self):
+>     x = Tensor.randn(4, 4)
+          ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_indexing.py:293: AttributeError
+_______________________ TestIndexing.test_int_assignment _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_int_assignment>
+
+    def test_int_assignment(self):
+>     x = Tensor.arange(0, 4).reshape(2, 2)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:584: AttributeError
+_______________________ TestIndexing.test_int_indices2d ________________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_int_indices2d>
+
+    def test_int_indices2d(self):
+      # From the NumPy indexing example
+>     x = Tensor.arange(0, 12).reshape(4, 3)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:372: AttributeError
+___________________ TestIndexing.test_int_indices_broadcast ____________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_int_indices_broadcast>
+
+    def test_int_indices_broadcast(self):
+      # From the NumPy indexing example
+>     x = Tensor.arange(0, 12).reshape(4, 3)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:379: AttributeError
+_________________ TestIndexing.test_set_item_to_scalar_tensor __________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_set_item_to_scalar_tensor>
+
+    def test_set_item_to_scalar_tensor(self):
+      m = random.randint(1, 10)
+      n = random.randint(1, 10)
+>     z = Tensor.randn([m, n])
+          ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_indexing.py:154: AttributeError
+____________________________ TestIndexing.test_step ____________________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_step>
+
+    def test_step(self):
+>     v = Tensor.arange(10)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:162: AttributeError
+______________________ TestIndexing.test_step_assignment _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_step_assignment>
+
+    def test_step_assignment(self):
+>     v = Tensor.zeros(4, 4).contiguous()
+          ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'zeros'
+
+test/unit/test_indexing.py:170: AttributeError
+_________________ TestIndexing.test_variable_with_tensor_index _________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_variable_with_tensor_index>
+
+    def test_variable_with_tensor_index(self):
+>     t = Tensor.arange(12).reshape(3, 4)
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/unit/test_indexing.py:617: AttributeError
+_______________________ TestIndexing.test_zero_dim_index _______________________
+
+self = <test.unit.test_indexing.TestIndexing testMethod=test_zero_dim_index>
+
+    def test_zero_dim_index(self):
+      x = Tensor(10)
+>     numpy_testing_assert_equal_helper(x, x.item())
+                                           ^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'item'
+
+test/unit/test_indexing.py:661: AttributeError
+________________________ TestNumpy.test_ellipsis_index _________________________
+
+self = <test.unit.test_indexing.TestNumpy testMethod=test_ellipsis_index>
+
+    def test_ellipsis_index(self):
+      a = Tensor([[1, 2, 3],
+                  [4, 5, 6],
+                  [7, 8, 9]])
+>     self.assertIs(a[...], a)
+                    ^^^^^^
+
+test/unit/test_indexing.py:736: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x1058db620>, key = Ellipsis
+
+    def __getitem__(self, key) -> "Tensor":
+        # Accept a single slice or a tuple of slices.
+        if isinstance(key, slice):
+            key = (key,)
+        if not isinstance(key, tuple):
+>           raise TgradTypeError(
+                f"Tensor.__getitem__: only slice or tuple-of-slice supported (got {type(key).__name__})")
+E           tgrad.TgradTypeError: Tensor.__getitem__: only slice or tuple-of-slice supported (got ellipsis)
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:626: TgradTypeError
+_______________________ TestNumpy.test_single_int_index ________________________
+
+self = <test.unit.test_indexing.TestNumpy testMethod=test_single_int_index>
+
+    def test_single_int_index(self):
+      # Single integer index selects one row
+      a = Tensor([[1, 2, 3],
+                  [4, 5, 6],
+                  [7, 8, 9]])
+    
+>     numpy_testing_assert_equal_helper(a[0], [1, 2, 3])
+                                        ^^^^
+
+test/unit/test_indexing.py:762: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x105931940>, key = 0
+
+    def __getitem__(self, key) -> "Tensor":
+        # Accept a single slice or a tuple of slices.
+        if isinstance(key, slice):
+            key = (key,)
+        if not isinstance(key, tuple):
+>           raise TgradTypeError(
+                f"Tensor.__getitem__: only slice or tuple-of-slice supported (got {type(key).__name__})")
+E           tgrad.TgradTypeError: Tensor.__getitem__: only slice or tuple-of-slice supported (got int)
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:626: TgradTypeError
+=========================== short test summary info ============================
+FAILED test/unit/test_indexing.py::TestIndexing::test_basic_advanced_combined
+FAILED test/unit/test_indexing.py::TestIndexing::test_ellipsis_tensor - Attri...
+FAILED test/unit/test_indexing.py::TestIndexing::test_gather_invalid - tgrad....
+FAILED test/unit/test_indexing.py::TestIndexing::test_getitem_scalars - tgrad...
+FAILED test/unit/test_indexing.py::TestIndexing::test_getitem_scalars_simple
+FAILED test/unit/test_indexing.py::TestIndexing::test_index - AttributeError:...
+FAILED test/unit/test_indexing.py::TestIndexing::test_index_ind_dtype - Attri...
+FAILED test/unit/test_indexing.py::TestIndexing::test_int_assignment - Attrib...
+FAILED test/unit/test_indexing.py::TestIndexing::test_int_indices2d - Attribu...
+FAILED test/unit/test_indexing.py::TestIndexing::test_int_indices_broadcast
+FAILED test/unit/test_indexing.py::TestIndexing::test_set_item_to_scalar_tensor
+FAILED test/unit/test_indexing.py::TestIndexing::test_step - AttributeError: ...
+FAILED test/unit/test_indexing.py::TestIndexing::test_step_assignment - Attri...
+FAILED test/unit/test_indexing.py::TestIndexing::test_variable_with_tensor_index
+FAILED test/unit/test_indexing.py::TestIndexing::test_zero_dim_index - Attrib...
+FAILED test/unit/test_indexing.py::TestNumpy::test_ellipsis_index - tgrad.Tgr...
+FAILED test/unit/test_indexing.py::TestNumpy::test_single_int_index - tgrad.T...
+17 failed, 1 passed, 31 skipped in 0.36s

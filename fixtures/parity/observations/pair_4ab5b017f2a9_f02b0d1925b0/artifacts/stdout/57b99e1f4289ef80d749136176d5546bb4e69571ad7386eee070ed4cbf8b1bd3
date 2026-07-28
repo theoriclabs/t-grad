@@ -1,0 +1,26 @@
+FFs                                                                      [100%]
+=================================== FAILURES ===================================
+_____________________ TestStunning.test_indexing_two_bind ______________________
+
+self = <test.backend.test_stunning.TestStunning testMethod=test_indexing_two_bind>
+
+    def test_indexing_two_bind(self):
+>     a = Tensor.arange(100*10).reshape(100, 10).contiguous()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_stunning.py:23: AttributeError
+_____________________ TestStunning.test_indexing_variable ______________________
+
+self = <test.backend.test_stunning.TestStunning testMethod=test_indexing_variable>
+
+    def test_indexing_variable(self):
+>     a = Tensor.arange(100*10).reshape(100, 10).contiguous()
+          ^^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'arange'
+
+test/backend/test_stunning.py:11: AttributeError
+=========================== short test summary info ============================
+FAILED test/backend/test_stunning.py::TestStunning::test_indexing_two_bind - ...
+FAILED test/backend/test_stunning.py::TestStunning::test_indexing_variable - ...
+2 failed, 1 skipped in 0.06s

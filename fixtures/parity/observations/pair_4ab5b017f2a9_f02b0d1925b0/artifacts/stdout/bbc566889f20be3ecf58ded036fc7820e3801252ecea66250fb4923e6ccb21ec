@@ -1,0 +1,16 @@
+Fs                                                                       [100%]
+=================================== FAILURES ===================================
+__________________________ TestRawShmBuffer.test_e2e ___________________________
+
+self = <test.unit.test_shm_tensor.TestRawShmBuffer testMethod=test_e2e>
+
+    @unittest.skipIf(WIN, "only fails on CI windows instance")
+    def test_e2e(self):
+>     t = Tensor.randn(2, 2, 2).realize()
+          ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_shm_tensor.py:10: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e - AttributeEr...
+1 failed, 1 skipped in 0.07s

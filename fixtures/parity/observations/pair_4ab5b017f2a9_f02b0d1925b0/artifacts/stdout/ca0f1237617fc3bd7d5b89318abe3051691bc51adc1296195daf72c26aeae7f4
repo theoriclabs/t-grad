@@ -1,0 +1,171 @@
+FFFFFFFFFFFFFs                                                           [100%]
+=================================== FAILURES ===================================
+______________________________ TestConv.test_bias ______________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_bias>
+
+    def test_bias(self):
+      from tinygrad.nn import Conv2d
+>     x = Tensor.rand(1,12,16,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:101: AttributeError
+______________________________ TestConv.test_elu _______________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_elu>
+
+    def test_elu(self):
+>     x = Tensor.rand(1,12,16,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:83: AttributeError
+__________________________ TestConv.test_first_three ___________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_first_three>
+
+    def test_first_three(self):
+>     x = Tensor.rand(1,12,16,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:68: AttributeError
+___________________________ TestConv.test_lazycache ____________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_lazycache>
+
+    def test_lazycache(self):
+>     x = Tensor.rand(1, 32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:29: AttributeError
+__________________________ TestConv.test_many_simple ___________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_many_simple>
+
+    def test_many_simple(self):
+>     x = Tensor(np.arange(8*2*8).reshape(1,8,2,8).astype(np.float32))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_conv.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x106ff2660>
+arr = array([[[[  0.,   1.,   2.,   3.,   4.,   5.,   6.,   7.],
+         [  8.,   9.,  10.,  11.,  12.,  13.,  14.,  15.]],...114., 115., 116., 117., 118., 119.],
+         [120., 121., 122., 123., 124., 125., 126., 127.]]]],
+      dtype=float32)
+dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+>           raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+E           tgrad.NotInLeanScope: public Tensor construction supports rank 0 through 3 (got ndim=4)
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:430: NotInLeanScope
+____________________________ TestConv.test_multiadd ____________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_multiadd>
+
+    def test_multiadd(self):
+>     w = Tensor.rand(32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:109: AttributeError
+__________________________ TestConv.test_reduce_relu ___________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_reduce_relu>
+
+    def test_reduce_relu(self):
+>     x = Tensor.rand(1,12,16,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:95: AttributeError
+____________________________ TestConv.test_reorder _____________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_reorder>
+
+    def test_reorder(self):
+>     x = Tensor.rand(1,12,16,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:114: AttributeError
+_____________________________ TestConv.test_simple _____________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_simple>
+
+    def test_simple(self):
+>     x = Tensor.ones(1,12,16,32).contiguous().realize()
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'ones'
+
+test/unit/test_conv.py:8: AttributeError
+_________________________ TestConv.test_simple_biased __________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_simple_biased>
+
+    def test_simple_biased(self):
+      C = 8
+>     x = Tensor.rand(1,C,5,5)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:36: AttributeError
+__________________________ TestConv.test_simple_rand ___________________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_simple_rand>
+
+    def test_simple_rand(self):
+>     x = Tensor.rand(1,12,16,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:17: AttributeError
+___________________ TestConv.test_two_binops_no_rerun_small ____________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_two_binops_no_rerun_small>
+
+    def test_two_binops_no_rerun_small(self):
+>     x = Tensor.rand(1,1,32,32)
+          ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_conv.py:44: AttributeError
+________________ TestConv.test_two_overlapping_binops_no_rerun _________________
+
+self = <test.unit.test_conv.TestConv testMethod=test_two_overlapping_binops_no_rerun>
+
+    def test_two_overlapping_binops_no_rerun(self):
+>     x = Tensor.randn(1,12,16,32)
+          ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'randn'
+
+test/unit/test_conv.py:50: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_conv.py::TestConv::test_bias - AttributeError: type obj...
+FAILED test/unit/test_conv.py::TestConv::test_elu - AttributeError: type obje...
+FAILED test/unit/test_conv.py::TestConv::test_first_three - AttributeError: t...
+FAILED test/unit/test_conv.py::TestConv::test_lazycache - AttributeError: typ...
+FAILED test/unit/test_conv.py::TestConv::test_many_simple - tgrad.NotInLeanSc...
+FAILED test/unit/test_conv.py::TestConv::test_multiadd - AttributeError: type...
+FAILED test/unit/test_conv.py::TestConv::test_reduce_relu - AttributeError: t...
+FAILED test/unit/test_conv.py::TestConv::test_reorder - AttributeError: type ...
+FAILED test/unit/test_conv.py::TestConv::test_simple - AttributeError: type o...
+FAILED test/unit/test_conv.py::TestConv::test_simple_biased - AttributeError:...
+FAILED test/unit/test_conv.py::TestConv::test_simple_rand - AttributeError: t...
+FAILED test/unit/test_conv.py::TestConv::test_two_binops_no_rerun_small - Att...
+FAILED test/unit/test_conv.py::TestConv::test_two_overlapping_binops_no_rerun
+13 failed, 1 skipped in 0.10s

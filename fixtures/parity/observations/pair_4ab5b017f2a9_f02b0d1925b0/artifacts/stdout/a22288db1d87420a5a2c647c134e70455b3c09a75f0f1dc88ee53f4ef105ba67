@@ -1,0 +1,103 @@
+FFFsFFFFFssFss                                                           [100%]
+=================================== FAILURES ===================================
+___________________________ TestTypeSpec.test_arange ___________________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_arange>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:41: AttributeError
+__________________________ TestTypeSpec.test_creation __________________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_creation>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:41: AttributeError
+_______________________ TestTypeSpec.test_dtype_str_arg ________________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_dtype_str_arg>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:41: AttributeError
+____________________________ TestTypeSpec.test_full ____________________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_full>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:41: AttributeError
+_____________________ TestTypeSpec.test_reduce_0d_default ______________________
+
+self = <test.unit.test_dtype_spec.TestTypeSpec testMethod=test_reduce_0d_default>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:41: AttributeError
+_____________________ TestAutoCastType.test_gradient_dtype _____________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_gradient_dtype>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:150: AttributeError
+________________________ TestAutoCastType.test_int_sqrt ________________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_int_sqrt>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:150: AttributeError
+________________ TestAutoCastType.test_int_to_float_unary_func _________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_int_to_float_unary_func>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:150: AttributeError
+_____________________ TestAutoCastType.test_prod_dtype_arg _____________________
+
+self = <test.unit.test_dtype_spec.TestAutoCastType testMethod=test_prod_dtype_arg>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/unit/test_dtype_spec.py:150: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_arange - AttributeErr...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_creation - AttributeE...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_dtype_str_arg - Attri...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_full - AttributeError...
+FAILED test/unit/test_dtype_spec.py::TestTypeSpec::test_reduce_0d_default - A...
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_gradient_dtype - ...
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_int_sqrt - Attrib...
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_int_to_float_unary_func
+FAILED test/unit/test_dtype_spec.py::TestAutoCastType::test_prod_dtype_arg - ...
+9 failed, 5 skipped in 0.52s

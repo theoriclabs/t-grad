@@ -1,0 +1,37 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________________________ TestWinogradClose.test_close _________________________
+
+self = <test.unit.test_winograd.TestWinogradClose testMethod=test_close>
+
+    def test_close(self):
+>     inp = Tensor.rand(1, 16, 16, 16)
+            ^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'rand'
+
+test/unit/test_winograd.py:9: AttributeError
+_______________________ TestWinograd.test_padded_conv2d ________________________
+
+self = <test.unit.test_winograd.TestWinograd testMethod=test_padded_conv2d>
+
+    def setUp(self):
+>     self.old = WINO.value
+                 ^^^^^^^^^^
+
+test/unit/test_winograd.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:36: in __getattr__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.helpers.WINO>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.WINO'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+=========================== short test summary info ============================
+FAILED test/unit/test_winograd.py::TestWinogradClose::test_close - AttributeE...
+FAILED test/unit/test_winograd.py::TestWinograd::test_padded_conv2d - tinygra...
+2 failed in 0.07s

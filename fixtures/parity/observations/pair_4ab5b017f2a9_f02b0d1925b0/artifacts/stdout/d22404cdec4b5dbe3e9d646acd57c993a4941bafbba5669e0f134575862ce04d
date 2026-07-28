@@ -1,0 +1,17 @@
+
+==================================== ERRORS ====================================
+______________ ERROR collecting test/backend/test_symbolic_ops.py ______________
+test/backend/test_symbolic_ops.py:5: in <module>
+    from examples.gpt2 import Attention
+examples/gpt2.py:11: in <module>
+    from extra.bench_log import BenchEvent, WallTimeEvent
+extra/bench_log.py:7: in <module>
+    BENCHMARK_LOG = ContextVar("BENCHMARK_LOG", "")
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../shim/tinygrad/_unsupported.py:93: in __call__
+    raise TgradCapabilityError(_message(cls.capability_name))
+E   tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.helpers.ContextVar'; the strict shim refuses to implement or import it from upstream tinygrad
+=========================== short test summary info ============================
+ERROR test/backend/test_symbolic_ops.py - tinygrad._unsupported.TgradCapabili...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.10s

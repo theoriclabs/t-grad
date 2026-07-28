@@ -1,0 +1,108 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+___________________ TestMoEFeedForward.test_moe_feed_forward ___________________
+
+self = <test.unit.test_llm_moe.TestMoEFeedForward testMethod=test_moe_feed_forward>
+
+    def test_moe_feed_forward(self):
+      dim, hidden, n_heads = 8, 16, 2
+      num_experts, k = 4, 2
+    
+>     block = TransformerBlock(_moe_config(dim, hidden, n_heads, num_experts, k))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_llm_moe.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_llm_moe.py:8: in _moe_config
+    return TransformerConfig(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.llm.model.TransformerConfig'>, args = ()
+kwargs = {'num_blocks': 1, 'dim': 8, 'hidden_dim': 16, 'n_heads': 2, ...}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.llm.model.TransformerConfig'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________ TestMoEFeedForward.test_moe_feed_forward_batched _______________
+
+self = <test.unit.test_llm_moe.TestMoEFeedForward testMethod=test_moe_feed_forward_batched>
+
+    def test_moe_feed_forward_batched(self):
+      dim, hidden, n_heads = 8, 16, 2
+      num_experts, k = 4, 2
+    
+>     block = TransformerBlock(_moe_config(dim, hidden, n_heads, num_experts, k))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_llm_moe.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_llm_moe.py:8: in _moe_config
+    return TransformerConfig(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.llm.model.TransformerConfig'>, args = ()
+kwargs = {'num_blocks': 1, 'dim': 8, 'hidden_dim': 16, 'n_heads': 2, ...}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.llm.model.TransformerConfig'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+___________ TestMoEFeedForward.test_moe_feed_forward_norm_topk_prob ____________
+
+self = <test.unit.test_llm_moe.TestMoEFeedForward testMethod=test_moe_feed_forward_norm_topk_prob>
+
+    def test_moe_feed_forward_norm_topk_prob(self):
+      dim, hidden, n_heads = 8, 16, 2
+      num_experts, k = 4, 2
+    
+>     block = TransformerBlock(replace(_moe_config(dim, hidden, n_heads, num_experts, k), norm_topk_prob=True))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_llm_moe.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_llm_moe.py:8: in _moe_config
+    return TransformerConfig(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.llm.model.TransformerConfig'>, args = ()
+kwargs = {'num_blocks': 1, 'dim': 8, 'hidden_dim': 16, 'n_heads': 2, ...}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.llm.model.TransformerConfig'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+____________ TestMoEFeedForward.test_moe_feed_forward_shared_expert ____________
+
+self = <test.unit.test_llm_moe.TestMoEFeedForward testMethod=test_moe_feed_forward_shared_expert>
+
+    def test_moe_feed_forward_shared_expert(self):
+      dim, hidden, n_heads = 8, 16, 2
+      num_experts, k = 4, 2
+    
+>     block = TransformerBlock(replace(_moe_config(dim, hidden, n_heads, num_experts, k), shared_expert_dim=dim))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_llm_moe.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/unit/test_llm_moe.py:8: in _moe_config
+    return TransformerConfig(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.llm.model.TransformerConfig'>, args = ()
+kwargs = {'num_blocks': 1, 'dim': 8, 'hidden_dim': 16, 'n_heads': 2, ...}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.llm.model.TransformerConfig'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+=========================== short test summary info ============================
+FAILED test/unit/test_llm_moe.py::TestMoEFeedForward::test_moe_feed_forward
+FAILED test/unit/test_llm_moe.py::TestMoEFeedForward::test_moe_feed_forward_batched
+FAILED test/unit/test_llm_moe.py::TestMoEFeedForward::test_moe_feed_forward_norm_topk_prob
+FAILED test/unit/test_llm_moe.py::TestMoEFeedForward::test_moe_feed_forward_shared_expert
+4 failed in 0.07s

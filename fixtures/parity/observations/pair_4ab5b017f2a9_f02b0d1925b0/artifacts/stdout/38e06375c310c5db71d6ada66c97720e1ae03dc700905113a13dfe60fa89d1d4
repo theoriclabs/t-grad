@@ -1,0 +1,38 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_______________________ TestMaskedTensor.test_add_masked _______________________
+
+self = <test.unit.test_masked_tensor.TestMaskedTensor testMethod=test_add_masked>
+
+    def test_add_masked(self):
+>     a = Tensor([1,1]).pad(((0,2),))
+          ^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'pad'
+
+test/unit/test_masked_tensor.py:22: AttributeError
+____________________ TestMaskedTensor.test_mul_both_masked _____________________
+
+self = <test.unit.test_masked_tensor.TestMaskedTensor testMethod=test_mul_both_masked>
+
+    def test_mul_both_masked(self):
+>     a = Tensor([1,1]).pad(((0,3),))
+          ^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'pad'
+
+test/unit/test_masked_tensor.py:14: AttributeError
+_______________________ TestMaskedTensor.test_mul_masked _______________________
+
+self = <test.unit.test_masked_tensor.TestMaskedTensor testMethod=test_mul_masked>
+
+    def test_mul_masked(self):
+      a = Tensor([1,1,1,1,1])
+>     b = Tensor([1,1]).pad(((0,3),))
+          ^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'pad'
+
+test/unit/test_masked_tensor.py:7: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_masked_tensor.py::TestMaskedTensor::test_add_masked - A...
+FAILED test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_both_masked
+FAILED test/unit/test_masked_tensor.py::TestMaskedTensor::test_mul_masked - A...
+3 failed in 0.11s

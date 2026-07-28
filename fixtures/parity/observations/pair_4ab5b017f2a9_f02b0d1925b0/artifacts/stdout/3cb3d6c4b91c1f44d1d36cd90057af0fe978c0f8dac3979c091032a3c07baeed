@@ -1,0 +1,827 @@
+.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                        [100%]
+=================================== FAILURES ===================================
+_________________________ TestHelpers.test_dtype_range _________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_dtype_range>
+
+    def test_dtype_range(self):
+      for dt in core_dtypes:
+        if dtypes.is_float(dt):
+>         np.testing.assert_equal(dt.min, -math.inf)
+                                  ^^^^^^
+E         AttributeError: 'str' object has no attribute 'min'
+
+test/null/test_dtype_spec.py:78: AttributeError
+_______________________ TestHelpers.test_dtype_range_vec _______________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_dtype_range_vec>
+
+    def test_dtype_range_vec(self):
+      for dt in core_dtypes:
+>       self.assertEqual(dt.min, dt.min)
+                         ^^^^^^
+E       AttributeError: 'str' object has no attribute 'min'
+
+test/null/test_dtype_spec.py:97: AttributeError
+____________________________ TestHelpers.test_finfo ____________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_finfo>
+
+    def test_finfo(self):
+      for dt in [dtypes.float16, dtypes.float32, dtypes.float64]:
+>       info = np.finfo(_to_np_dtype(dt))
+                        ^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:184: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.float16>
+
+    def _to_np_dtype(dtype):
+        # Keep package activation independent of NumPy.  The strict shim is also
+        # used to measure import-surface requirements in controlled environments;
+        # NumPy is needed only when this conversion is actually requested.
+        import numpy as np
+    
+        if dtype in (_BF16, _F32):
+            # Tgrad's bf16 host readback is deliberately lifted to float32.
+            return np.dtype(np.float32)
+        if dtype == _I32:
+            return np.dtype(np.int32)
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.float16>
+
+../shim/tinygrad/dtype.py:79: TgradTypeError
+________________________ TestHelpers.test_float_to_bf16 ________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_float_to_bf16>
+
+    def test_float_to_bf16(self):
+      max_bf16 = torch.finfo(torch.bfloat16).max
+      for a in [1, 1.1, 1234, 23456, -777.777, max_bf16, max_bf16 * 1.00001, -max_bf16, -max_bf16 * 1.00001, math.inf, -math.inf]:
+>       self.assertEqual(float_to_bf16(a), torch.tensor([a], dtype=torch.bfloat16).item())
+                         ^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.float_to_bf16>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.float_to_bf16'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+___________________ TestHelpers.test_float_to_bf16_boundary ____________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_float_to_bf16_boundary>
+
+    def test_float_to_bf16_boundary(self):
+      base = 0x7F7F0000
+      inf_u32 = 0x7F800000
+    
+      x = u32_to_f32(base | 0x00007FFF)
+>     self.assertEqual(f32_to_u32(float_to_bf16(x)), base)
+                                  ^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.float_to_bf16>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.float_to_bf16'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+______________________ TestHelpers.test_float_to_bf16_nan ______________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_float_to_bf16_nan>
+
+    def test_float_to_bf16_nan(self):
+      patterns = [0x7FC00001, 0xFFC00001, 0x7F800001, 0xFF800001, 0x7FFFFFFF, 0xFFFFFFFF]
+      for u in patterns:
+        x = u32_to_f32(u)
+>       y = float_to_bf16(x)
+            ^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:121: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.float_to_bf16>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.float_to_bf16'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+_____________________ TestHelpers.test_float_to_bf16_round _____________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_float_to_bf16_round>
+
+    def test_float_to_bf16_round(self):
+      uppers = [0x3f800000, 0x41230000, 0xC1460000]
+      for upper in uppers:
+        base = upper & 0xFFFF0000
+        base_f32 = u32_to_f32(base)
+        base_f32_round_up = u32_to_f32(base + 0x00010000)
+    
+        x = u32_to_f32(base | 0x00007000)
+>       self.assertEqual(float_to_bf16(x), base_f32)
+                         ^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:134: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.float_to_bf16>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.float_to_bf16'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+________________________ TestHelpers.test_float_to_fp16 ________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_float_to_fp16>
+
+    def test_float_to_fp16(self):
+>     self.assertEqual(float_to_fp16(1), 1)
+                       ^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.float_to_fp16>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.float_to_fp16'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+_______________________ TestHelpers.test_fp8s_are_float ________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_fp8s_are_float>
+
+    def test_fp8s_are_float(self):
+>     assert dtypes.is_float(dtypes.fp8e4m3)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.fp8e4m3>
+
+    @staticmethod
+    def is_float(dtype) -> bool:
+        if dtype in (_BF16, _F32):
+            return True
+        if dtype == _I32:
+            return False
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.fp8e4m3>
+
+../shim/tinygrad/dtype.py:47: TgradTypeError
+___________________________ TestHelpers.test_from_py ___________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_from_py>
+
+    def test_from_py(self):
+>     assert dtypes.from_py(True) == dtypes.bool
+             ^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'from_py'
+
+test/null/test_dtype_spec.py:59: AttributeError
+__________________________ TestHelpers.test_is_float ___________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_is_float>
+
+    @given(strat.sampled_from(floats))
+>   def test_is_float(self, dtype):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:43: in test_is_float
+    assert dtypes.is_float(dtype)
+           ^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.float16>
+
+    @staticmethod
+    def is_float(dtype) -> bool:
+        if dtype in (_BF16, _F32):
+            return True
+        if dtype == _I32:
+            return False
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.float16>
+E       Failing test case: test_is_float(
+E           self=<test.null.test_dtype_spec.TestHelpers testMethod=test_is_float>,
+E           dtype=<unsupported Tgrad capability tinygrad.dtype.dtypes.float16>,
+E       )
+E       Explanation:
+E           These lines were always and only run by failing test cases:
+E               /private/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/shim/tinygrad/dtype.py:45
+
+../shim/tinygrad/dtype.py:47: TgradTypeError
+___________________________ TestHelpers.test_is_int ____________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_is_int>
+
+    @given(strat.sampled_from(signed_ints+uints))
+>   def test_is_int(self, dtype):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:30: in test_is_int
+    assert dtypes.is_int(dtype)
+           ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.int8>
+
+    @staticmethod
+    def is_int(dtype) -> bool:
+        if dtype == _I32:
+            return True
+        if dtype in (_BF16, _F32):
+            return False
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int8>
+E       Failing test case: test_is_int(
+E           self=<test.null.test_dtype_spec.TestHelpers testMethod=test_is_int>,
+E           dtype=<unsupported Tgrad capability tinygrad.dtype.dtypes.int8>,
+E       )
+E       Explanation:
+E           These lines were always and only run by failing test cases:
+E               /private/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/shim/tinygrad/dtype.py:53
+
+../shim/tinygrad/dtype.py:55: TgradTypeError
+___________________ TestHelpers.test_is_unsigned_signed_ints ___________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_is_unsigned_signed_ints>
+
+    @given(strat.sampled_from(signed_ints))
+>   def test_is_unsigned_signed_ints(self, dtype):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:39: in test_is_unsigned_signed_ints
+    assert not dtypes.is_unsigned(dtype)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.int8>
+
+    @staticmethod
+    def is_unsigned(dtype) -> bool:
+        if dtype in _tgrad._SUPPORTED_DTYPES:
+            return False
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.int8>
+E       Failing test case: test_is_unsigned_signed_ints(
+E           self=<test.null.test_dtype_spec.TestHelpers testMethod=test_is_unsigned_signed_ints>,
+E           dtype=<unsupported Tgrad capability tinygrad.dtype.dtypes.int8>,
+E       )
+E       Explanation:
+E           These lines were always and only run by failing test cases:
+E               /private/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/shim/tinygrad/dtype.py:61
+
+../shim/tinygrad/dtype.py:61: TgradTypeError
+______________________ TestHelpers.test_is_unsigned_uints ______________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_is_unsigned_uints>
+
+    @given(strat.sampled_from(uints))
+>   def test_is_unsigned_uints(self, dtype):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:35: in test_is_unsigned_uints
+    assert dtypes.is_unsigned(dtype)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.uint8>
+
+    @staticmethod
+    def is_unsigned(dtype) -> bool:
+        if dtype in _tgrad._SUPPORTED_DTYPES:
+            return False
+>       raise _tgrad.TgradTypeError(f"unsupported dtype {dtype!r}")
+E       tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.uint8>
+E       Failing test case: test_is_unsigned_uints(
+E           self=<test.null.test_dtype_spec.TestHelpers testMethod=test_is_unsigned_uints>,
+E           dtype=<unsupported Tgrad capability tinygrad.dtype.dtypes.uint8>,
+E       )
+
+../shim/tinygrad/dtype.py:61: TgradTypeError
+___________________________ TestHelpers.test_scalar ____________________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_scalar>
+
+    @given(strat.sampled_from([d for d in DTYPES_DICT.values() if dtypes.is_float(d) or dtypes.is_int(d)]))
+>   def test_scalar(self, dtype):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_scalar>
+dtype = 'bf16'
+
+    @given(strat.sampled_from([d for d in DTYPES_DICT.values() if dtypes.is_float(d) or dtypes.is_int(d)]))
+    def test_scalar(self, dtype):
+>     assert dtype.scalar() == dtype
+             ^^^^^^^^^^^^
+E     AttributeError: 'str' object has no attribute 'scalar'
+E     Failing test case: test_scalar(
+E         self=<test.null.test_dtype_spec.TestHelpers testMethod=test_scalar>,
+E         dtype='bf16',
+E     )
+
+test/null/test_dtype_spec.py:56: AttributeError
+______________________ TestHelpers.test_truncate_fp8e4m3 _______________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_truncate_fp8e4m3>
+
+    @given(strat.floats(width=32, allow_subnormal=True, allow_nan=True, allow_infinity=True))
+>   def test_truncate_fp8e4m3(self, x):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:167: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:172: in test_truncate_fp8e4m3
+    else: np.testing.assert_equal(truncate[dtypes.fp8e4m3](x), torch.tensor(x, dtype=torch.float8_e4m3fn).float().item())
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+../shim/tinygrad/_unsupported.py:39: in __getitem__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.truncate>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.truncate'; the strict shim refuses to implement or import it from upstream tinygrad
+E       Failing test case: test_truncate_fp8e4m3(
+E           self=<test.null.test_dtype_spec.TestHelpers testMethod=test_truncate_fp8e4m3>,
+E           x=0.0,  # or any other generated value
+E       )
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+______________________ TestHelpers.test_truncate_fp8e5m2 _______________________
+
+self = <test.null.test_dtype_spec.TestHelpers testMethod=test_truncate_fp8e5m2>
+
+    @given(strat.floats(width=32, allow_subnormal=True, allow_nan=True, allow_infinity=True))
+>   def test_truncate_fp8e5m2(self, x):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:180: in test_truncate_fp8e5m2
+    else: np.testing.assert_equal(truncate[dtypes.fp8e5m2](x), torch.tensor(x, dtype=torch.float8_e5m2).float().item())
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+../shim/tinygrad/_unsupported.py:39: in __getitem__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.truncate>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.truncate'; the strict shim refuses to implement or import it from upstream tinygrad
+E       Failing test case: test_truncate_fp8e5m2(
+E           self=<test.null.test_dtype_spec.TestHelpers testMethod=test_truncate_fp8e5m2>,
+E           x=0.0,  # or any other generated value
+E       )
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+______________________ TestTypePromotion.test_dtype_promo ______________________
+
+self = <test.null.test_dtype_spec.TestTypePromotion testMethod=test_dtype_promo>
+
+    def test_dtype_promo(self):
+>     assert least_upper_dtype(dtypes.bool, dtypes.int8) == dtypes.int8
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/null/test_dtype_spec.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.least_upper_dtype>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.least_upper_dtype'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+___________ TestTypePromotion.test_promo_resulted_higher_than_inputs ___________
+
+self = <test.null.test_dtype_spec.TestTypePromotion testMethod=test_promo_resulted_higher_than_inputs>
+
+    @given(strat.sampled_from(core_dtypes), strat.sampled_from(core_dtypes))
+>   def test_promo_resulted_higher_than_inputs(self, dtype1, dtype2):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:196: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:197: in test_promo_resulted_higher_than_inputs
+    result = least_upper_dtype(dtype1, dtype2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.least_upper_dtype>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.least_upper_dtype'; the strict shim refuses to implement or import it from upstream tinygrad
+E       Failing test case: test_promo_resulted_higher_than_inputs(
+E           self=<test.null.test_dtype_spec.TestTypePromotion testMethod=test_promo_resulted_higher_than_inputs>,
+E           dtype1='bf16',
+E           dtype2='bf16',
+E       )
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+__________________ TestTypePromotion.test_self_promo_to_self ___________________
+
+self = <test.null.test_dtype_spec.TestTypePromotion testMethod=test_self_promo_to_self>
+
+    @given(strat.sampled_from(core_dtypes))
+>   def test_self_promo_to_self(self, dtype):
+                 ^^^^^^^
+
+test/null/test_dtype_spec.py:190: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/null/test_dtype_spec.py:191: in test_self_promo_to_self
+    assert least_upper_dtype(dtype) == dtype
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+../shim/tinygrad/_unsupported.py:33: in __call__
+    self._raise()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unsupported Tgrad capability tinygrad.dtype.least_upper_dtype>
+
+    def _raise(self):
+>       raise TgradCapabilityError(_message(self.name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.dtype.least_upper_dtype'; the strict shim refuses to implement or import it from upstream tinygrad
+E       Failing test case: test_self_promo_to_self(
+E           self=<test.null.test_dtype_spec.TestTypePromotion testMethod=test_self_promo_to_self>,
+E           dtype='bf16',
+E       )
+
+../shim/tinygrad/_unsupported.py:30: TgradCapabilityError
+____________________ TestTypePromotion.test_weakfloat_promo ____________________
+
+self = <test.null.test_dtype_spec.TestTypePromotion testMethod=test_weakfloat_promo>
+
+    def test_weakfloat_promo(self):
+      # weakfloat is a float, but is not one of dtypes.floats
+>     assert dtypes.is_float(dtypes.weakfloat) and dtypes.weakfloat not in dtypes.floats
+                             ^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'weakfloat'
+
+test/null/test_dtype_spec.py:234: AttributeError
+_____________________ TestTypePromotion.test_weakint_promo _____________________
+
+self = <test.null.test_dtype_spec.TestTypePromotion testMethod=test_weakint_promo>
+
+    def test_weakint_promo(self):
+>     assert least_upper_dtype(dtypes.weakint, dtypes.weakint) == dtypes.weakint
+                               ^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'weakint'
+
+test/null/test_dtype_spec.py:228: AttributeError
+________________ TestTypeSpec.test_attention_returns_same_dtype ________________
+
+self = <test.null.test_dtype_spec.TestTypeSpec testMethod=test_attention_returns_same_dtype>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:249: AttributeError
+__________________________ TestTypeSpec.test_bool_ops __________________________
+
+self = <test.null.test_dtype_spec.TestTypeSpec testMethod=test_bool_ops>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:249: AttributeError
+___________________ TestTypeSpec.test_functions_return_index ___________________
+
+self = <test.null.test_dtype_spec.TestTypeSpec testMethod=test_functions_return_index>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:249: AttributeError
+_________________ TestTypeSpec.test_gather_returns_same_dtype __________________
+
+self = <test.null.test_dtype_spec.TestTypeSpec testMethod=test_gather_returns_same_dtype>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:249: AttributeError
+_____________________ TestTypeSpec.test_set_dtype_default ______________________
+
+self = <test.null.test_dtype_spec.TestTypeSpec testMethod=test_set_dtype_default>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:249: AttributeError
+_____________ TestTypeSpec.test_tensor_indexing_returns_same_dtype _____________
+
+self = <test.null.test_dtype_spec.TestTypeSpec testMethod=test_tensor_indexing_returns_same_dtype>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:249: AttributeError
+____________________ TestAutoCastType.test_broadcast_scalar ____________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_broadcast_scalar>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_________________________ TestAutoCastType.test_cumsum _________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_cumsum>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+______________________ TestAutoCastType.test_cumsum_empty ______________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_cumsum_empty>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+__________________________ TestAutoCastType.test_div ___________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_div>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_______________________ TestAutoCastType.test_div_const ________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_div_const>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+______________________ TestAutoCastType.test_int_div_int _______________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_int_div_int>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+____________ TestAutoCastType.test_least_upper_float_input_is_float ____________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_least_upper_float_input_is_float>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_____________ TestAutoCastType.test_least_upper_float_input_is_int _____________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_least_upper_float_input_is_int>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_________________________ TestAutoCastType.test_linear _________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_linear>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_________________________ TestAutoCastType.test_matmul _________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_matmul>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+________________________ TestAutoCastType.test_maximum _________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_maximum>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_____________________ TestAutoCastType.test_maximum_const ______________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_maximum_const>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+__________________________ TestAutoCastType.test_mean __________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_mean>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_______________________ TestAutoCastType.test_pad_scalar _______________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_pad_scalar>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+__________________________ TestAutoCastType.test_sort __________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_sort>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+__________________________ TestAutoCastType.test_sum ___________________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_sum>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+____________________ TestAutoCastType.test_where_no_scalar _____________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_where_no_scalar>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+_______________ TestAutoCastType.test_where_non_bool_cond_raises _______________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_where_non_bool_cond_raises>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+____________________ TestAutoCastType.test_where_one_scalar ____________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_where_one_scalar>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+___________________ TestAutoCastType.test_where_two_scalars ____________________
+
+self = <test.null.test_dtype_spec.TestAutoCastType testMethod=test_where_two_scalars>
+
+    def setUp(self):
+>     self.old_default_int, self.old_default_float = dtypes.default_int, dtypes.default_float
+                                                     ^^^^^^^^^^^^^^^^^^
+E     AttributeError: '_DTypes' object has no attribute 'default_int'. Did you mean: 'default_float'?
+
+test/null/test_dtype_spec.py:300: AttributeError
+=========================== short test summary info ============================
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_dtype_range - Attribut...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_dtype_range_vec - Attr...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_finfo - tgrad.TgradTyp...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_float_to_bf16 - tinygr...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_float_to_bf16_boundary
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_float_to_bf16_nan - ti...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_float_to_bf16_round - ...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_float_to_fp16 - tinygr...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_fp8s_are_float - tgrad...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_from_py - AttributeErr...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_is_float - tgrad.Tgrad...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_is_int - tgrad.TgradTy...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_is_unsigned_signed_ints
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_is_unsigned_uints - tg...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_scalar - AttributeErro...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_truncate_fp8e4m3 - tin...
+FAILED test/null/test_dtype_spec.py::TestHelpers::test_truncate_fp8e5m2 - tin...
+FAILED test/null/test_dtype_spec.py::TestTypePromotion::test_dtype_promo - ti...
+FAILED test/null/test_dtype_spec.py::TestTypePromotion::test_promo_resulted_higher_than_inputs
+FAILED test/null/test_dtype_spec.py::TestTypePromotion::test_self_promo_to_self
+FAILED test/null/test_dtype_spec.py::TestTypePromotion::test_weakfloat_promo
+FAILED test/null/test_dtype_spec.py::TestTypePromotion::test_weakint_promo - ...
+FAILED test/null/test_dtype_spec.py::TestTypeSpec::test_attention_returns_same_dtype
+FAILED test/null/test_dtype_spec.py::TestTypeSpec::test_bool_ops - AttributeE...
+FAILED test/null/test_dtype_spec.py::TestTypeSpec::test_functions_return_index
+FAILED test/null/test_dtype_spec.py::TestTypeSpec::test_gather_returns_same_dtype
+FAILED test/null/test_dtype_spec.py::TestTypeSpec::test_set_dtype_default - A...
+FAILED test/null/test_dtype_spec.py::TestTypeSpec::test_tensor_indexing_returns_same_dtype
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_broadcast_scalar
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_cumsum - Attribut...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_cumsum_empty - At...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_div - AttributeEr...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_div_const - Attri...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_int_div_int - Att...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_least_upper_float_input_is_float
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_least_upper_float_input_is_int
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_linear - Attribut...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_matmul - Attribut...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_maximum - Attribu...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_maximum_const - A...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_mean - AttributeE...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_pad_scalar - Attr...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_sort - AttributeE...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_sum - AttributeEr...
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_where_no_scalar
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_where_non_bool_cond_raises
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_where_one_scalar
+FAILED test/null/test_dtype_spec.py::TestAutoCastType::test_where_two_scalars
+48 failed, 1 passed in 3.02s

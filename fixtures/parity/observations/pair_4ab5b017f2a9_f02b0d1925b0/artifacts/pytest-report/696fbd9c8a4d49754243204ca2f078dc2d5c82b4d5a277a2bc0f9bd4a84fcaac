@@ -1,0 +1,8 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestRawShmBuffer", "request"], "marks": [], "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestRawShmBuffer", "request"], "marks": [], "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e_big", "parameters": {}}], "count": 2, "event": "collection_finish", "nodeids": ["test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e", "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e_big"]}
+{"event": "test_report", "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e_big", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e_big", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_shm_tensor.py::TestRawShmBuffer::test_e2e_big", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 0}

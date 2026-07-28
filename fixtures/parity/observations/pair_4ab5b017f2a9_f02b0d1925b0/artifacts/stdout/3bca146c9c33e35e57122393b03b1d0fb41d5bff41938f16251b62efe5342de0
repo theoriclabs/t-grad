@@ -1,0 +1,241 @@
+FFFFFFFsFFFF                                                             [100%]
+=================================== FAILURES ===================================
+__________________________ TestTensorBytes.test_bytes __________________________
+
+self = <test.unit.test_tensor_data.TestTensorBytes testMethod=test_bytes>
+
+    def test_bytes(self):
+>     lst = Tensor(bytes(b"\xaa\xbb\xcc\xdd"))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_tensor_data.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x107772430>
+arr = array(b'\xaa\xbb\xcc\xdd', dtype='|S4'), dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+        if arr.dtype.kind not in "biuf":
+>           raise TgradTypeError(
+                f"Tensor data must be a rectangular bool/int/float array "
+                f"(got dtype={arr.dtype})")
+E           tgrad.TgradTypeError: Tensor data must be a rectangular bool/int/float array (got dtype=|S4)
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:434: TgradTypeError
+_______________________ TestTensorBytes.test_float_bytes _______________________
+
+self = <test.unit.test_tensor_data.TestTensorBytes testMethod=test_float_bytes>
+
+    def test_float_bytes(self):
+>     lst = Tensor(bytes(struct.pack("ff", 0.234, 0.8585)), dtype=dtypes.float32)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_tensor_data.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x1077722e0>
+arr = array(b'\xb2\x9do>\xa8\xc6[?', dtype='|S8'), dtype = 'f32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+        if arr.dtype.kind not in "biuf":
+>           raise TgradTypeError(
+                f"Tensor data must be a rectangular bool/int/float array "
+                f"(got dtype={arr.dtype})")
+E           tgrad.TgradTypeError: Tensor data must be a rectangular bool/int/float array (got dtype=|S8)
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:434: TgradTypeError
+___________________ TestTensorData.test_const_dtype_for_uop ____________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_const_dtype_for_uop>
+
+    def test_const_dtype_for_uop(self):
+>     self.assertEqual(Tensor.const(dtypes.int8, UOp.const(dtypes.float32, 1.0)).dtype, dtypes.int8)
+                       ^^^^^^^^^^^^
+E     AttributeError: type object 'Tensor' has no attribute 'const'
+
+test/unit/test_tensor_data.py:69: AttributeError
+___________________________ TestTensorData.test_data ___________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data>
+
+    def test_data(self):
+      a = Tensor([1,2,3,4], dtype=dtypes.int32)
+>     dat = a.data()
+            ^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'data'
+
+test/unit/test_tensor_data.py:21: AttributeError
+________________________ TestTensorData.test_data_const ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_const>
+
+    def test_data_const(self):
+      a = Tensor(3, dtype=dtypes.int32)
+>     dat = a.data()
+            ^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'data'
+
+test/unit/test_tensor_data.py:62: AttributeError
+________________________ TestTensorData.test_data_empty ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_empty>
+
+    def test_data_empty(self):
+>     a = Tensor([], dtype=dtypes.int32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_tensor_data.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x1077a3380>, arr = array([], dtype=float64)
+dtype = 'i32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+        if arr.dtype.kind not in "biuf":
+            raise TgradTypeError(
+                f"Tensor data must be a rectangular bool/int/float array "
+                f"(got dtype={arr.dtype})")
+        shape = tuple(int(s) for s in arr.shape)
+        if any(s < 1 for s in shape):
+>           raise NotInLeanScope(
+                f"materialized Tensor dimensions must be positive (got {shape})")
+E           tgrad.NotInLeanScope: materialized Tensor dimensions must be positive (got (0,))
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:439: NotInLeanScope
+___________________ TestTensorData.test_data_empty_multi_dim ___________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_empty_multi_dim>
+
+    def test_data_empty_multi_dim(self):
+>     a = Tensor([], dtype=dtypes.int32).reshape(0, 2)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_tensor_data.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x10786c520>, arr = array([], dtype=float64)
+dtype = 'i32'
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+            raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+        if arr.ndim > 3:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={arr.ndim})")
+        if arr.dtype.kind not in "biuf":
+            raise TgradTypeError(
+                f"Tensor data must be a rectangular bool/int/float array "
+                f"(got dtype={arr.dtype})")
+        shape = tuple(int(s) for s in arr.shape)
+        if any(s < 1 for s in shape):
+>           raise NotInLeanScope(
+                f"materialized Tensor dimensions must be positive (got {shape})")
+E           tgrad.NotInLeanScope: materialized Tensor dimensions must be positive (got (0,))
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:439: NotInLeanScope
+_______________________ TestTensorData.test_data_float32 _______________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_float32>
+
+    def test_data_float32(self):
+      a = Tensor([[1,2.5],[3,4]], dtype=dtypes.float32)
+>     dat = a.data()
+            ^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'data'
+
+test/unit/test_tensor_data.py:74: AttributeError
+_______________________ TestTensorData.test_data_nested ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_nested>
+
+    def test_data_nested(self):
+      a = Tensor([[1,2],[3,4]], dtype=dtypes.int32)
+>     dat = a.data()
+            ^^^^^^
+E     AttributeError: 'Tensor' object has no attribute 'data'
+
+test/unit/test_tensor_data.py:52: AttributeError
+________________________ TestTensorData.test_data_uint8 ________________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_data_uint8>
+
+    def test_data_uint8(self):
+>     a = Tensor([1,2,3,4], dtype=dtypes.uint8)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/unit/test_tensor_data.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:362: in __init__
+    self._init_from_numpy(arr, dtype)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tgrad.Tensor object at 0x10786c7c0>, arr = array([1, 2, 3, 4])
+dtype = <unsupported Tgrad capability tinygrad.dtype.dtypes.uint8>
+
+    def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        if dtype not in _SUPPORTED_DTYPES:
+>           raise TgradTypeError(
+                f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")
+E           tgrad.TgradTypeError: unsupported dtype <unsupported Tgrad capability tinygrad.dtype.dtypes.uint8>; supported: ['bf16', 'f32', 'i32']
+
+/tmp/tgrad_parity_observer_ev2zwvjk/snapshot/python/tgrad.py:427: TgradTypeError
+___________________ TestTensorData.test_tolist_empty_shapes ____________________
+
+self = <test.unit.test_tensor_data.TestTensorData testMethod=test_tolist_empty_shapes>
+
+    def test_tolist_empty_shapes(self):
+      for shape, expected in (((0,), []), ((2, 0), [[], []]), ((0, 2), []),
+                              ((2, 0, 3), [[], []]), ((2, 3, 0), [[[], [], []], [[], [], []]])):
+>       self.assertEqual(Tensor.ones(*shape).tolist(), expected)
+                         ^^^^^^^^^^^
+E       AttributeError: type object 'Tensor' has no attribute 'ones'
+
+test/unit/test_tensor_data.py:89: AttributeError
+=========================== short test summary info ============================
+FAILED test/unit/test_tensor_data.py::TestTensorBytes::test_bytes - tgrad.Tgr...
+FAILED test/unit/test_tensor_data.py::TestTensorBytes::test_float_bytes - tgr...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_const_dtype_for_uop
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data - AttributeEr...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_const - Attri...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_empty - tgrad...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_empty_multi_dim
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_float32 - Att...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_nested - Attr...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_data_uint8 - tgrad...
+FAILED test/unit/test_tensor_data.py::TestTensorData::test_tolist_empty_shapes
+11 failed, 1 skipped in 0.19s

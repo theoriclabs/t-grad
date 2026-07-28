@@ -1,0 +1,14 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestJitCases", "request"], "marks": [], "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_explicit", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestJitCases", "request"], "marks": [], "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_input", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestJitCases", "request"], "marks": [], "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_io", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestJitCases", "request"], "marks": [], "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_output", "parameters": {}}], "count": 4, "event": "collection_finish", "nodeids": ["test/unit/test_jit_cases.py::TestJitCases::test_explicit", "test/unit/test_jit_cases.py::TestJitCases::test_implicit_input", "test/unit/test_jit_cases.py::TestJitCases::test_implicit_io", "test/unit/test_jit_cases.py::TestJitCases::test_implicit_output"]}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_explicit", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_explicit", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_explicit", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_input", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_input", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_input", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_io", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_io", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_io", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_output", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "failure_type": "TgradCapabilityError", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_output", "outcome": "failed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_jit_cases.py::TestJitCases::test_implicit_output", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 1}

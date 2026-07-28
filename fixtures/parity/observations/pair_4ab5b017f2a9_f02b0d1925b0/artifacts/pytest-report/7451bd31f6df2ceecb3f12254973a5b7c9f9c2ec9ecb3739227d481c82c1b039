@@ -1,0 +1,11 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestStunning", "request"], "marks": [], "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_two_bind", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestStunning", "request"], "marks": [], "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_variable", "parameters": {}}, {"fixtures": ["_unittest_setUpClass_fixture_TestStunning", "request"], "marks": [], "nodeid": "test/backend/test_stunning.py::TestStunning::test_simple_train", "parameters": {}}], "count": 3, "event": "collection_finish", "nodeids": ["test/backend/test_stunning.py::TestStunning::test_indexing_two_bind", "test/backend/test_stunning.py::TestStunning::test_indexing_variable", "test/backend/test_stunning.py::TestStunning::test_simple_train"]}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_two_bind", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_two_bind", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_two_bind", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_variable", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_variable", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_indexing_variable", "outcome": "passed", "phase": "teardown"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_simple_train", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_simple_train", "outcome": "skipped", "phase": "call"}
+{"event": "test_report", "nodeid": "test/backend/test_stunning.py::TestStunning::test_simple_train", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 0}

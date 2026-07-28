@@ -1,0 +1,3 @@
+{"event": "collection_error", "nodeid": "test/backend/test_symbolic_ops.py", "outcome": "failed"}
+{"cases": [], "count": 0, "event": "collection_finish", "nodeids": []}
+{"event": "session_finish", "exitstatus": 2}

@@ -1,0 +1,103 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+__________________________ TestJitCases.test_explicit __________________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_explicit>
+
+    def test_explicit(self):
+      # this function has an explicit input and an explicit output
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_cases.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCases.test_explicit.<locals>.f at 0x107178a40>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+_______________________ TestJitCases.test_implicit_input _______________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_implicit_input>
+
+    def test_implicit_input(self):
+      # x is the implicit input (like a weight)
+      x = Tensor([0])
+    
+      # this function has an implicit input and an explicit output
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_cases.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCases.test_implicit_input.<locals>.f at 0x107198a40>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+________________________ TestJitCases.test_implicit_io _________________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_implicit_io>
+
+    def test_implicit_io(self):
+      # x is the implicit input (like a weight)
+      # out is the implicit output (it's assigned to)
+      x = Tensor([0])
+      out = Tensor([0])
+    
+      # this function has an implicit input and an implicit output
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_cases.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCases.test_implicit_io.<locals>.f at 0x107198e00>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+______________________ TestJitCases.test_implicit_output _______________________
+
+self = <test.unit.test_jit_cases.TestJitCases testMethod=test_implicit_output>
+
+    def test_implicit_output(self):
+      # out is the implicit output (it's assigned to)
+      out = Tensor([0])
+    
+      # this function has an explicit input and an implicit output
+>     @TinyJit
+       ^^^^^^^
+
+test/unit/test_jit_cases.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'tinygrad.engine.jit.TinyJit'>
+args = (<function TestJitCases.test_implicit_output.<locals>.f at 0x107199120>,)
+kwargs = {}
+
+    def __call__(cls, *args, **kwargs):
+>       raise TgradCapabilityError(_message(cls.capability_name))
+E       tinygrad._unsupported.TgradCapabilityError: Tgrad does not provide tinygrad capability 'tinygrad.engine.jit.TinyJit'; the strict shim refuses to implement or import it from upstream tinygrad
+
+../shim/tinygrad/_unsupported.py:93: TgradCapabilityError
+=========================== short test summary info ============================
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_explicit - tinygrad._u...
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_implicit_input - tinyg...
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_implicit_io - tinygrad...
+FAILED test/unit/test_jit_cases.py::TestJitCases::test_implicit_output - tiny...
+4 failed in 0.11s

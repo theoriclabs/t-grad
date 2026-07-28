@@ -1,0 +1,5 @@
+{"cases": [{"fixtures": ["_unittest_setUpClass_fixture_TestSymbolicPad", "request"], "marks": [], "nodeid": "test/unit/test_symbolic_tensor.py::TestSymbolicPad::test_pad", "parameters": {}}], "count": 1, "event": "collection_finish", "nodeids": ["test/unit/test_symbolic_tensor.py::TestSymbolicPad::test_pad"]}
+{"event": "test_report", "nodeid": "test/unit/test_symbolic_tensor.py::TestSymbolicPad::test_pad", "outcome": "passed", "phase": "setup"}
+{"event": "test_report", "nodeid": "test/unit/test_symbolic_tensor.py::TestSymbolicPad::test_pad", "outcome": "passed", "phase": "call"}
+{"event": "test_report", "nodeid": "test/unit/test_symbolic_tensor.py::TestSymbolicPad::test_pad", "outcome": "passed", "phase": "teardown"}
+{"event": "session_finish", "exitstatus": 0}

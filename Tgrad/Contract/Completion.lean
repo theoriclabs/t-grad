@@ -157,6 +157,22 @@ def ValidatedCatalogClosure.target (v : ValidatedCatalogClosure) : TargetIdentit
 def ValidatedCatalogClosure.profile (v : ValidatedCatalogClosure) : ProfileId :=
   v.candidate.profile
 
+def ValidatedCatalogClosure.sourceClosure
+    (v : ValidatedCatalogClosure) : SourceClosureId :=
+  v.candidate.sourceClosure
+
+def ValidatedCatalogClosure.inventory
+    (v : ValidatedCatalogClosure) : List SourceItemId :=
+  v.candidate.inventory
+
+def ValidatedCatalogClosure.dispositions
+    (v : ValidatedCatalogClosure) : List SourceItemDisposition :=
+  v.candidate.dispositions
+
+def ValidatedCatalogClosure.acceptedJudgments
+    (v : ValidatedCatalogClosure) : List JudgmentIdentity :=
+  v.candidate.acceptedJudgments
+
 def ValidatedCatalogClosure.lookupEntry?
     (v : ValidatedCatalogClosure) (id : RequirementId) : Option RequirementClosureEntry :=
   v.candidate.requirementEntries.find? (fun e => e.requirement.id == id)
@@ -164,6 +180,26 @@ def ValidatedCatalogClosure.lookupEntry?
 def ValidatedRequirementDischarge.requirement
     (v : ValidatedRequirementDischarge) : RequirementId :=
   v.candidate.requirement.id
+
+def ValidatedRequirementDischarge.assuranceState
+    (v : ValidatedRequirementDischarge) : AssuranceState :=
+  v.candidate.assuranceState
+
+def ValidatedProfileCompletion.catalog
+    (v : ValidatedProfileCompletion) : ValidatedCatalogClosure :=
+  v.candidate.catalog
+
+def ValidatedProfileCompletion.subjectTree
+    (v : ValidatedProfileCompletion) : ProductTreeIdentity :=
+  v.candidate.subjectTree
+
+def ValidatedProfileCompletion.runtime
+    (v : ValidatedProfileCompletion) : RuntimeIdentity :=
+  v.candidate.runtime
+
+def ValidatedProfileCompletion.discharges
+    (v : ValidatedProfileCompletion) : List RequirementDischargeCandidate :=
+  v.candidate.discharges
 
 /-! ## Typed diagnosed faults -/
 

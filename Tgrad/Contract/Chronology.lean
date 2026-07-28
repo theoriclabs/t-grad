@@ -130,6 +130,18 @@ structure ValidatedJudgingInputClosure where
     closureIdentity : ContentDigest
   deriving Repr
 
+def ValidatedJudgingInputClosure.nodes
+    (v : ValidatedJudgingInputClosure) : List JudgingInputNode :=
+  v.candidate.nodes
+
+def ValidatedJudgingInputClosure.roots
+    (v : ValidatedJudgingInputClosure) : List JudgingNodeId :=
+  v.candidate.roots
+
+def ValidatedJudgingInputClosure.identity
+    (v : ValidatedJudgingInputClosure) : ContentDigest :=
+  v.closureIdentity
+
 /-! ## Chronology mode: retrospective vs prospective -/
 
 structure BlindFreezeProtocolRef where
@@ -263,6 +275,14 @@ structure ValidatedCycleRegistry where
   private mk ::
     candidate : CycleRegistryCandidate
   deriving Repr
+
+def ValidatedCycleRegistry.importedDescriptors
+    (v : ValidatedCycleRegistry) : List CycleEventDescriptor :=
+  v.candidate.importedDescriptors
+
+def ValidatedCycleRegistry.entries
+    (v : ValidatedCycleRegistry) : List CycleEventEntry :=
+  v.candidate.entries
 
 /-! ## Typed diagnosed faults -/
 

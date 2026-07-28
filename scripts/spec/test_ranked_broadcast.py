@@ -16,9 +16,9 @@ import tgrad
 
 
 class RankedBroadcastTests(unittest.TestCase):
-    def assertOp(self, left, right, op, expected):
-        a = tgrad.Tensor(left, dtype="f32")
-        b = tgrad.Tensor(right, dtype="f32")
+    def assertOp(self, left, right, op, expected, *, dtype="f32"):
+        a = tgrad.Tensor(left, dtype=dtype)
+        b = tgrad.Tensor(right, dtype=dtype)
         a_before = a.numpy().copy()
         b_before = b.numpy().copy()
         result = op(a, b)
@@ -27,6 +27,16 @@ class RankedBroadcastTests(unittest.TestCase):
         np.testing.assert_array_equal(b.numpy(), b_before)
         self.assertIs(result.realize(), result)
         return result
+
+    def test_rank_zero_output(self):
+        result = self.assertOp(2.0, 3.0, lambda a, b: a + b, 5.0)
+        self.assertEqual(result.shape, ())
+
+    def test_rank_one_output(self):
+        left = np.asarray([1, 2, 3], dtype=np.float32)
+        right = np.asarray([10], dtype=np.float32)
+        result = self.assertOp(left, right, lambda a, b: a + b, left + right)
+        self.assertEqual(result.shape, (3,))
 
     def test_frozen_two_sided_rank_three_add(self):
         left = np.asarray([1, 2, 3, 4, 5, 6], dtype=np.float32).reshape(2, 1, 3)
@@ -49,6 +59,14 @@ class RankedBroadcastTests(unittest.TestCase):
         right = np.asarray([2, 4], dtype=np.float32).reshape(1, 2, 1)
         self.assertOp(left, right, lambda a, b: a - b, left - right)
         self.assertOp(left, right, lambda a, b: a * b, left * right)
+
+    def test_rank_three_bfloat16(self):
+        left = np.asarray([1, 2, 3, 4, 5, 6], dtype=np.float32).reshape(2, 1, 3)
+        right = np.asarray([8, 16], dtype=np.float32).reshape(1, 2, 1)
+        result = self.assertOp(
+            left, right, lambda a, b: a + b, left + right, dtype="bf16")
+        self.assertEqual(result.shape, (2, 2, 3))
+        self.assertEqual(result.dtype, "bf16")
 
     def test_right_incompatible_shape_is_rejected(self):
         left = tgrad.Tensor(np.zeros((2, 3), dtype=np.float32), dtype="f32")

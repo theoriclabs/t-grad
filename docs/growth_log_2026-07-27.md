@@ -133,3 +133,65 @@ The method is producing useful work if subsequent cycles continue to show:
 This cycle satisfies the first four. The fifth remains an open economic test:
 six earlier protocol/tooling revisions were needed to obtain a trustworthy
 comparison, so the next three requirement cycles should be materially cheaper.
+
+## Ranked elementwise broadcasting cycle
+
+The next cycle closed exactly the rank/indexing front selected above.
+
+- Prospective packet: `WORK-EW-RANKED-BROADCAST-V1`, frozen at `93811f2`
+  before product authoring.
+- Product implementation: `8016524`.
+- Immutable TGrad evidence:
+  `23d0daf8a3a75f29d8deecb52665e5353a6531ad4cfdf3fe76d3e31556ff67bf`.
+- Evidence/verification amendment: `20bae71`.
+
+The implementation right-aligns rank-zero-through-three operands by prepending
+size-one, stride-zero view axes; derives operand and output indices from the
+ranked `View`; dispatches the corresponding Metal x/y/z grid; and recovers the
+complete realized result shape. The write set was exactly the four product
+boundaries predicted by the packet. `Pipeline.lean`, `Shape.lean`, the C bridge,
+observer, and dtype shim remained untouched.
+
+The clean-tree V6 observation matched the prospective transition exactly:
+
+| Scenario | Before | After |
+|---|---:|---:|
+| `ADD-SAME-SHAPE-F32` | 11 same / 0 different / 0 unobserved | unchanged |
+| `ADD-SINGLETON-AXIS-F32` | 11 / 0 / 0 | unchanged |
+| `ADD-TWO-SIDED-BROADCAST-F32` | blocked at rank-2 guard | 11 / 0 / 0 |
+| `ADD-RANK-EXTENSION-I32` | 0 / 5 / 6 | unchanged |
+| `ADD-I32-F32-SCALAR-PROMOTION` | 0 / 5 / 6 | unchanged |
+| `ADD-INCOMPATIBLE-SHAPES` | 2 / 3 / 1 | unchanged |
+
+This is the strongest method result so far: a frozen work-shape predicted one
+new complete scenario, two preserved scenarios, and three unchanged excluded
+fronts, and the independent observation produced exactly that partition. No
+observer semantics, upstream baseline, dtype surface, or exception relation was
+changed to make the result agree.
+
+Focused verification covers rank-0 and rank-1 outputs, right-aligned rank
+extension, two-sided rank-3 broadcast, scalar broadcast, bf16 and f32, all
+three admitted operators, cache separation, input immutability, realization
+identity, incompatible-shape rejection, and the previous rank-2 singleton
+case. The shared view algebra also retained 6/6 fused-matmul differential
+cases and its falsification check.
+
+The scoping review found two explicit follow-up debts rather than expanding
+this packet after the fact:
+
+1. `Tensor.shape` for an unrealized `.binop` still walks only the left operand;
+   eager Python realization hides that metadata defect.
+2. elementwise realization still lives directly in `PythonFFI.lean` instead of
+   the graph-indexed `Pipeline` spine.
+
+It also found that `scripts/devcheck.sh` enumerates tests rather than discovering
+them. `WORK-EW-RANKED-BROADCAST-VERIFY-V1` therefore freezes a verifier-only
+amendment before registering the new module in recurring preflight. This is not
+new conformance evidence.
+
+Three of six frozen scenarios now match every declared upstream dimension.
+That is still not requirement promotion: int32 representation/construction,
+mixed-dtype promotion, the incompatible-shape exception relation, adequacy,
+and source-to-binary provenance remain open. The next product packet should be
+selected from those named fronts after a fresh boundary analysis, not inferred
+from the aggregate 3/6 count.

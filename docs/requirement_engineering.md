@@ -813,3 +813,49 @@ The deepest redesign is therefore not “add more facts to Lean.” It is:
 > Make Lean hold the argument connecting world requirements to machine specifications, implementations, observations, and derived work.
 
 That would turn Tgrad from a codebase with a formalized roadmap into a codebase that can mechanically explain what it is for, what it currently guarantees, what remains unknown, and which transformation most directly advances it.
+
+## A completed prospective work-shape experiment
+
+Ranked elementwise broadcasting provides the first end-to-end test of this
+method after the observation protocol stabilized.
+
+Before product authoring, `WORK-EW-RANKED-BROADCAST-V1` predicted:
+
+- one named scenario would move to full upstream agreement;
+- two already-matching scenarios would remain unchanged;
+- two int32 scenarios and one exception-relation scenario would not move;
+- exactly four product files were load-bearing;
+- five tempting adjacent files were outside the work boundary.
+
+After implementation at `8016524`, immutable evidence
+`23d0daf8a3a75f29d8deecb52665e5353a6531ad4cfdf3fe76d3e31556ff67bf`
+confirmed every transition and non-transition. The product write set also
+matched exactly. This matters more than the raw increase from two to three
+fully matching scenarios: it is evidence that the current requirement model
+can predict the shape of a useful transformation and localize what should not
+change.
+
+The cycle also demonstrates how the model should learn from omissions. A
+read-only review found that the focused test was not called by recurring
+preflight because the runner enumerates modules explicitly. We did not rewrite
+the original product packet after success. Instead,
+`WORK-EW-RANKED-BROADCAST-VERIFY-V1` records a verifier-only correction with an
+empty product write set and no conformance-state transition. Chronology remains
+visible, and verifier work is not mislabeled as product functionality.
+
+For future cycles, retain this separation:
+
+```text
+world requirement
+  → calibrated observation frontier
+  → prospective product work-shape
+  → product transformation
+  → clean-tree observation
+  → immutable evidence
+  → verifier registration or other follow-up work under separate packets
+```
+
+A method-health report should count exact transition predictions, write-set
+precision, survived mutants, localized non-transitions, and cycle cost. It
+should not summarize this result as “50% broadcast parity”: the six scenarios
+are a designed probe set, not a completeness denominator.

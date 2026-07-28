@@ -12,3 +12,11 @@ __pycache__/
 .venv-*/
 dist/
 *.egg-info/
+
+# Durable working state for the parity program: the pinned upstream oracle
+# checkout and freshly computed (not yet promoted) observations. Contents are
+# regenerable — `python3 scripts/parity/ensure_oracle.py` restores the oracle —
+# but this is NOT a cache and must not be swept under disk pressure. Promoted
+# evidence lives in fixtures/parity/observations/ and IS tracked.
+var/*
+!var/README.md

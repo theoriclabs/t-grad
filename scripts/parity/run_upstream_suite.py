@@ -34,13 +34,24 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 OUT_DIR = REPO / "fixtures" / "parity"
+# Durable by default, NOT /tmp. Freshly computed observations are evidence
+# that has not been promoted yet; losing them to a disk-pressure sweep of
+# /tmp costs a full re-run against the GPU. `var/` is gitignored working
+# state inside the repo, chosen over ~/.cache because the sweep that
+# removed /tmp/tg_oracle also removed ~/.cache/uv and ~/.cache/nix --- a
+# cache is exactly what gets reclaimed first, and this is not a cache.
 OBSERVATION_DIR = Path(
-    os.environ.get("TGRAD_PARITY_OUTPUT_DIR", "/tmp/tgrad-parity-observations")
+    os.environ.get("TGRAD_PARITY_OUTPUT_DIR", REPO / "var" / "observations")
 )
 DEFAULT_VENV_PY = Path(
     os.environ.get("TGRAD_PARITY_PYTHON", REPO / ".venv" / "bin" / "python")
 )
-DEFAULT_CHECKOUT = Path("/tmp/tg_oracle/tinygrad")
+# The foreign oracle. Provision and verify it with
+# `python3 scripts/parity/ensure_oracle.py`, which pins the revision;
+# do not assume an existing directory is the right tree.
+DEFAULT_CHECKOUT = Path(
+    os.environ.get("TGRAD_PARITY_ORACLE", REPO / "var" / "oracle" / "tinygrad")
+)
 DEFAULT_CLASSIFICATION = OUT_DIR / "oracle_classification.json"
 UPSTREAM_MANIFEST = OUT_DIR / "upstream_19c4d736f2bc.json"
 SHIM_ROOT = Path(__file__).resolve().parent / "shim"

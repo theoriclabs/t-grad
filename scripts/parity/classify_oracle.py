@@ -13,10 +13,13 @@ import argparse
 import ast
 from collections import Counter
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 from typing import Final
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 UPSTREAM_COMMIT: Final = "19c4d736f2bc8e26d21f08b28ffd6298408da00f"
@@ -185,7 +188,7 @@ DECISIONS: Final = {
 def parse_args() -> argparse.Namespace:
   repo_root = Path(__file__).resolve().parents[2]
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--tinygrad-root", type=Path, default=Path("/tmp/tg_oracle/tinygrad"),
+  parser.add_argument("--tinygrad-root", type=Path, default=Path(os.environ.get("TGRAD_PARITY_ORACLE", REPO / "var" / "oracle" / "tinygrad")),
                       help="path to the pinned tinygrad checkout")
   parser.add_argument("--output", type=Path, default=repo_root / "fixtures/parity/oracle_classification.json",
                       help="JSON path to write")

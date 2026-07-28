@@ -450,7 +450,15 @@ end Tgrad.Evidence.PilotGenerated
 '''
 
 
+class ObserverError(Exception):
+    """Clean, user-facing observer failure (printed without a traceback)."""
+
+
 def probe_python_facts(probe_python: Path) -> dict:
+    # Recorded `executable` is Path(sys.executable).resolve() — the bare
+    # interpreter binary identity. That intentionally differs from the
+    # spawn path: a venv wrapper must be invoked unresolved so its
+    # site-packages apply (see build_document).
     code = r'''
 import hashlib
 import json
@@ -482,30 +490,79 @@ print(json.dumps({
         capture_output=True,
         text=True,
         timeout=30,
-        check=True,
     )
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()
+        if "No module named 'numpy'" in err or 'No module named "numpy"' in err:
+            raise ObserverError(
+                f"probe interpreter lacks numpy: {probe_python}"
+            )
+        detail = err.splitlines()[-1] if err else f"exit {result.returncode}"
+        raise ObserverError(
+            f"probe interpreter failed: {probe_python} ({detail})"
+        )
     facts = json.loads(result.stdout)
     if not isinstance(facts, dict):
-        raise RuntimeError("probe interpreter returned invalid environment facts")
+        raise ObserverError("probe interpreter returned invalid environment facts")
     return facts
+
+
+def json_field_diffs(expected: object, actual: object, prefix: str = "") -> list[str]:
+    """Return dotted paths where expected and actual JSON values differ."""
+    if type(expected) is not type(actual):
+        return [f"{prefix or '<'}: type {type(actual).__name__} != {type(expected).__name__}"]
+    if isinstance(expected, dict):
+        diffs: list[str] = []
+        keys = sorted(set(expected) | set(actual))
+        for key in keys:
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if key not in expected:
+                diffs.append(f"{path}: unexpected in fresh observation")
+            elif key not in actual:
+                diffs.append(f"{path}: missing from fresh observation")
+            else:
+                diffs.extend(json_field_diffs(expected[key], actual[key], path))
+        return diffs
+    if isinstance(expected, list):
+        if len(expected) != len(actual):
+            path = prefix or "<list>"
+            return [f"{path}: length {len(actual)} != {len(expected)}"]
+        diffs = []
+        for index, (exp_item, act_item) in enumerate(zip(expected, actual)):
+            path = f"{prefix}[{index}]"
+            diffs.extend(json_field_diffs(exp_item, act_item, path))
+        return diffs
+    if expected != actual:
+        return [f"{prefix or '<value>'}: differs"]
+    return []
 
 
 def build_document(shim_root: Path, product_revision: str,
                    probe_python: Path) -> dict:
     product_full = git_value("rev-parse", product_revision)
     product_tree = git_value("rev-parse", f"{product_full}^{{tree}}")
-    probe_python = probe_python.resolve()
-    if not probe_python.is_file():
-        raise RuntimeError(f"probe interpreter does not exist: {probe_python}")
+    # Absolutize without resolve(). Probes chdir into a controlled temp
+    # world, so a relative path like .venv/bin/python would miss; but
+    # resolve() follows the venv symlink to bare CPython and drops the
+    # wrapper's site-packages (numpy disappears). Spawn the absolute
+    # wrapper path. Recorded environment identity still resolves inside
+    # the probe (Path(sys.executable).resolve()) — that is the bare
+    # binary hash, and intentionally differs from the spawn path.
+    probe_python = probe_python.absolute()
+    if not probe_python.exists():
+        raise ObserverError(f"probe interpreter does not exist: {probe_python}")
     if not RUNTIME_LIBRARY.is_file():
-        raise RuntimeError(f"runtime library does not exist: {RUNTIME_LIBRARY}")
+        raise ObserverError(
+            f"runtime library missing: {RUNTIME_LIBRARY} "
+            f"(probe interpreter: {probe_python})"
+        )
 
     adapter_hash = content_hash(shim_root)
     expected_adapter_hash = git_directory_content_hash(
         product_full, "scripts/parity/shim"
     )
     if adapter_hash != expected_adapter_hash:
-        raise RuntimeError(
+        raise ObserverError(
             "shim bytes do not belong to the declared product revision: "
             f"actual={adapter_hash}, expected={expected_adapter_hash}"
         )
@@ -514,7 +571,7 @@ def build_document(shim_root: Path, product_revision: str,
         git_blob(product_full, "python/tgrad.py")
     )
     if product_module_hash != expected_product_module_hash:
-        raise RuntimeError(
+        raise ObserverError(
             "python/tgrad.py does not belong to the declared product revision: "
             f"actual={product_module_hash}, expected={expected_product_module_hash}"
         )
@@ -660,7 +717,11 @@ def main() -> int:
         print(json.dumps({"generated_evidence": "matches_json"}, sort_keys=True))
         return 0
 
-    document = build_document(shim_root, args.product_revision, args.python)
+    try:
+        document = build_document(shim_root, args.product_revision, args.python)
+    except ObserverError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     json_bytes = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode()
     lean_bytes = render_lean(document).encode()
     calibrations_ok = all(
@@ -693,6 +754,15 @@ def main() -> int:
                 mismatches.append(str(path))
         if mismatches:
             print("pilot evidence drift: " + ", ".join(mismatches), file=sys.stderr)
+            if args.output.is_file():
+                committed = json.loads(args.output.read_text(encoding="utf-8"))
+                fresh = json.loads(json_bytes.decode())
+                field_diffs = json_field_diffs(committed, fresh)
+                if field_diffs:
+                    print("differing fields (committed vs fresh):", file=sys.stderr)
+                    for item in field_diffs:
+                        print(f"  - {item}", file=sys.stderr)
+            print(summary)
             return 1
     else:
         args.output.parent.mkdir(parents=True, exist_ok=True)

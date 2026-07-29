@@ -231,6 +231,13 @@ _lib.tgrad_tensor_full.argtypes = [
     ctypes.POINTER(ctypes.c_int64), ctypes.c_size_t,
     ctypes.c_double, ctypes.c_uint8, ctypes.c_uint8]
 _lib.tgrad_tensor_full.restype  = ctypes.c_uint64
+_lib.tgrad_full_like_query.argtypes = [
+    ctypes.c_uint64, ctypes.c_uint8, ctypes.c_uint8,
+    ctypes.c_uint8, ctypes.c_size_t]
+_lib.tgrad_full_like_query.restype = ctypes.c_uint64
+_lib.tgrad_tensor_full_like.argtypes = [
+    ctypes.c_uint64, ctypes.c_double, ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_tensor_full_like.restype = ctypes.c_uint64
 
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_view.restype  = ctypes.c_uint64
@@ -259,6 +266,7 @@ _DTYPE_VOID = 254
 # Creation-surface sentinels (matches PythonFFI.creationDtype?):
 _CREATION_DTYPE_DEFAULT = 255  # dtype=None → Lean resolves runtime default
 _CREATION_DTYPE_UNKNOWN = 253  # unrecognised name → Lean rejects
+_UINT64_MAX = (1 << 64) - 1
 # Lean-owned CreationShapeAdmission.code values. Python maps these stable
 # reasons to public exceptions; it does not inspect dimensions itself.
 _CREATION_SHAPE_ACCEPTED = 0
@@ -333,6 +341,31 @@ def _fill_scalar_tag(value) -> int:
 def _creation_dtype_resolve(fill_tag: int, dtype_code: int) -> int:
     """Allocation-free marshalling of Lean's shared creation resolver."""
     return int(_lib.tgrad_creation_dtype_resolve(fill_tag, dtype_code))
+
+
+def _full_like_resolution(source_handle: int, fill_tag: int,
+                          dtype_code: int) -> tuple[tuple[int, ...], int] | None:
+    """Allocation-free marshalling of Lean's full-like decision.
+
+    Python does not inspect the source tensor. Lean resolves its registered
+    shape and dtype, then this boundary transports the selected result.
+    """
+    dtype = int(_lib.tgrad_full_like_query(
+        source_handle, fill_tag, dtype_code, 0, 0))
+    if dtype == _UINT64_MAX:
+        return None
+    rank = int(_lib.tgrad_full_like_query(
+        source_handle, fill_tag, dtype_code, 1, 0))
+    if rank == _UINT64_MAX:
+        return None
+    shape: list[int] = []
+    for index in range(rank):
+        dim = int(_lib.tgrad_full_like_query(
+            source_handle, fill_tag, dtype_code, 2, index))
+        if dim == _UINT64_MAX:
+            return None
+        shape.append(dim)
+    return tuple(shape), dtype
 
 
 def _creation_shape_admission(shape) -> int:
@@ -716,6 +749,21 @@ class Tensor:
         tensor._init_buffer(buf, size, shape, dtype, handle, owns_buf, base)
         return tensor
 
+    @classmethod
+    def _from_result_handle(cls, handle: int, operation: str) -> "Tensor":
+        """Reconstruct a public Tensor from Lean-owned result metadata."""
+        if handle == 0:
+            raise TgradError(f"{operation} returned 0")
+        out_buf = _lib.tgrad_tensor_raw_buffer(handle)
+        out_rank = int(_lib.tgrad_tensor_rank(handle))
+        out_shape = tuple(
+            int(_lib.tgrad_tensor_shape_dim(handle, i))
+            for i in range(out_rank))
+        out_dtype = _dtype_of_handle(handle)
+        return cls._from_buffer(
+            out_buf, _numel(out_shape) * _DTYPE_BYTES[out_dtype],
+            out_shape, out_dtype, handle=handle, owns_buf=True)
+
     def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
         dtype = _native_dtype_name(dtype)
         if dtype not in _SUPPORTED_DTYPES:
@@ -808,15 +856,7 @@ class Tensor:
             raise TgradError(
                 f"tgrad_tensor_full(shape={shape}, fill={fill_value!r}) "
                 f"returned 0")
-        out_buf = _lib.tgrad_tensor_raw_buffer(h)
-        out_rank = int(_lib.tgrad_tensor_rank(h))
-        out_shape = tuple(
-            int(_lib.tgrad_tensor_shape_dim(h, i))
-            for i in range(out_rank))
-        out_dtype = _dtype_of_handle(h)
-        return cls._from_buffer(
-            out_buf, _numel(out_shape) * _DTYPE_BYTES[out_dtype],
-            out_shape, out_dtype, handle=h, owns_buf=True)
+        return cls._from_result_handle(h, "tgrad_tensor_full")
 
     @classmethod
     def zeros(cls, *shape, **kwargs) -> "Tensor":
@@ -827,6 +867,33 @@ class Tensor:
     def ones(cls, *shape, **kwargs) -> "Tensor":
         """Create a tensor filled with ones. Shape via ``_argfix``."""
         return cls.full(_argfix(*shape), 1.0, **kwargs)
+
+    def full_like(self, fill_value, dtype=None, **kwargs) -> "Tensor":
+        """Create a filled tensor by asking Lean to inherit source metadata."""
+        if kwargs:
+            raise TypeError(
+                f"Tensor.full_like: unsupported keyword argument(s) "
+                f"{sorted(kwargs)}; Tgrad accepts only dtype=")
+        fill_tag = _fill_scalar_tag(fill_value)
+        code = _creation_dtype_code(dtype)
+        handle = _lib.tgrad_tensor_full_like(
+            self._handle, float(fill_value), fill_tag, code)
+        if handle == 0:
+            if code not in (_DTYPE_BF16, _DTYPE_F32, _DTYPE_I32,
+                            _CREATION_DTYPE_DEFAULT):
+                raise TgradTypeError(
+                    f"unsupported dtype {dtype!r}; "
+                    f"supported: {sorted(_SUPPORTED_DTYPES)}")
+            raise TgradError("tgrad_tensor_full_like returned 0")
+        return type(self)._from_result_handle(handle, "tgrad_tensor_full_like")
+
+    def zeros_like(self, **kwargs) -> "Tensor":
+        """Create a zero-filled tensor with Lean-owned inheritance."""
+        return self.full_like(0.0, **kwargs)
+
+    def ones_like(self, **kwargs) -> "Tensor":
+        """Create a one-filled tensor with Lean-owned inheritance."""
+        return self.full_like(1.0, **kwargs)
 
     @classmethod
     def from_bf16_bytes(cls, raw: bytes, shape: tuple[int, ...]) -> "Tensor":

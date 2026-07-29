@@ -1166,6 +1166,97 @@ def creationDtypeResolveQuery (fillTag dtypeCode : UInt8) : IO UInt8 := do
   let some d ← resolveCreationDtype fillTag dtypeCode | return 255
   pure d.code
 
+/-- The only source facts that full-like creation is allowed to inherit.
+    Keeping this projection typed makes the pure resolver independent of the
+    registry while the stateful resolver below remains the sole authority for
+    obtaining it from a live tensor handle. -/
+structure FullLikeSource where
+  shape : List Nat
+  dtype : Tgrad.Dtype
+  deriving Repr, DecidableEq
+
+/-- Shape and dtype selected for a full-like allocation. -/
+structure FullLikeResolution where
+  shape : List Nat
+  dtype : Tgrad.Dtype
+  deriving Repr, DecidableEq
+
+/-- Pure full-like semantics under an explicit default environment.
+
+    An omitted dtype inherits the source dtype exactly. An explicit dtype uses
+    the same resolver and compute-admission relation as `tensorFull`. The fill
+    tag is validated in both cases so an invalid scalar cannot be hidden by
+    inheritance. -/
+def resolveFullLikeWithDefaults? (source : Option FullLikeSource)
+    (defaultInt defaultFloat : Tgrad.Dtype) (fillTag dtypeCode : UInt8) :
+    Option FullLikeResolution := do
+  let source ← source
+  let _ ← FillScalarTag.ofCode? fillTag
+  if creationShapeAdmission (source.shape.map Int.ofNat) != .accepted then
+    none
+  else
+    let dtype? :=
+      if dtypeCode == 255 then
+        if source.dtype.computeSupported then some source.dtype else none
+      else
+        resolveCreationDtypeWithDefaults?
+          defaultInt defaultFloat fillTag dtypeCode
+    let dtype ← dtype?
+    some { shape := source.shape, dtype := dtype }
+
+private def fullLikeF32Source : FullLikeSource :=
+  { shape := [2, 3], dtype := .float32_ }
+
+private def fullLikeI32Source : FullLikeSource :=
+  { shape := [2, 3], dtype := .int32_ }
+
+example : resolveFullLikeWithDefaults? (some fullLikeF32Source)
+    .int32_ .float32_ 1 255 =
+    some { shape := [2, 3], dtype := .float32_ } := by native_decide
+example : resolveFullLikeWithDefaults? (some fullLikeI32Source)
+    .int32_ .float32_ 1 255 =
+    some { shape := [2, 3], dtype := .int32_ } := by native_decide
+example : resolveFullLikeWithDefaults? (some fullLikeF32Source)
+    .int32_ .float32_ 1 3 =
+    some { shape := [2, 3], dtype := .int32_ } := by native_decide
+example : resolveFullLikeWithDefaults? (some fullLikeI32Source)
+    .int32_ .float32_ 1 0 =
+    some { shape := [2, 3], dtype := .bfloat16_ } := by native_decide
+example : resolveFullLikeWithDefaults?
+    (some { shape := [2, 3], dtype := Tgrad.Dtype.float16_ })
+    .int32_ .float32_ 1 255 = none := by native_decide
+example : resolveFullLikeWithDefaults? (some fullLikeF32Source)
+    .int32_ .float32_ 1 253 = none := by native_decide
+example : resolveFullLikeWithDefaults? none
+    .int32_ .float32_ 1 255 = none := by native_decide
+
+/-- Resolve full-like inheritance from a registered source tensor. Both the
+    allocation-free query and the allocating entry point call this function,
+    so the observer cannot drift from runtime behavior. -/
+def resolveFullLike (sourceHandle : UInt64) (fillTag dtypeCode : UInt8) :
+    IO (Option FullLikeResolution) := do
+  let some source ← TensorRegistry.get? sourceHandle | return none
+  let (defaultInt, defaultFloat) ← readDtypeDefaults
+  pure (resolveFullLikeWithDefaults?
+    (some { shape := source.shape, dtype := source.dtype })
+    defaultInt defaultFloat fillTag dtypeCode)
+
+/-- Allocation-free observation of full-like resolution. Query 0 returns the
+    dtype code, query 1 the rank, and query 2 the dimension at `index`.
+    Invalid handles, dtypes, tags, or queries return UInt64 max. -/
+@[export tgrad_full_like_query_lean]
+def fullLikeQuery (sourceHandle : UInt64) (fillTag dtypeCode query : UInt8)
+    (index : USize) : IO UInt64 := do
+  let some spec ← resolveFullLike sourceHandle fillTag dtypeCode |
+    return (0 : UInt64) - 1
+  pure (match query with
+    | 0 => spec.dtype.code.toUInt64
+    | 1 => UInt64.ofNat spec.shape.length
+    | 2 => match spec.shape[index.toNat]? with
+      | some dim => UInt64.ofNat dim
+      | none => (0 : UInt64) - 1
+    | _ => (0 : UInt64) - 1)
+
 initialize libCacheFill : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
 private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
@@ -1184,17 +1275,8 @@ private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
     libCacheFill.modify (fun c => (key, lib) :: c)
     pure (some (lib, decl.name))
 
-/-- Allocate a GPU buffer, fill it with a constant via the generated
-    kernel, register the tensor, return its handle. `0` on any refusal
-    (unsupported dtype, empty/oversized rank, compile/dispatch failure). -/
-@[export tgrad_tensor_full_lean]
-def tensorFull (shape : @& Array Int) (fill : Float)
-    (fillTag dtypeCode : UInt8) :
-    IO UInt64 := do
-  let signedDims := shape.toList
-  if creationShapeAdmission signedDims != .accepted then return 0
-  let some ty ← resolveCreationDtype fillTag dtypeCode | return 0
-  let dims : List Nat := signedDims.map Int.toNat
+private def allocateFilledTensor (dims : List Nat) (ty : Tgrad.Dtype)
+    (fill : Float) : IO UInt64 := do
   match (← compileOrCacheGetFill dims ty fill) with
   | none => return 0
   | some (lib, fnName) => do
@@ -1212,5 +1294,27 @@ def tensorFull (shape : @& Array Int) (fill : Float)
       return 0
     TensorRegistry.register
       (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes } dims ty)
+
+/-- Allocate a GPU buffer, fill it with a constant via the generated
+    kernel, register the tensor, return its handle. `0` on any refusal
+    (unsupported dtype, empty/oversized rank, compile/dispatch failure). -/
+@[export tgrad_tensor_full_lean]
+def tensorFull (shape : @& Array Int) (fill : Float)
+    (fillTag dtypeCode : UInt8) :
+    IO UInt64 := do
+  let signedDims := shape.toList
+  if creationShapeAdmission signedDims != .accepted then return 0
+  let some ty ← resolveCreationDtype fillTag dtypeCode | return 0
+  let dims : List Nat := signedDims.map Int.toNat
+  allocateFilledTensor dims ty fill
+
+/-- Lean-owned full-like creation. The source handle is resolved through the
+    registry, shape/dtype inheritance is decided in Lean, and the existing fill
+    implementation performs allocation, dispatch, and registration. -/
+@[export tgrad_tensor_full_like_lean]
+def tensorFullLike (sourceHandle : UInt64) (fill : Float)
+    (fillTag dtypeCode : UInt8) : IO UInt64 := do
+  let some spec ← resolveFullLike sourceHandle fillTag dtypeCode | return 0
+  allocateFilledTensor spec.shape spec.dtype fill
 
 end Tgrad.PythonFFI

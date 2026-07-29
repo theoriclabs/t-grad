@@ -49,6 +49,12 @@ extern lean_object* tgrad_dtype_display_name_lean(uint8_t code);
 extern lean_object* tgrad_creation_shape_admission_lean(lean_object* shape);
 extern lean_object* tgrad_creation_dtype_resolve_lean(
     uint8_t fill_tag, uint8_t dtype_code);
+extern lean_object* tgrad_full_like_query_lean(
+    uint64_t source_handle, uint8_t fill_tag, uint8_t dtype_code,
+    uint8_t query, size_t index);
+extern lean_object* tgrad_tensor_full_like_lean(
+    uint64_t source_handle, double fill, uint8_t fill_tag,
+    uint8_t dtype_code);
 extern lean_object* tgrad_dtype_table_query_lean(
     uint8_t table, uint8_t query, size_t row, size_t column);
 extern lean_object* tgrad_dtype_table_name_lean(uint8_t table, size_t row);
@@ -752,4 +758,25 @@ uint64_t tgrad_tensor_full(
     if (!shape && ndim) return 0;
     return tgrad_unbox_handle(tgrad_tensor_full_lean(
         tg_alloc_int64_array(shape, ndim), fill, fill_tag, dtype_code));
+}
+
+uint64_t tgrad_full_like_query(
+    uint64_t source_handle, uint8_t fill_tag, uint8_t dtype_code,
+    uint8_t query, size_t index) {
+    lean_object* result = tgrad_full_like_query_lean(
+        source_handle, fill_tag, dtype_code, query, index);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return UINT64_MAX;
+    }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint64_t tgrad_tensor_full_like(
+    uint64_t source_handle, double fill, uint8_t fill_tag,
+    uint8_t dtype_code) {
+    return tgrad_unbox_handle(tgrad_tensor_full_like_lean(
+        source_handle, fill, fill_tag, dtype_code));
 }

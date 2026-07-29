@@ -1089,19 +1089,82 @@ example : creationShapeAdmission [(1 : Int), 2, 3, 4] = .rankUnsupported := by n
 def creationShapeAdmissionQuery (shape : @& Array Int) : IO UInt8 :=
   pure (creationShapeAdmission shape.toList).code
 
-/-- Creation-surface dtype codes. `255` is the Python `dtype=None`
-    sentinel — Lean resolves the current runtime floating default and then
-    applies compute admission. Unsupported codes/defaults are `none` (never
-    silently remapped to a supported dtype). -/
-def creationDtype? (code : UInt8) : IO (Option Tgrad.Dtype) := do
-  let candidate ← if code == 255 then do
-      let d ← dtypeDefaultFloatState.get
-      pure (some d)
+/-- Primitive scalar category preserved by the Python authoring boundary.
+    These codes intentionally match `Dtype.pythonTagDtypeWithDefaults?`; that
+    existing function remains the single authority for primitive meaning. -/
+inductive FillScalarTag where
+  | bool
+  | int
+  | float
+  deriving Repr, DecidableEq, BEq
+
+namespace FillScalarTag
+
+def ofCode? : UInt8 → Option FillScalarTag
+  | 0 => some .bool
+  | 1 => some .int
+  | 2 => some .float
+  | _ => none
+
+def pythonTagCode : FillScalarTag → UInt8
+  | .bool => 0
+  | .int => 1
+  | .float => 2
+
+end FillScalarTag
+
+/-- Pure creation resolver under an explicit default environment. Explicit
+    dtype wins before fill-tag decoding. Inference delegates primitive meaning
+    to the existing dtype authority, then current compute admission is applied
+    exactly once and never substitutes a supported dtype. -/
+def resolveCreationDtypeWithDefaults? (defaultInt defaultFloat : Tgrad.Dtype)
+    (fillTag dtypeCode : UInt8) : Option Tgrad.Dtype :=
+  let candidate :=
+    if dtypeCode == 255 then
+      match FillScalarTag.ofCode? fillTag with
+      | some tag => Tgrad.Dtype.pythonTagDtypeWithDefaults?
+          defaultInt defaultFloat tag.pythonTagCode
+      | none => none
     else
-      pure (Tgrad.Dtype.ofCode? code)
-  pure (match candidate with
-    | some d => if d.computeSupported then some d else none
-    | none => none)
+      Tgrad.Dtype.ofCode? dtypeCode
+  match candidate with
+  | some d => if d.computeSupported then some d else none
+  | none => none
+
+example : resolveCreationDtypeWithDefaults? .int32_ .float32_ 1 255 =
+    some .int32_ := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .float32_ 2 255 =
+    some .float32_ := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .float32_ 0 255 =
+    none := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .float32_ 1 0 =
+    some .bfloat16_ := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .float32_ 254 255 =
+    none := by native_decide
+example : resolveCreationDtypeWithDefaults? .int64_ .float32_ 1 255 =
+    none := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .bfloat16_ 2 255 =
+    some .bfloat16_ := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .float16_ 2 255 =
+    none := by native_decide
+example : resolveCreationDtypeWithDefaults? .int32_ .float32_ 254 1 =
+    some .float32_ := by native_decide
+
+/-- Shared stateful resolver used by both the allocation-free query and the
+    public allocation path. -/
+def resolveCreationDtype (fillTag dtypeCode : UInt8) :
+    IO (Option Tgrad.Dtype) := do
+  let (defaultInt, defaultFloat) ← readDtypeDefaults
+  pure (resolveCreationDtypeWithDefaults?
+    defaultInt defaultFloat fillTag dtypeCode)
+
+/-- Allocation-free observation of the exact dtype decision `tensorFull`
+    will use. `255` means rejected after inference/override and compute
+    admission; no allocation, compilation, or dispatch occurs. -/
+@[export tgrad_creation_dtype_resolve_lean]
+def creationDtypeResolveQuery (fillTag dtypeCode : UInt8) : IO UInt8 := do
+  let some d ← resolveCreationDtype fillTag dtypeCode | return 255
+  pure d.code
 
 initialize libCacheFill : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
@@ -1125,11 +1188,12 @@ private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
     kernel, register the tensor, return its handle. `0` on any refusal
     (unsupported dtype, empty/oversized rank, compile/dispatch failure). -/
 @[export tgrad_tensor_full_lean]
-def tensorFull (shape : @& Array Int) (fill : Float) (dtypeCode : UInt8) :
+def tensorFull (shape : @& Array Int) (fill : Float)
+    (fillTag dtypeCode : UInt8) :
     IO UInt64 := do
   let signedDims := shape.toList
   if creationShapeAdmission signedDims != .accepted then return 0
-  let some ty ← creationDtype? dtypeCode | return 0
+  let some ty ← resolveCreationDtype fillTag dtypeCode | return 0
   let dims : List Nat := signedDims.map Int.toNat
   match (← compileOrCacheGetFill dims ty fill) with
   | none => return 0

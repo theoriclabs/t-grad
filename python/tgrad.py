@@ -225,9 +225,11 @@ _lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
 _lib.tgrad_creation_shape_admission.argtypes = [
     ctypes.POINTER(ctypes.c_int64), ctypes.c_size_t]
 _lib.tgrad_creation_shape_admission.restype = ctypes.c_uint8
+_lib.tgrad_creation_dtype_resolve.argtypes = [ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_creation_dtype_resolve.restype = ctypes.c_uint8
 _lib.tgrad_tensor_full.argtypes = [
     ctypes.POINTER(ctypes.c_int64), ctypes.c_size_t,
-    ctypes.c_double, ctypes.c_uint8]
+    ctypes.c_double, ctypes.c_uint8, ctypes.c_uint8]
 _lib.tgrad_tensor_full.restype  = ctypes.c_uint64
 
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
@@ -263,6 +265,11 @@ _CREATION_SHAPE_ACCEPTED = 0
 _CREATION_SHAPE_NEGATIVE = 1
 _CREATION_SHAPE_ZERO_NONMATERIALIZABLE = 2
 _CREATION_SHAPE_RANK_UNSUPPORTED = 3
+# Primitive scalar syntax tags only. Lean's existing dtype authority maps
+# these categories through runtime defaults and compute admission.
+_FILL_SCALAR_BOOL = 0
+_FILL_SCALAR_INT = 1
+_FILL_SCALAR_FLOAT = 2
 _DTYPE_CODES = {
     "bf16": _DTYPE_BF16, "bfloat16": _DTYPE_BF16,
     "f32": _DTYPE_F32, "float32": _DTYPE_F32,
@@ -309,6 +316,23 @@ def _creation_dtype_code(dtype) -> int:
     if code is not None:
         return code
     return _DTYPE_CODES.get(dtype, _CREATION_DTYPE_UNKNOWN)
+
+
+def _fill_scalar_tag(value) -> int:
+    """Normalize primitive Python scalar syntax; Lean selects the dtype."""
+    if isinstance(value, bool):
+        return _FILL_SCALAR_BOOL
+    if isinstance(value, int):
+        return _FILL_SCALAR_INT
+    if isinstance(value, float):
+        return _FILL_SCALAR_FLOAT
+    raise TgradTypeError(
+        f"Tensor.full fill_value must be bool, int, or float (got {type(value).__name__})")
+
+
+def _creation_dtype_resolve(fill_tag: int, dtype_code: int) -> int:
+    """Allocation-free marshalling of Lean's shared creation resolver."""
+    return int(_lib.tgrad_creation_dtype_resolve(fill_tag, dtype_code))
 
 
 def _creation_shape_admission(shape) -> int:
@@ -768,10 +792,11 @@ class Tensor:
             raise TgradError(
                 f"Lean creation-shape admission returned unknown reason "
                 f"{admission} for {shape}")
+        fill_tag = _fill_scalar_tag(fill_value)
         code = _creation_dtype_code(dtype)
         shape_arr = (ctypes.c_int64 * len(shape))(*shape)
         h = _lib.tgrad_tensor_full(
-            shape_arr, len(shape), float(fill_value), code)
+            shape_arr, len(shape), float(fill_value), fill_tag, code)
         if h == 0:
             # Lean refused. Map known refusals to the public exceptions
             # without re-implementing admission before the call.

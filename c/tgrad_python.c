@@ -47,6 +47,8 @@ extern lean_object* tgrad_dtype_backend_name_lean(uint8_t code);
 extern lean_object* tgrad_dtype_public_name_lean(uint8_t code);
 extern lean_object* tgrad_dtype_display_name_lean(uint8_t code);
 extern lean_object* tgrad_creation_shape_admission_lean(lean_object* shape);
+extern lean_object* tgrad_creation_dtype_resolve_lean(
+    uint8_t fill_tag, uint8_t dtype_code);
 extern lean_object* tgrad_dtype_table_query_lean(
     uint8_t table, uint8_t query, size_t row, size_t column);
 extern lean_object* tgrad_dtype_table_name_lean(uint8_t table, size_t row);
@@ -707,7 +709,7 @@ uint8_t tgrad_tensor_dtype(uint64_t h) {
  * classified them. Lean then owns dtype default/admission, GPU allocation,
  * fill-kernel dispatch, and registry insert. */
 extern lean_object* tgrad_tensor_full_lean(
-    lean_object* shape_arr, double fill, uint8_t dtype_code);
+    lean_object* shape_arr, double fill, uint8_t fill_tag, uint8_t dtype_code);
 
 static lean_object* tg_alloc_int64_array(const int64_t* values, size_t count) {
     lean_object* arr = lean_alloc_array(count, count);
@@ -732,9 +734,22 @@ uint8_t tgrad_creation_shape_admission(
     return value;
 }
 
+uint8_t tgrad_creation_dtype_resolve(uint8_t fill_tag, uint8_t dtype_code) {
+    lean_object* result = tgrad_creation_dtype_resolve_lean(
+        fill_tag, dtype_code);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return 255;
+    }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
 uint64_t tgrad_tensor_full(
-    const int64_t* shape, size_t ndim, double fill, uint8_t dtype_code) {
+    const int64_t* shape, size_t ndim, double fill,
+    uint8_t fill_tag, uint8_t dtype_code) {
     if (!shape && ndim) return 0;
     return tgrad_unbox_handle(tgrad_tensor_full_lean(
-        tg_alloc_int64_array(shape, ndim), fill, dtype_code));
+        tg_alloc_int64_array(shape, ndim), fill, fill_tag, dtype_code));
 }

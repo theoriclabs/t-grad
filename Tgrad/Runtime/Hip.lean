@@ -1,4 +1,4 @@
-import Tgrad.Backend.FillPlan
+import Tgrad.Renderer.Hip
 
 /-! # Fail-closed HIP runtime boundary
 
@@ -15,23 +15,30 @@ inductive UnavailableReason where
   | deviceQuerySymbolMissing
   | deviceQueryFailed
   | noDevices
+  | incompleteDeviceProfile (deviceCount : Nat)
+  | invalidDeviceProfile
   | malformedProbe (raw : UInt64)
   deriving BEq, Repr
 
-structure DeviceIdentity where
+structure DeviceCapability where
   private mk ::
-  ordinal : Nat
+  profile : BackendIdentity
+  deviceOrdinal : Nat
   deviceCount : Nat
   deriving BEq, Repr
 
 inductive Availability where
-  | available (device : DeviceIdentity)
+  | available (capability : DeviceCapability)
   | unavailable (reason : UnavailableReason)
   deriving BEq, Repr
 
+def Availability.isAvailable : Availability → Bool
+  | .available _ => true
+  | .unavailable _ => false
+
 /-- Public protocol parsing is descriptive only; it is not an execution
 capability.  In particular, a caller passing `257` can describe the wire value
-but cannot construct the private `DeviceIdentity` consumed by execution. -/
+but cannot construct the private `DeviceCapability` consumed by execution. -/
 inductive ProbeFact where
   | negative (reason : UnavailableReason)
   | reportedDeviceCount (count : Nat)
@@ -51,7 +58,84 @@ private def availabilityFromRaw (raw : UInt64) : Availability :=
   match classifyProbeRaw raw with
   | .negative reason => .unavailable reason
   | .reportedDeviceCount count =>
-      .available { ordinal := 0, deviceCount := count }
+      -- Device count alone cannot authorize a plan: architecture, compiler
+      -- profile, ordinal and block limit have not been observed.
+      .unavailable (.incompleteDeviceProfile count)
+
+/-- Complete output required from a future device-profile probe.  The private
+constructor prevents caller-supplied profile claims from minting execution
+authority. -/
+structure ProfiledProbeResult where
+  private mk ::
+  profile : BackendIdentity
+  deviceOrdinal : Nat
+  deviceCount : Nat
+
+private def availabilityFromProfiledProbe
+    (probe : ProfiledProbeResult) : Availability :=
+  if probe.profile.backend != .hip ||
+      !probe.profile.validArchitecture ||
+      !probe.profile.compilerMatches ||
+      probe.profile.compilerIdentity.isEmpty ||
+      probe.profile.maxThreadsPerBlock = 0 ||
+      probe.profile.maxThreadsPerBlock > 1024 ||
+      probe.deviceCount = 0 || probe.deviceOrdinal >= probe.deviceCount then
+    .unavailable .invalidDeviceProfile
+  else
+    .available {
+      profile := probe.profile
+      deviceOrdinal := probe.deviceOrdinal
+      deviceCount := probe.deviceCount
+    }
+
+def DeviceCapability.authorizesPlan (capability : DeviceCapability)
+    (plan : FillPlan) : Bool :=
+  capability.profile == plan.identity &&
+  capability.profile.backend == .hip &&
+  capability.profile.validArchitecture &&
+  capability.profile.compilerMatches &&
+  capability.deviceCount > 0 &&
+  capability.deviceOrdinal < capability.deviceCount &&
+  plan.launch.blockSize ≤ capability.profile.maxThreadsPerBlock
+
+/-- Static self-check for the private, probe-issued full-profile capability
+contract.  It does not report hardware availability or expose a constructible
+capability. -/
+def capabilityCouplingSelfCheck : Bool :=
+  let runtimeProfile : BackendIdentity :=
+    { backend := .hip, architecture := "gfx1100", compilerMode := .runtime,
+      compilerTool := .hiprtc, compilerIdentity := "rocm-v1",
+      maxThreadsPerBlock := 1024 }
+  let otherArch : BackendIdentity :=
+    { runtimeProfile with architecture := "gfx942" }
+  let otherCompiler : BackendIdentity :=
+    { runtimeProfile with compilerMode := .offline, compilerTool := .hipcc }
+  let otherLimit : BackendIdentity :=
+    { runtimeProfile with maxThreadsPerBlock := 512 }
+  let invalidLimit : BackendIdentity :=
+    { runtimeProfile with maxThreadsPerBlock := 2048 }
+  let issued := availabilityFromProfiledProbe {
+    profile := runtimeProfile, deviceOrdinal := 0, deviceCount := 1 }
+  let invalidIssued := availabilityFromProfiledProbe {
+    profile := invalidLimit, deviceOrdinal := 0, deviceCount := 1 }
+  match issued, invalidIssued,
+        mkFillPlan runtimeProfile .int32_ (.signed 1) 257 256,
+        mkFillPlan otherArch .int32_ (.signed 1) 257 256,
+        mkFillPlan otherCompiler .int32_ (.signed 1) 257 256,
+        mkFillPlan otherLimit .int32_ (.signed 1) 257 256 with
+  | .available capability, .unavailable .invalidDeviceProfile,
+      .ok matching, .ok wrongArch, .ok wrongCompiler, .ok wrongLimit =>
+      capability.authorizesPlan matching &&
+      !capability.authorizesPlan wrongArch &&
+      !capability.authorizesPlan wrongCompiler &&
+      !capability.authorizesPlan wrongLimit
+  | _, _, _, _, _, _ => false
+
+/-- Count-only success is deliberately insufficient to mint availability. -/
+def incompleteProbeSelfCheck : Bool :=
+  match availabilityFromRaw 257 with
+  | .unavailable (.incompleteDeviceProfile 1) => true
+  | _ => false
 
 @[extern "lean_tgrad_hip_probe"]
 opaque probeRaw : IO UInt64
@@ -82,6 +166,8 @@ inductive RuntimeError where
   | invalidHandle
   | wrongBufferBackend (actual : BackendId)
   | invalidCopySize (requested capacity : Nat)
+  | kernelBinding (reason : Renderer.Hip.RenderError)
+  | capabilityProfileMismatch
   | operationNotImplemented (stage : RuntimeStage)
   deriving BEq, Repr
 
@@ -103,8 +189,22 @@ structure Buffer where
 structure CompiledKernel where
   raw : UInt64
   backend : BackendId
-  cacheIdentity : String
+  identity : KernelIdentity
   deriving BEq, Repr
+
+/-- The only compilation request type.  It binds a validated plan to the
+private renderer artifact and rechecks exact source/kernel/cache/profile
+linkage before runtime entry. -/
+structure CompileRequest where
+  private mk ::
+  plan : FillPlan
+  kernel : Renderer.Hip.KernelSource
+
+def CompileRequest.build (plan : FillPlan)
+    (kernel : Renderer.Hip.KernelSource) : RuntimeResult CompileRequest := do
+  match kernel.validateForPlan plan with
+  | .ok () => pure { plan, kernel }
+  | .error reason => throw (.kernelBinding reason)
 
 def validateTransfer (buffer : Buffer) (direction : CopyDirection)
     (requested : Nat) : RuntimeResult Unit := do
@@ -121,7 +221,7 @@ parallel arguments. -/
 structure RuntimeBoundary where
   availability : IO Availability
   allocate : FillPlan → IO (RuntimeResult Buffer)
-  compile : FillPlan → String → IO (RuntimeResult CompiledKernel)
+  compile : CompileRequest → IO (RuntimeResult CompiledKernel)
   launch : FillPlan → CompiledKernel → Buffer → IO (RuntimeResult Unit)
   synchronize : Synchronization → IO (RuntimeResult Unit)
   copy : Buffer → CopyDirection → Nat → IO (RuntimeResult ByteArray)
@@ -133,13 +233,26 @@ private def unavailableFor (stage : RuntimeStage) : IO (RuntimeResult α) := do
   | .unavailable reason => pure (.error (.unavailable reason))
   | .available _ => pure (.error (.operationNotImplemented stage))
 
+private def unavailableForPlan (plan : FillPlan) (stage : RuntimeStage) :
+    IO (RuntimeResult α) := do
+  match ← availability with
+  | .unavailable reason => pure (.error (.unavailable reason))
+  | .available capability =>
+      if capability.authorizesPlan plan then
+        pure (.error (.operationNotImplemented stage))
+      else pure (.error .capabilityProfileMismatch)
+
 /-- Honest local boundary: it can probe, but it cannot compile or execute until
 the vendor bridge exists.  An absent runtime always returns structured error. -/
 def localBoundary : RuntimeBoundary :=
   { availability := availability
-    allocate := fun _ => unavailableFor .allocation
-    compile := fun _ _ => unavailableFor .compilation
-    launch := fun _ _ _ => unavailableFor .launch
+    allocate := fun plan => unavailableForPlan plan .allocation
+    compile := fun request => unavailableForPlan request.plan .compilation
+    launch := fun plan kernel buffer =>
+      if kernel.backend != .hip || buffer.backend != .hip ||
+          kernel.identity != plan.kernelIdentity then
+        pure (.error .capabilityProfileMismatch)
+      else unavailableForPlan plan .launch
     synchronize := fun _ => unavailableFor .synchronization
     copy := fun _ _ _ => unavailableFor .copy
     releaseBuffer := fun _ => unavailableFor .release

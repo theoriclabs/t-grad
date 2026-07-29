@@ -29,7 +29,7 @@ private def plan? (identity : BackendIdentity) (dtype : Dtype)
   (mkFillPlan identity dtype input count block).toOption
 
 private def rendered? (dtype : Dtype) (input : ScalarInput)
-    (count block : Nat) : Option String := do
+    (count block : Nat) : Option Renderer.Hip.KernelSource := do
   let plan ← plan? hipIdentity dtype input count block
   (Renderer.Hip.renderFill plan).toOption
 
@@ -69,24 +69,32 @@ def main : IO UInt32 := do
     (sample.map (fun p => (p.launch.gridSize, p.launch.blockSize)) ==
       some (2, 256)))
 
-  let floatSource := rendered? .float32_ (.float32Bits 1078984704) 257 256
+  let floatArtifact := rendered? .float32_ (.float32Bits 1078984704) 257 256
+  let floatSource := floatArtifact.map Renderer.Hip.KernelSource.sourceText
   failures := failures + (← check "HIP output index expression"
     (floatSource.map (fun source => (source.splitOn "\n").contains
       "  const unsigned long long idx = ((unsigned long long)blockIdx.x * (unsigned long long)blockDim.x) + (unsigned long long)threadIdx.x;") == some true))
   failures := failures + (← check "HIP exact element-count guard"
     (floatSource.map (·.contains "if (idx < 257ULL)") == some true))
   failures := failures + (← check "HIP f32 dtype/value emission"
-    (floatSource.map (fun source =>
-      source.contains "void tgrad_fill(float *out)" &&
-      source.contains "out[idx] = __builtin_bit_cast(float, 1078984704u);") == some true))
-  let negativeZeroSource := rendered? .float32_ (.float32Bits 2147483648) 1 64
+    (match sample, floatArtifact with
+    | some plan, some artifact =>
+        artifact.sourceText.contains
+          ("void " ++ plan.kernelName ++ "(float *out)") &&
+        artifact.sourceText.contains
+          "out[idx] = __builtin_bit_cast(float, 1078984704u);"
+    | _, _ => false))
+  let negativeZeroSource :=
+    (rendered? .float32_ (.float32Bits 2147483648) 1 64).map
+      Renderer.Hip.KernelSource.sourceText
   failures := failures + (← check "HIP f32 signed-zero bit emission"
     (negativeZeroSource.map (·.contains
       "out[idx] = __builtin_bit_cast(float, 2147483648u);") == some true))
-  let intSource := rendered? .int32_ (.signed (-7)) 17 64
+  let intSource := (rendered? .int32_ (.signed (-7)) 17 64).map
+    Renderer.Hip.KernelSource.sourceText
   failures := failures + (← check "HIP i32 dtype/value emission"
     (intSource.map (fun source =>
-      source.contains "void tgrad_fill(int *out)" &&
+      source.contains "(int *out)" &&
       source.contains "out[idx] = -7;") == some true))
 
   failures := failures + (← check "unsupported dtype rejected"
@@ -158,7 +166,71 @@ def main : IO UInt32 := do
   failures := failures + (← check "cache separates launch semantics"
     ((hipPlan.map FillPlan.cacheIdentity) != (launchPlan.map FillPlan.cacheIdentity)))
   failures := failures + (← check "HIP renderer rejects a CUDA plan"
-    (cudaPlan.bind (fun p => (Renderer.Hip.renderFill p).toOption) == none))
+    (cudaPlan.bind (fun p => (Renderer.Hip.renderFill p).toOption)).isNone)
+
+  let gfx1100Plan := plan? hipIdentity .float32_ (.float32Bits 1078984704) 257 256
+  let gfx942Plan := plan? (hipIdentity .runtime "gfx942") .float32_
+    (.float32Bits 1078984704) 257 256
+  let hipccPlan := plan? (hipIdentity .offline "gfx1100") .float32_
+    (.float32Bits 1078984704) 257 256
+  let gfx1100Source := gfx1100Plan.bind
+    (fun plan => (Renderer.Hip.renderFill plan).toOption)
+  let gfx942Source := gfx942Plan.bind
+    (fun plan => (Renderer.Hip.renderFill plan).toOption)
+  let hipccSource := hipccPlan.bind
+    (fun plan => (Renderer.Hip.renderFill plan).toOption)
+  failures := failures + (← check "kernel source is bound to plan identities"
+    (match gfx1100Plan, gfx1100Source with
+    | some plan, some source =>
+        source.kernelIdentity == plan.kernelIdentity &&
+        source.sourceIdentity == plan.sourceIdentity &&
+        source.kernelName == plan.kernelName &&
+        source.cacheIdentity == plan.cacheIdentity
+    | _, _ => false))
+  failures := failures + (← check "source symbol is plan-derived"
+    (match gfx1100Plan, gfx1100Source with
+    | some plan, some source =>
+        source.sourceText.contains
+          ("void " ++ plan.kernelName ++ "(float *out)")
+    | _, _ => false))
+  failures := failures + (← check "gfx and compiler profiles bind distinct artifacts"
+    (match gfx1100Source, gfx942Source, hipccSource with
+    | some a, some b, some c =>
+        a.kernelName != b.kernelName && a.kernelName != c.kernelName &&
+        a.cacheIdentity != b.cacheIdentity && a.cacheIdentity != c.cacheIdentity &&
+        a.sourceIdentity != b.sourceIdentity && a.sourceIdentity != c.sourceIdentity
+    | _, _, _ => false))
+  failures := failures + (← check
+    "equivalent fill bodies cannot collapse profile identity"
+    (match gfx1100Source, gfx942Source, hipccSource with
+    | some a, some b, some c =>
+        [a, b, c].all (fun source =>
+          source.sourceText.contains
+            "out[idx] = __builtin_bit_cast(float, 1078984704u);" &&
+          source.sourceText.contains "if (idx < 257ULL)") &&
+        a.cacheIdentity != b.cacheIdentity && a.cacheIdentity != c.cacheIdentity
+    | _, _, _ => false))
+  failures := failures + (← check "arbitrary source candidate rejected"
+    (match gfx1100Plan, gfx1100Source with
+    | some plan, some source =>
+        let forged : Renderer.Hip.KernelSourceCandidate :=
+          { kernelIdentity := source.kernelIdentity
+            sourceIdentity := source.sourceIdentity
+            sourceText := source.sourceText ++ "// arbitrary" }
+        match Renderer.Hip.validateCandidate plan forged with
+        | .error .sourceTextMismatch => true
+        | _ => false
+    | _, _ => false))
+  failures := failures + (← check "mismatched profile compile request rejected"
+    (match gfx942Plan, gfx1100Source with
+    | some plan, some source =>
+        hasRuntimeError (.kernelBinding .kernelIdentityMismatch)
+          (Runtime.Hip.CompileRequest.build plan source)
+    | _, _ => false))
+  failures := failures + (← check "private capability couples full profile"
+    Runtime.Hip.capabilityCouplingSelfCheck)
+  failures := failures + (← check "count-only probe cannot mint capability"
+    Runtime.Hip.incompleteProbeSelfCheck)
 
   failures := failures + (← check "absent runtime probe is unavailable"
     (negativeProbeFact (Runtime.Hip.classifyProbeRaw 0)))
@@ -198,12 +270,19 @@ def main : IO UInt32 := do
   match actualAvailability with
   | .unavailable reason =>
       IO.println s!"UNOBSERVED_ENVIRONMENT hip_runtime_or_device {repr reason}"
-      match hipPlan, floatSource with
+      match sample, floatArtifact with
       | some plan, some source =>
-          let compileResult ← Runtime.Hip.localBoundary.compile plan source
-          failures := failures + (← check
-            "arbitrary positive raw fact cannot authorize execution"
-            (hasRuntimeError (.unavailable reason) compileResult))
+          match Runtime.Hip.CompileRequest.build plan source with
+          | .error _ =>
+              failures := failures + (← check
+                "exact compile request accepted before unavailable runtime" false)
+          | .ok request =>
+              failures := failures + (← check
+                "exact compile request accepted before unavailable runtime" true)
+              let compileResult ← Runtime.Hip.localBoundary.compile request
+              failures := failures + (← check
+                "arbitrary positive raw fact cannot authorize execution"
+                (hasRuntimeError (.unavailable reason) compileResult))
       | _, _ =>
           failures := failures + (← check
             "arbitrary positive raw fact cannot authorize execution" false)

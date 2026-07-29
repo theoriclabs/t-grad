@@ -36,6 +36,32 @@ def CompilerTool.stableName : CompilerTool → String
   | .hiprtc => "hiprtc"
   | .hipcc => "hipcc"
 
+/-- Backend-neutral indexing meaning selected by the validated plan.  Vendor
+renderers own only the dialect spelling of this policy. -/
+inductive OutputIndexPolicy where
+  | linearBlockThreadX
+  deriving BEq, Repr, DecidableEq
+
+def OutputIndexPolicy.stableName : OutputIndexPolicy → String
+  | .linearBlockThreadX => "linear-block-thread-x"
+
+/-- Backend-neutral bounds meaning selected by the validated plan. -/
+inductive BoundsPolicy where
+  | guardElementCount
+  deriving BEq, Repr, DecidableEq
+
+def BoundsPolicy.stableName : BoundsPolicy → String
+  | .guardElementCount => "guard-element-count"
+
+inductive SourceDialect where
+  | metal | cuda | hip
+  deriving BEq, Repr, DecidableEq
+
+def SourceDialect.stableName : SourceDialect → String
+  | .metal => "metal"
+  | .cuda => "cuda"
+  | .hip => "hip"
+
 /-- Neutral scalar inputs.  Admission couples one of these values to a concrete
 storage dtype; a vendor renderer never chooses or defaults a dtype. -/
 inductive ScalarInput where
@@ -134,6 +160,12 @@ def BackendIdentity.compilerMatches (identity : BackendIdentity) : Bool :=
   | .hip, .runtime, .hiprtc | .hip, .offline, .hipcc => true
   | _, _, _ => false
 
+def BackendIdentity.sourceDialect (identity : BackendIdentity) : SourceDialect :=
+  match identity.backend with
+  | .metal => .metal
+  | .cuda => .cuda
+  | .hip => .hip
+
 /-- Validated, backend-neutral semantic plan.  Proof fields prevent unchecked
 ABI widths or an inconsistent byte/launch plan from being constructed. -/
 structure FillPlan where
@@ -142,10 +174,37 @@ structure FillPlan where
   value : FillValue
   bytes : BytePlan
   launch : Launch1D bytes.elementCount
+  outputIndexPolicy : OutputIndexPolicy
+  boundsPolicy : BoundsPolicy
 
 def FillPlan.elementCount (plan : FillPlan) : Nat := plan.bytes.elementCount
 def FillPlan.byteCount (plan : FillPlan) : Nat := plan.bytes.byteCount
 def FillPlan.dtype (plan : FillPlan) : Tgrad.Dtype := plan.value.dtype
+
+/-- Typed identity shared by rendering, compilation and cache lookup.  The
+kernel name is derived from validated plan fields rather than a renderer-local
+constant. -/
+structure KernelIdentity where
+  backend : BackendId
+  architecture : String
+  compilerMode : CompilerMode
+  compilerTool : CompilerTool
+  compilerIdentity : String
+  maxThreadsPerBlock : Nat
+  kernelName : String
+  semanticIdentity : String
+  deriving BEq, Repr
+
+/-- Typed source identity includes the dialect contract in addition to the
+kernel/cache semantic identity. -/
+structure SourceIdentity where
+  dialect : SourceDialect
+  rendererContract : String
+  kernel : KernelIdentity
+  deriving BEq, Repr
+
+private def identifierEncode (value : String) : String :=
+  String.intercalate "_" (value.toList.map (fun ch => toString ch.toNat))
 
 /-- Every semantic/cache input, including renderer contract revision, is owned
 by Lean.  This string is the cache identity itself, not a claim of hashing. -/
@@ -158,7 +217,26 @@ def FillPlan.cacheIdentity (plan : FillPlan) : String :=
      plan.dtype.toStr, plan.value.stableTag,
      toString plan.elementCount, toString plan.bytes.elementBytes,
      toString plan.byteCount, toString plan.launch.blockSize,
-     toString plan.launch.gridSize, "idx=block*blockDim+thread", "guard=idx<count"]
+     toString plan.launch.gridSize, plan.outputIndexPolicy.stableName,
+     plan.boundsPolicy.stableName]
+
+def FillPlan.kernelName (plan : FillPlan) : String :=
+  "tgrad_fill1d_" ++ identifierEncode plan.cacheIdentity
+
+def FillPlan.kernelIdentity (plan : FillPlan) : KernelIdentity :=
+  { backend := plan.identity.backend
+    architecture := plan.identity.architecture
+    compilerMode := plan.identity.compilerMode
+    compilerTool := plan.identity.compilerTool
+    compilerIdentity := plan.identity.compilerIdentity
+    maxThreadsPerBlock := plan.identity.maxThreadsPerBlock
+    kernelName := plan.kernelName
+    semanticIdentity := plan.cacheIdentity }
+
+def FillPlan.sourceIdentity (plan : FillPlan) : SourceIdentity :=
+  { dialect := plan.identity.sourceDialect
+    rendererContract := "fill1d-source-v2"
+    kernel := plan.kernelIdentity }
 
 def mkFillPlan (identity : BackendIdentity) (dtype : Tgrad.Dtype)
     (input : ScalarInput) (elementCount blockSize : Nat) :
@@ -218,6 +296,8 @@ def mkFillPlan (identity : BackendIdentity) (dtype : Tgrad.Dtype)
                 block_fits_u32 := hblockFits
                 grid_fits_u32 := hgridFits
               }
+              outputIndexPolicy := .linearBlockThreadX
+              boundsPolicy := .guardElementCount
             }
 
 end Tgrad.Backend

@@ -305,11 +305,13 @@ read-only audit of that exact commit. It:
   3.13 and 3.14.
 
 Independent local verification used CPython 3.13 and 3.14; this machine did
-not have a local 3.12 interpreter, so the 3.12 result remains a CI obligation
-until GitHub Actions records it. On 3.14, all 28 discovered tests passed with
-the live oracle. Explicit offline execution ran 23 meaningful tests and
-reported exactly five live-checkout skips rather than silently shrinking test
-discovery. The generated Lean projection and all `TgradSpec` targets built.
+not have a local 3.12 interpreter, so the initial merge left 3.12 as an
+explicit CI obligation. That obligation was subsequently discharged by run
+`30411247877`, which authenticated the same closure on CPython 3.12, 3.13 and
+3.14. On local 3.14, all 28 discovered tests passed with the live oracle.
+Explicit offline execution ran 23 meaningful tests and reported exactly five
+live-checkout skips rather than silently shrinking test discovery. The
+generated Lean projection and all `TgradSpec` targets built.
 
 The accepted identities are:
 
@@ -335,3 +337,60 @@ runtime/build attestation, adequacy and runtime parity open. The next action is
 the explicit owner judgment `contract.target-promotion-v1`. That judgment may
 accept the target and closure only. It must not infer catalog closure,
 requirement discharge or Tgrad completion.
+
+## CI falsification ladder and portable Metal bf16 — 2026-07-28
+
+The first cross-machine campaign was useful because it did not merely repeat
+the local machine. Six exact commits moved the failure boundary downstream:
+
+| CI run | Commit | Mechanically observed boundary |
+|---|---|---|
+| `30406245055` | `4692df7` | The chronology verifier correctly rejected CI's shallow checkout because the five authenticated cycle commits were absent. |
+| `30406415206` | `1701b88` | Full history closed chronology; a launcher-identity test then failed because it assumed a repository-local `.venv`. |
+| `30406968993` | `5f20aed` | Launcher identity became installation-independent and all three source-closure lanes passed; macOS-14 then rejected native `bfloat` in rank-3 elementwise code. |
+| `30407692095` | `c478ac2` | A second exact commit reproduced the same native-bfloat boundary, separating it from the unrelated performance-gate change. |
+| `30409324414` | `bc71e18` | Portable scalar elementwise, reduction, fused-reduction and creation kernels passed; execution advanced to the 64x64x64 matmul and failed at its native-bfloat WMMA compile. |
+| `30411247877` | `673f52b` | Matmul treated native-bfloat compilation as a backend capability probe and selected the portable scalar route on rejection; smoke and source closure on 3.12/3.13/3.14 all passed. |
+
+The product repairs preserve bf16 storage as raw 16-bit payloads in generic
+scalar kernels. Loads widen `ushort` payloads to float32 explicitly; stores
+perform explicit round-to-nearest-even packing, including the pinned NaN
+policy. Lean checks predicates over the complete rendered elementwise,
+reduction, fused-reduction, creation and scalar-matmul source, so a future
+renderer change that reintroduces native `bfloat` fails at build time rather
+than waiting for a particular GPU.
+
+Optimized matmul keeps structural tensor-core eligibility separate from
+backend language capability. Eligible shapes still use the generated WMMA
+kernel when Metal accepts native bf16. A rejected compile is remembered for
+the process and subsequent operations use the portable scalar generator. The
+verification hook `TGRAD_FORCE_PORTABLE_BF16=1` exercises that same public
+fallback path on a capable M4 and is part of `devcheck --all`; it does not
+alter the eligibility predicate or poison the capability cache. Local checks
+covered both routes and compared the portable 64x64x64 result against all
+8,192 captured output bytes. A hostile Cursor review first predicted that the
+scalar result would differ from WMMA, withdrew that claim after the exact
+comparison falsified it, then identified the missing negative cache and stale
+route documentation; both were repaired before `673f52b`.
+
+This campaign adds five methodological lessons:
+
+1. A provenance check that depends on history must authenticate checkout depth
+   as part of its execution environment.
+2. Cross-machine CI is a differential falsifier, not a portability badge. The
+   older Metal compiler exposed assumptions invisible on the M4.
+3. Shape eligibility and backend capability are different requirement
+   predicates and must not be represented by one Boolean.
+4. Numeric examples establish behavior on sampled inputs; rendered-source
+   obligations establish absence of a forbidden backend dependency. Both are
+   needed.
+5. The monotone movement of failures—from checkout, to launcher identity, to
+   generic kernels, to matmul, to green—is evidence that the verifier is
+   localizing real boundaries rather than being weakened around them.
+
+The green run does not establish universal Metal portability or tinygrad
+completeness. The legacy explicit TC FFI exports remain WMMA-only and report a
+compile failure on a backend without native bf16; only the default graph
+realizer has the capability fallback. Host-side bf16 input conversion also
+remains a separate rounding-policy requirement. Those are named fronts for
+future packets, not facts inferred away from the successful CI run.

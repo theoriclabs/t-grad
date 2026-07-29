@@ -607,17 +607,6 @@ inductive ObservedProfile where
   | complete (profile : DeviceProfile)
   deriving Repr
 
-/-- Public probe facts. A complete observation additionally needs a leaf-owned
-credential, so callers can describe failures/counts without minting authority. -/
-inductive ProbeObservation (Credential Detail : Type) where
-  | absent (detail : Detail)
-  | runtimeMissing (detail : Detail)
-  | negative (detail : Detail)
-  | failed (detail : Detail)
-  | countOnly (count : Nat) (detail : Detail)
-  | profiled (credential : Credential) (deviceCount deviceOrdinal : Nat)
-      (profile : ObservedProfile) (detail : Detail)
-
 /-- A leaf exposes only this projection from its private capability. -/
 structure CapabilityContract (Capability : Type) where
   deviceOf : Capability → DeviceIdentity
@@ -628,18 +617,72 @@ structure ProbeAuthority (Credential : Type) where
   requestedBackend : BackendIdentity
   admitsProfile : Credential → DeviceProfile → Bool
 
+/-- One exact positive probe result. The leaf credential is consumed while
+building this value and is not stored computationally. Only the bound device
+and count are public projections; every admission proof is module-private. -/
+structure CompleteProfileObservation {Credential : Type}
+    (authority : ProbeAuthority Credential) where
+  private mk ::
+  device : DeviceIdentity
+  deviceCount : Nat
+  private deviceCountPositive : 0 < deviceCount
+  private ordinalValid : device.ordinal < deviceCount
+  private backendMatches : device.profile.backend = authority.requestedBackend
+
+/-- Public negative/count-only observations remain descriptive. The only
+positive constructor accepts an already sealed, exactly bound observation. -/
+inductive ProbeObservation {Credential : Type}
+    (authority : ProbeAuthority Credential) (Detail : Type) where
+  | absent (detail : Detail)
+  | runtimeMissing (detail : Detail)
+  | negative (detail : Detail)
+  | failed (detail : Detail)
+  | countOnly (count : Nat) (detail : Detail)
+  | profileRejected (reasonClass : UnavailableClass) (detail : Detail)
+  | profiled (observation : CompleteProfileObservation authority)
+      (detail : Detail)
+
+/-- The leaf-facing raw positive admission boundary. It consumes a private
+credential and binds count, ordinal, and profile into one sealed value. Failed
+or incomplete raw facts remain descriptive unavailability and carry no token
+that could later be upgraded. -/
+def profileObservationFromProbe (authority : ProbeAuthority Credential)
+    (credential : Credential) (deviceCount deviceOrdinal : Nat)
+    (observedProfile : ObservedProfile) (detail : Detail) :
+    ProbeObservation authority Detail :=
+  match deviceCount with
+  | 0 => .profileRejected .noDevice detail
+  | count + 1 =>
+      match observedProfile with
+      | .missing => .profileRejected .incompleteDeviceProfile detail
+      | .invalid => .profileRejected .invalidDeviceProfile detail
+      | .complete profile =>
+          if ordinalValid : deviceOrdinal < count + 1 then
+            if backendMatches : profile.backend = authority.requestedBackend then
+              if _profileAuthorized :
+                  authority.admitsProfile credential profile = true then
+                .profiled {
+                  device := { profile, ordinal := deviceOrdinal }
+                  deviceCount := count + 1
+                  deviceCountPositive := Nat.zero_lt_succ count
+                  ordinalValid
+                  backendMatches }
+                  detail
+              else .profileRejected .invalidDeviceProfile detail
+            else .profileRejected .wrongBackend detail
+          else .profileRejected .invalidDeviceOrdinal detail
+
 /-- Sealed execution authority. Its proof fields bind one complete, admitted
-profile and valid ordinal to the exact leaf authority value. -/
+profile and valid ordinal to the exact leaf authority value. It deliberately
+retains no computational credential or reusable positive observation. -/
 structure AvailableCapability {Credential : Type}
     (authority : ProbeAuthority Credential) where
   private mk ::
-  credential : Credential
   device : DeviceIdentity
   deviceCount : Nat
-  deviceCountPositive : 0 < deviceCount
-  ordinalValid : device.ordinal < deviceCount
-  backendMatches : device.profile.backend = authority.requestedBackend
-  profileAuthorized : authority.admitsProfile credential device.profile = true
+  private deviceCountPositive : 0 < deviceCount
+  private ordinalValid : device.ordinal < deviceCount
+  private backendMatches : device.profile.backend = authority.requestedBackend
 
 def AvailableCapability.deviceOf
     (capability : AvailableCapability authority) : DeviceIdentity :=
@@ -656,7 +699,7 @@ def AvailableCapability.contract (authority : ProbeAuthority Credential) :
 /-- The sole shared capability-minting path. Every incomplete or inconsistent
 probe fact fails closed with a stable structured class. -/
 def availabilityFromProbe (authority : ProbeAuthority Credential) :
-    ProbeObservation Credential Detail →
+    ProbeObservation authority Detail →
       Availability (AvailableCapability authority) Detail
   | .absent detail => .unavailable authority.requestedBackend {
       reasonClass := .probeAbsent, detail }
@@ -670,33 +713,15 @@ def availabilityFromProbe (authority : ProbeAuthority Credential) :
       reasonClass := .noDevice, detail }
   | .countOnly (_ + 1) detail => .unavailable authority.requestedBackend {
       reasonClass := .countOnly, detail }
-  | .profiled _ 0 _ _ detail => .unavailable authority.requestedBackend {
-      reasonClass := .noDevice, detail }
-  | .profiled _ (_ + 1) _ .missing detail =>
-      .unavailable authority.requestedBackend {
-        reasonClass := .incompleteDeviceProfile, detail }
-  | .profiled _ (_ + 1) _ .invalid detail =>
-      .unavailable authority.requestedBackend {
-        reasonClass := .invalidDeviceProfile, detail }
-  | .profiled credential (deviceCount + 1) ordinal (.complete profile) detail =>
-      let positive : 0 < deviceCount + 1 := Nat.zero_lt_succ deviceCount
-      if ordinalValid : ordinal < deviceCount + 1 then
-        if backendMatches : profile.backend = authority.requestedBackend then
-          if profileAuthorized : authority.admitsProfile credential profile = true then
-            .available {
-              credential
-              device := { profile, ordinal }
-              deviceCount := deviceCount + 1
-              deviceCountPositive := positive
-              ordinalValid
-              backendMatches
-              profileAuthorized }
-          else .unavailable authority.requestedBackend {
-            reasonClass := .invalidDeviceProfile, detail }
-        else .unavailable authority.requestedBackend {
-          reasonClass := .wrongBackend, detail }
-      else .unavailable authority.requestedBackend {
-        reasonClass := .invalidDeviceOrdinal, detail }
+  | .profileRejected reasonClass detail =>
+      .unavailable authority.requestedBackend { reasonClass, detail }
+  | .profiled observation _detail =>
+      .available {
+        device := observation.device
+        deviceCount := observation.deviceCount
+        deviceCountPositive := observation.deviceCountPositive
+        ordinalValid := observation.ordinalValid
+        backendMatches := observation.backendMatches }
 
 structure AuthorizedPlan {Capability : Type}
     (contract : CapabilityContract Capability) where

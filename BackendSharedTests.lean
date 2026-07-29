@@ -564,22 +564,32 @@ def main : IO Unit := do
   let failedA := availabilityFromProbe authorityA (.failed "failed")
   let zeroA := availabilityFromProbe authorityA (.countOnly 0 "zero")
   let countOnlyA := availabilityFromProbe authorityA (.countOnly 1 "count only")
-  let incompleteA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 0 .missing "missing profile")
-  let invalidRawA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 0 .invalid "invalid profile")
-  let invalidOrdinalA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 1 (.complete profile) "invalid ordinal")
-  let wrongBackendA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 0 (.complete otherBackend) "wrong backend")
+  let incompleteObservationA := profileObservationFromProbe authorityA
+    credentialA 1 0 .missing "missing profile"
+  let invalidRawObservationA := profileObservationFromProbe authorityA
+    credentialA 1 0 .invalid "invalid profile"
+  let invalidOrdinalObservationA := profileObservationFromProbe authorityA
+    credentialA 1 1 (.complete profile) "invalid ordinal"
+  let wrongBackendObservationA := profileObservationFromProbe authorityA
+    credentialA 1 0 (.complete otherBackend) "wrong backend"
+  let incompatibleProfileObservationA := profileObservationFromProbe authorityA
+    credentialA 1 0 (.complete otherArch) "incompatible profile"
+  let incompatibleCompilerObservationA := profileObservationFromProbe authorityA
+    credentialA 1 0 (.complete otherMode) "incompatible compiler"
+  let completeObservationA := profileObservationFromProbe authorityA
+    credentialA 1 0 (.complete profile) "complete"
+  let completeObservationB := profileObservationFromProbe authorityB
+    credentialB 1 0 (.complete profileB) "complete"
+  let incompleteA := availabilityFromProbe authorityA incompleteObservationA
+  let invalidRawA := availabilityFromProbe authorityA invalidRawObservationA
+  let invalidOrdinalA := availabilityFromProbe authorityA invalidOrdinalObservationA
+  let wrongBackendA := availabilityFromProbe authorityA wrongBackendObservationA
   let incompatibleProfileA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 0 (.complete otherArch) "incompatible profile")
+    incompatibleProfileObservationA
   let incompatibleCompilerA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 0 (.complete otherMode) "incompatible compiler")
-  let availableA := availabilityFromProbe authorityA
-    (.profiled credentialA 1 0 (.complete profile) "complete")
-  let availableB := availabilityFromProbe authorityB
-    (.profiled credentialB 1 0 (.complete profileB) "complete")
+    incompatibleCompilerObservationA
+  let availableA := availabilityFromProbe authorityA completeObservationA
+  let availableB := availabilityFromProbe authorityB completeObservationB
   failures := failures + (← check "probe admission negative matrix fails closed"
     (hasUnavailableClass .probeAbsent absentA &&
      hasUnavailableClass .runtimeLibraryMissing runtimeMissingA &&
@@ -594,7 +604,12 @@ def main : IO Unit := do
      hasUnavailableClass .invalidDeviceProfile incompatibleProfileA &&
      hasUnavailableClass .invalidDeviceProfile incompatibleCompilerA))
   failures := failures + (← check "complete admitted profiles alone mint capability"
-    (availableA.isAvailable && availableB.isAvailable))
+    (availableA.isAvailable && availableB.isAvailable &&
+     match completeObservationA, availableA with
+     | .profiled observation _, .available capability =>
+         capability.deviceOf == observation.device &&
+         capability.count == observation.deviceCount
+     | _, _ => false))
   let .available capabilityA := availableA
     | throw (IO.userError "witness A complete probe unexpectedly unavailable")
   let .available capabilityB := availableB

@@ -158,9 +158,29 @@ def check_rewrite_codegen() -> dict:
     # We just check that pickDispatchPlan has a non-sentinel fallthrough.
     plan_path = REPO / "Tgrad" / "Codegen" / "Opt" / "Heuristic.lean"
     plan_text = plan_path.read_text() if plan_path.exists() else ""
-    has_fallthrough = bool(re.search(r"\|\s+_\s*=>\s*", plan_text)) or bool(
-        re.search(r"otherwise|catchall", plan_text, re.I)
-    )
+    # `pickDispatchPlan` is an if/else-if/else chain, not a `match`, so
+    # looking only for `| _ =>` arms cannot see its fallthrough. It also
+    # spells the concept "catch-all" (hyphenated), which `catchall` misses.
+    # Both gaps made this read False while the property genuinely held: the
+    # function ends in a terminal `else` routing any non-sentinel bf16 shape
+    # to the scalar kernel, and Lean proves it total (no sorry/partial).
+    # Scoped to the function body so an unrelated `else` cannot satisfy it.
+    _m = re.search(r"^def pickDispatchPlan\b.*?(?=^def |^theorem |^end |\Z)",
+                   plan_text, re.M | re.S)
+    _body = _m.group(0) if _m else ""
+    # `pickDispatchPlan` is an if/else-if/else chain, not a `match`, so
+    # looking only for `| _ =>` cannot see its fallthrough; it also spells
+    # the concept "catch-all" (hyphenated), which `catchall` misses. Both
+    # made this read False while the property genuinely held: the function
+    # ends in a terminal `else` routing any non-sentinel bf16 shape to the
+    # scalar kernel, and Lean proves it total (no sorry, no partial).
+    # Scoped to the function body so an unrelated `else` cannot satisfy it.
+    _m = re.search(r"^def pickDispatchPlan\\b.*?(?=^def |^theorem |^end |\\Z)",
+                    plan_text, re.M | re.S)
+    _body = _m.group(0) if _m else ""
+    has_fallthrough = (bool(re.search(r"\\|\\s+_\\s*=>", _body))
+                       or bool(re.search(r"otherwise|catch[-_]?all", _body, re.I))
+                       or bool(re.search(r"^\\s*else\\s*$", _body, re.M)))
     # Evidence-based assertions.
     l13d_evidence = _load("L13_D.json")
     # L13_D.json uses `random_correct` for the success count.
@@ -227,10 +247,25 @@ def static_check_dispatch_fallthrough() -> bool:
     if not plan.exists():
         return False
     text = plan.read_text()
-    # Look for a catchall match arm or a non-sentinel default branch.
-    return bool(re.search(r"\|\s+_\s*=>\s*", text)) or bool(
-        re.search(r"otherwise|catchall|TcGeneral|ScalarFallback", text, re.I)
-    )
+    # Scope to pickDispatchPlan's own body: an `else` elsewhere in the file
+    # must not satisfy this, and a fallthrough in some other function is not
+    # this function's fallthrough.
+    m = re.search(r"^def pickDispatchPlan\b.*?(?=^def |^theorem |^end |\Z)",
+                  text, re.M | re.S)
+    body = m.group(0) if m else ""
+    if not body:
+        return False
+    # `pickDispatchPlan` is an if/else-if/else chain, not a `match`, so
+    # `| _ =>` cannot appear; and it spells the concept "catch-all", which
+    # the old `catchall` pattern missed. Both made this return False while
+    # the property genuinely held -- the function ends in a terminal `else`
+    # routing any non-sentinel bf16 shape to the scalar kernel, and Lean
+    # proves it total (no `sorry`, no `partial`). Accepting a terminal
+    # `else` follows the code; it does not weaken the check.
+    return (bool(re.search(r"\|\s+_\s*=>", body))
+            or bool(re.search(r"otherwise|catch[-_]?all|TcGeneral|ScalarFallback",
+                              body, re.I))
+            or bool(re.search(r"^\s*else\s*$", body, re.M)))
 
 
 def static_check_no_python_owned_view_graph() -> bool:

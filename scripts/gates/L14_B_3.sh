@@ -35,15 +35,28 @@ grep -qE '^def run_bench_views' "$TGRAD_DIR/python/tgrad_bench.py" \
   || { echo "  ✗ tgrad_bench.py missing run_bench_views"; exit 1; }
 echo "  ✓ run_bench_views defined"
 
-# All 5 view op classes covered in viewIndexUOpForA/B.
+# All 5 view op classes covered by the view-index derivation.
+#
+# This grepped Tgrad/Pipeline.lean, which held one match arm per view op
+# until viewIndexUOpForA/B were rewritten to delegate to
+# `Schedule.viewOfUOp`. The arms did not disappear -- they moved into the
+# typed View algebra in Tgrad/Schedule/View.lean, which is a single
+# derivation shared by every caller instead of two hand-written copies.
+# The check follows the code; it is not relaxed.
+#
+# Note this is a STRUCTURAL pre-check on syntax, and weak on its own: it
+# proves arms exist, not that they compute anything. Layer C below is the
+# behavioural proof -- bench-views must be 16/16 correct against the
+# pinned manifest.
+VIEW_DERIVATION="$TGRAD_DIR/Tgrad/Schedule/View.lean"
 op_classes=("buffer" "permute" "reshape" "slice" "expand")
 for op in "${op_classes[@]}"; do
-  if ! grep -qE "\\| \\.${op}\\b" "$TGRAD_DIR/Tgrad/Pipeline.lean"; then
-    echo "  ✗ viewIndexUOpFor{A,B} doesn't handle .${op} chain"
+  if ! grep -qE "\\| \\.${op}\\b" "$VIEW_DERIVATION"; then
+    echo "  ✗ view-index derivation doesn't handle .${op} chain"
     exit 1
   fi
 done
-echo "  ✓ viewIndexUOpFor{A,B} covers all 5 view-op classes"
+echo "  ✓ view-index derivation covers all 5 view-op classes"
 
 # Layer C — bench-views 16/16 correct.
 ensure_dylib /tmp/tgrad_L14B3_dylib.log || exit 1

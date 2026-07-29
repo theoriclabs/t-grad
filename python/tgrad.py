@@ -220,10 +220,13 @@ _lib.tgrad_tensor_dtype.argtypes = [ctypes.c_uint64]
 _lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
 
 # Constant-fill creation. Lean resolves the current runtime floating default,
-# applies dtype admission, and owns the GPU fill; Python only marshals shape /
-# fill / dtype code.
+# classifies signed dimensions, applies dtype admission, and owns the GPU fill;
+# Python only marshals shape / fill / dtype code and maps the returned reason.
+_lib.tgrad_creation_shape_admission.argtypes = [
+    ctypes.POINTER(ctypes.c_int64), ctypes.c_size_t]
+_lib.tgrad_creation_shape_admission.restype = ctypes.c_uint8
 _lib.tgrad_tensor_full.argtypes = [
-    ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_int64), ctypes.c_size_t,
     ctypes.c_double, ctypes.c_uint8]
 _lib.tgrad_tensor_full.restype  = ctypes.c_uint64
 
@@ -254,6 +257,12 @@ _DTYPE_VOID = 254
 # Creation-surface sentinels (matches PythonFFI.creationDtype?):
 _CREATION_DTYPE_DEFAULT = 255  # dtype=None → Lean resolves runtime default
 _CREATION_DTYPE_UNKNOWN = 253  # unrecognised name → Lean rejects
+# Lean-owned CreationShapeAdmission.code values. Python maps these stable
+# reasons to public exceptions; it does not inspect dimensions itself.
+_CREATION_SHAPE_ACCEPTED = 0
+_CREATION_SHAPE_NEGATIVE = 1
+_CREATION_SHAPE_ZERO_NONMATERIALIZABLE = 2
+_CREATION_SHAPE_RANK_UNSUPPORTED = 3
 _DTYPE_CODES = {
     "bf16": _DTYPE_BF16, "bfloat16": _DTYPE_BF16,
     "f32": _DTYPE_F32, "float32": _DTYPE_F32,
@@ -300,6 +309,13 @@ def _creation_dtype_code(dtype) -> int:
     if code is not None:
         return code
     return _DTYPE_CODES.get(dtype, _CREATION_DTYPE_UNKNOWN)
+
+
+def _creation_shape_admission(shape) -> int:
+    """Marshal signed dimensions to Lean and return its admission reason."""
+    values = tuple(int(dim) for dim in shape)
+    arr = (ctypes.c_int64 * len(values))(*values)
+    return int(_lib.tgrad_creation_shape_admission(arr, len(values)))
 
 # Legacy L12 cache toggle. Both entries execute the generated declaration;
 # the alternate symbol remains as an observable cache-isolation probe.
@@ -738,8 +754,22 @@ class Tensor:
                 f"{sorted(kwargs)}; Tgrad accepts only dtype= "
                 f"(supported dtypes: {sorted(_SUPPORTED_DTYPES)})")
         shape = tuple(int(s) for s in _argfix(shape))
+        admission = _creation_shape_admission(shape)
+        if admission == _CREATION_SHAPE_NEGATIVE:
+            raise ValueError(f"negative dimensions are not allowed: {shape}")
+        if admission == _CREATION_SHAPE_ZERO_NONMATERIALIZABLE:
+            raise NotInLeanScope(
+                f"zero-sized materialized Tensor is not supported (got {shape})")
+        if admission == _CREATION_SHAPE_RANK_UNSUPPORTED:
+            raise NotInLeanScope(
+                f"public Tensor construction supports rank 0 through 3 "
+                f"(got ndim={len(shape)})")
+        if admission != _CREATION_SHAPE_ACCEPTED:
+            raise TgradError(
+                f"Lean creation-shape admission returned unknown reason "
+                f"{admission} for {shape}")
         code = _creation_dtype_code(dtype)
-        shape_arr = (ctypes.c_size_t * len(shape))(*shape)
+        shape_arr = (ctypes.c_int64 * len(shape))(*shape)
         h = _lib.tgrad_tensor_full(
             shape_arr, len(shape), float(fill_value), code)
         if h == 0:
@@ -750,14 +780,6 @@ class Tensor:
                 raise TgradTypeError(
                     f"unsupported dtype {dtype!r}; "
                     f"supported: {sorted(_SUPPORTED_DTYPES)}")
-            if any(s < 1 for s in shape):
-                raise NotInLeanScope(
-                    f"materialized Tensor dimensions must be positive "
-                    f"(got {shape})")
-            if len(shape) > 3:
-                raise NotInLeanScope(
-                    f"public Tensor construction supports rank 0 through 3 "
-                    f"(got ndim={len(shape)})")
             raise TgradError(
                 f"tgrad_tensor_full(shape={shape}, fill={fill_value!r}) "
                 f"returned 0")

@@ -46,6 +46,7 @@ extern lean_object* tgrad_dtype_creation_default_lean(void);
 extern lean_object* tgrad_dtype_backend_name_lean(uint8_t code);
 extern lean_object* tgrad_dtype_public_name_lean(uint8_t code);
 extern lean_object* tgrad_dtype_display_name_lean(uint8_t code);
+extern lean_object* tgrad_creation_shape_admission_lean(lean_object* shape);
 extern lean_object* tgrad_dtype_table_query_lean(
     uint8_t table, uint8_t query, size_t row, size_t column);
 extern lean_object* tgrad_dtype_table_name_lean(uint8_t table, size_t row);
@@ -702,17 +703,38 @@ uint8_t tgrad_tensor_dtype(uint64_t h) {
     return v;
 }
 
-/* Constant-fill creation. Lean owns dtype default/admission, GPU
- * allocation, fill-kernel dispatch, and registry insert. Python only
- * marshals shape / fill / dtype code. dtype_code 255 = default float32. */
+/* Constant-fill creation. Signed dimensions remain signed until Lean has
+ * classified them. Lean then owns dtype default/admission, GPU allocation,
+ * fill-kernel dispatch, and registry insert. */
 extern lean_object* tgrad_tensor_full_lean(
     lean_object* shape_arr, double fill, uint8_t dtype_code);
 
-uint64_t tgrad_tensor_full(
-    const size_t* shape, size_t ndim, double fill, uint8_t dtype_code) {
-    lean_object* arr = lean_alloc_array(ndim, ndim);
-    for (size_t i = 0; i < ndim; i++) {
-        lean_array_set_core(arr, i, lean_box_usize(shape ? shape[i] : 0));
+static lean_object* tg_alloc_int64_array(const int64_t* values, size_t count) {
+    lean_object* arr = lean_alloc_array(count, count);
+    for (size_t i = 0; i < count; i++) {
+        lean_array_set_core(
+            arr, i, lean_int64_to_int(values ? values[i] : 0));
     }
-    return tgrad_unbox_handle(tgrad_tensor_full_lean(arr, fill, dtype_code));
+    return arr;
+}
+
+uint8_t tgrad_creation_shape_admission(
+    const int64_t* shape, size_t ndim) {
+    if (!shape && ndim) return 255;
+    lean_object* result = tgrad_creation_shape_admission_lean(
+        tg_alloc_int64_array(shape, ndim));
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return 255;
+    }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint64_t tgrad_tensor_full(
+    const int64_t* shape, size_t ndim, double fill, uint8_t dtype_code) {
+    if (!shape && ndim) return 0;
+    return tgrad_unbox_handle(tgrad_tensor_full_lean(
+        tg_alloc_int64_array(shape, ndim), fill, dtype_code));
 }

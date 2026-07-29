@@ -1039,12 +1039,55 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
 -- Constant-fill creation (`Tensor.full` / `ones` / `zeros`).
 --
 -- Python normalises the calling convention (`_argfix`, kwargs) and
--- marshals shape + fill + dtype code. For `255`, Lean resolves the current
--- runtime floating default and then applies dtype admission (bf16/f32/i32
--- only), GPU
+-- marshals signed shape + fill + dtype code. Lean classifies the signed shape
+-- before any conversion to `Nat`; for `255`, Lean resolves the current runtime
+-- floating default and then applies dtype admission (bf16/f32/i32 only), GPU
 -- allocation, fill-kernel compile/dispatch, and registry insert.
 -- A host-side `numpy.full` upload is deliberately not a path.
 -- ----------------------------------------------------------------------
+
+/-- Lean-owned admission result for a materialized creation shape. Negative
+    dimensions take precedence over the current zero and rank limitations so
+    every upstream negative-dimension case has one stable public reason. -/
+inductive CreationShapeAdmission where
+  | accepted
+  | negativeDimension
+  | zeroNonmaterializable
+  | rankUnsupported
+  deriving Repr, DecidableEq, BEq
+
+namespace CreationShapeAdmission
+
+/-- Stable boundary code. Python maps these reasons to public exception
+    classes but does not reconstruct the shape predicate. -/
+def code : CreationShapeAdmission → UInt8
+  | .accepted => 0
+  | .negativeDimension => 1
+  | .zeroNonmaterializable => 2
+  | .rankUnsupported => 3
+
+end CreationShapeAdmission
+
+/-- Classify signed dimensions before they can wrap through `size_t`/`USize`.
+    Rank zero through three remains admitted; zero-sized materialization and
+    rank above three remain explicitly outside the current implementation. -/
+def creationShapeAdmission (shape : List Int) : CreationShapeAdmission :=
+  if shape.any (fun d => d < 0) then .negativeDimension
+  else if shape.any (fun d => d == 0) then .zeroNonmaterializable
+  else if shape.length > 3 then .rankUnsupported
+  else .accepted
+
+example : creationShapeAdmission [(-3 : Int)] = .negativeDimension := by native_decide
+example : creationShapeAdmission [(2 : Int), -3] = .negativeDimension := by native_decide
+example : creationShapeAdmission [(2 : Int), -3, 0] = .negativeDimension := by native_decide
+example : creationShapeAdmission [(2 : Int), 3] = .accepted := by native_decide
+example : creationShapeAdmission [(2 : Int), 0] = .zeroNonmaterializable := by native_decide
+example : creationShapeAdmission [(1 : Int), 2, 3, 4] = .rankUnsupported := by native_decide
+
+/-- Allocation-free signed-shape query used by the public exception boundary. -/
+@[export tgrad_creation_shape_admission_lean]
+def creationShapeAdmissionQuery (shape : @& Array Int) : IO UInt8 :=
+  pure (creationShapeAdmission shape.toList).code
 
 /-- Creation-surface dtype codes. `255` is the Python `dtype=None`
     sentinel — Lean resolves the current runtime floating default and then
@@ -1082,12 +1125,12 @@ private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
     kernel, register the tensor, return its handle. `0` on any refusal
     (unsupported dtype, empty/oversized rank, compile/dispatch failure). -/
 @[export tgrad_tensor_full_lean]
-def tensorFull (shape : @& Array USize) (fill : Float) (dtypeCode : UInt8) :
+def tensorFull (shape : @& Array Int) (fill : Float) (dtypeCode : UInt8) :
     IO UInt64 := do
+  let signedDims := shape.toList
+  if creationShapeAdmission signedDims != .accepted then return 0
   let some ty ← creationDtype? dtypeCode | return 0
-  let dims : List Nat := shape.toList.map USize.toNat
-  if dims.length > 3 then return 0
-  if dims.any (fun d => d < 1) then return 0
+  let dims : List Nat := signedDims.map Int.toNat
   match (← compileOrCacheGetFill dims ty fill) with
   | none => return 0
   | some (lib, fnName) => do

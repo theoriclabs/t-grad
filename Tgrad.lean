@@ -39,6 +39,10 @@ import Tgrad.Renderer.Creation
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 
+-- Backend-neutral accelerator semantics and runtime interface. Vendor leaves
+-- are separate modules and are not re-exported by this checkpoint.
+import Tgrad.Backend.FillPlan
+
 -- L4 (FFI runtime — green)
 import Tgrad.Runtime.MetalDevice
 import Tgrad.Runtime.MetalAllocator

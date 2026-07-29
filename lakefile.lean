@@ -72,3 +72,7 @@ lean_exe «tgrad-tests» where
   root := `Tests
   supportInterpreter := true
   moreLinkArgs := metalLinkArgs
+
+/-- CPU-only focused checks for the backend-neutral accelerator spine. -/
+lean_exe «backend-shared-tests» where
+  root := `BackendSharedTests

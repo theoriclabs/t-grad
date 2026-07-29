@@ -17,46 +17,63 @@ required=(
   python/tgrad_bench.py
   scripts/capture/view_baselines.py
   Tgrad/Pipeline.lean
+  Tgrad/Schedule/View.lean
 )
 for m in "${required[@]}"; do
   [[ -f "$REPO_ROOT/$m" ]] || { echo "  ✗ missing: $m"; exit 1; }
 done
 echo "  ✓ all ${#required[@]} required modules present"
 
-# Manifest has 16 entries.
+# Manifest has the frozen 16-entry operation partition. Counting only the
+# denominator allowed the two reshape witnesses to be replaced by identity
+# reshapes without changing the gate's result.
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
-n_entries="$("$PY" -c 'import json,sys; print(len(json.load(open("'"$TGRAD_DIR/fixtures/bench/view_manifest.json"'"))))')"
-[[ "$n_entries" -eq 16 ]] || { echo "  ✗ view_manifest has $n_entries entries (need 16)"; exit 1; }
-echo "  ✓ view_manifest has 16 entries"
+MANIFEST_COUNTS_JSON="$("$PY" -c '
+import collections, json, sys
+rows = json.load(open(sys.argv[1]))
+expected = {
+    "transpose_left": 4,
+    "transpose_right": 4,
+    "transpose_both": 2,
+    "slice_2": 2,
+    "reshape_split": 2,
+    "expand_right": 2,
+}
+actual = dict(collections.Counter(row.get("op_chain") for row in rows))
+if len(rows) != 16 or actual != expected:
+    raise SystemExit(f"view_manifest partition mismatch: rows={len(rows)}, actual={actual}, expected={expected}")
+if any(row["K"] % 2 for row in rows if row["op_chain"] == "reshape_split"):
+    raise SystemExit("reshape_split requires even K")
+print(json.dumps(actual, sort_keys=True, separators=(",", ":")))
+' "$TGRAD_DIR/fixtures/bench/view_manifest.json")" \
+  || { echo "  ✗ invalid view_manifest operation partition"; exit 1; }
+echo "  ✓ view_manifest has the frozen 16-entry operation partition: $MANIFEST_COUNTS_JSON"
 
 # bench_views function defined.
 grep -qE '^def run_bench_views' "$TGRAD_DIR/python/tgrad_bench.py" \
   || { echo "  ✗ tgrad_bench.py missing run_bench_views"; exit 1; }
 echo "  ✓ run_bench_views defined"
 
-# All 5 view op classes covered by the view-index derivation.
-#
-# This grepped Tgrad/Pipeline.lean, which held one match arm per view op
-# until viewIndexUOpForA/B were rewritten to delegate to
-# `Schedule.viewOfUOp`. The arms did not disappear -- they moved into the
-# typed View algebra in Tgrad/Schedule/View.lean, which is a single
-# derivation shared by every caller instead of two hand-written copies.
-# The check follows the code; it is not relaxed.
-#
-# Note this is a STRUCTURAL pre-check on syntax, and weak on its own: it
-# proves arms exist, not that they compute anything. Layer C below is the
-# behavioural proof -- bench-views must be 16/16 correct against the
-# pinned manifest.
+# The five named equations are compiled with Tgrad.Schedule.View by the
+# preflight build. Their stable names make the intended `viewOfUOp` contract
+# discoverable without a whole-file constructor grep that can be satisfied by
+# the unrelated `bufferRootOf` function below it.
 VIEW_DERIVATION="$TGRAD_DIR/Tgrad/Schedule/View.lean"
-op_classes=("buffer" "permute" "reshape" "slice" "expand")
-for op in "${op_classes[@]}"; do
-  if ! grep -qE "\\| \\.${op}\\b" "$VIEW_DERIVATION"; then
-    echo "  ✗ view-index derivation doesn't handle .${op} chain"
+view_equations=(
+  viewOfUOp_buffer_eq
+  viewOfUOp_permute_eq
+  viewOfUOp_reshape_eq
+  viewOfUOp_slice_eq
+  viewOfUOp_expand_eq
+)
+for equation in "${view_equations[@]}"; do
+  if ! grep -qE "^theorem[[:space:]]+${equation}([[:space:](]|$)" "$VIEW_DERIVATION"; then
+    echo "  ✗ missing compiled view derivation equation: $equation"
     exit 1
   fi
 done
-echo "  ✓ view-index derivation covers all 5 view-op classes"
+echo "  ✓ all 5 named viewOfUOp equations are present in the compiled module"
 
 # Layer C — bench-views 16/16 correct.
 ensure_dylib /tmp/tgrad_L14B3_dylib.log || exit 1
@@ -104,6 +121,7 @@ host="$(hostname)"; plat="$(uname -srm)"
 manifest_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/bench/view_manifest.json" | awk '{print $1}')"
 bench_hash="$(shasum -a 256 "$TGRAD_DIR/python/tgrad_bench.py" | awk '{print $1}')"
 pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1}')"
+view_hash="$(shasum -a 256 "$VIEW_DERIVATION" | awk '{print $1}')"
 trace_hash="$(shasum -a 256 "$TRACE" 2>/dev/null | awk '{print $1}')"
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_3.json" <<EOF
@@ -116,6 +134,7 @@ cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_3.json" <<EOF
   "scope": "L14.B.3 — 16 pinned view-matmul cases via parametric scalar + view-aware index UOps; rangeify trace evidence",
   "pinned_views_total": 16,
   "pinned_views_pass":  $N_CORRECT,
+  "manifest_op_counts": $MANIFEST_COUNTS_JSON,
   "n_route_view":       $N_VIEW,
   "n_route_buffer":     0,
   "rangeify_rows":            $N_TRACE,
@@ -129,10 +148,31 @@ cat >"$TGRAD_DIR/fixtures/gate_evidence/L14_B_3.json" <<EOF
     "view_manifest_sha256":     "$manifest_hash",
     "bench_module_sha256":      "$bench_hash",
     "pipeline_sha256":          "$pipeline_hash",
+    "view_derivation_sha256":   "$view_hash",
     "rangeify_trace_sha256":    "$trace_hash"
   }
 }
 EOF
+
+# The generic evidence check only validates the outer schema. This
+# load-bearing source must be both named and resolved to the bytes observed by
+# this run; an omitted or stale hash is not provenance.
+if ! "$PY" - "$TGRAD_DIR/fixtures/gate_evidence/L14_B_3.json" "$VIEW_DERIVATION" <<'PY'
+import hashlib, json, pathlib, sys
+
+evidence = json.loads(pathlib.Path(sys.argv[1]).read_text())
+source = pathlib.Path(sys.argv[2])
+expected = hashlib.sha256(source.read_bytes()).hexdigest()
+actual = evidence.get("hashes", {}).get("view_derivation_sha256")
+if actual != expected:
+    raise SystemExit(
+        f"view_derivation_sha256 unresolved: actual={actual!r}, expected={expected}"
+    )
+PY
+then
+  echo "  ✗ L14_B_3 evidence does not resolve the view derivation source"
+  exit 1
+fi
 check_evidence_for L14_B_3 || exit 1
 check_falsifiability_verified L14_B_3 || exit 1
 echo "  ✓ L14.B.3 — 16/16 pinned views correct + rangeify trace evidence — GREEN"

@@ -4,14 +4,18 @@ from __future__ import annotations
 import tgrad as _tgrad
 
 from ._unsupported import missing_attribute, unsupported, unsupported_type
+from .dtype import _BY_CODE
 
 
 class _Renderer:
     code_for_op = {}
 
     @staticmethod
-    def supported_dtypes() -> tuple[str, ...]:
-        return tuple(sorted(_tgrad._SUPPORTED_DTYPES))
+    def supported_dtypes() -> tuple:
+        """Project Lean compute admission to strict-shim DType identities."""
+        return tuple(
+            _BY_CODE[code] for code in sorted(_BY_CODE)
+            if _tgrad._dtype_query(code, 15) == 1)
 
 
 class _MetalDevice:

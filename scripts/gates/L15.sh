@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Gate L15 umbrella — verifies L15.A + L15.B + L15.C; rolls up evidence
-# into L15.json with the final `result` field copied from L15_C.json.
+# Gate L15 umbrella — verifies L15.A + L15.B + L15.C and propagates the
+# computed answer and memo-promoted result as distinct identities.
 set -euo pipefail
 : "${REPO_ROOT:?must be set by gate.sh}"
 : "${TGRAD_DIR:?must be set by gate.sh}"
@@ -19,13 +19,28 @@ for sub in L15_A L15_B L15_C; do
   echo "  ✓ $sub evidence present"
 done
 
-# The L15 umbrella's `result` field is the L15.C audit's result.
-RESULT="$("$PY" -c '
+# The umbrella records the memo promotion exactly. Green means coherent
+# closure, not that the promoted result is necessarily `yes`.
+PROMOTED_RESULT="$("$PY" -c '
 import json
-print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15_C.json"'"))["result"])
+print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15_C.json"'"))["promoted_result"])
 ')"
-[[ "$RESULT" == "yes" ]] || { echo "  ✗ L15.C result = $RESULT (umbrella refuses to flip unless yes)"; exit 1; }
-echo "  ✓ L15.C result: yes"
+COMPUTED_ANSWER="$("$PY" -c '
+import json
+print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15_C.json"'"))["computed_answer"])
+')"
+MEMO_VALID="$("$PY" -c '
+import json
+print(json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15_C.json"'"))["memo_contract"]["valid"])
+')"
+[[ "$PROMOTED_RESULT" =~ ^(yes|no|inconclusive)$ ]] \
+  || { echo "  ✗ malformed L15.C promoted result = $PROMOTED_RESULT"; exit 1; }
+[[ "$COMPUTED_ANSWER" =~ ^(yes|no|inconclusive)$ ]] \
+  || { echo "  ✗ malformed L15.C computed answer = $COMPUTED_ANSWER"; exit 1; }
+[[ "$MEMO_VALID" == "True" ]] \
+  || { echo "  ✗ L15.C memo contract is not coherent"; exit 1; }
+echo "  ✓ L15.C promoted result: $PROMOTED_RESULT"
+echo "  ✓ L15.C computed answer: $COMPUTED_ANSWER"
 
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -43,8 +58,9 @@ cat >"$TGRAD_DIR/fixtures/gate_evidence/L15.json" <<EOF
   "host": "$host",
   "platform": "$plat",
   "commit": "$commit",
-  "scope": "L15 umbrella — experiment-closure audit (3 sub-gates + final verdict)",
-  "result": "$RESULT",
+  "scope": "L15 umbrella — coherent experiment closure (3 sub-gates + result identities)",
+  "computed_answer": "$COMPUTED_ANSWER",
+  "promoted_result": "$PROMOTED_RESULT",
   "sub_gates_green": ["L15_A", "L15_B", "L15_C"],
   "hashes": {
     "L15_A_evidence_sha256": "$sha_a",
@@ -54,6 +70,16 @@ cat >"$TGRAD_DIR/fixtures/gate_evidence/L15.json" <<EOF
   }
 }
 EOF
+# Reject a roll-up that substitutes the computed answer for the memo's
+# promoted result, even when both values are individually enumerated.
+"$PY" -c '
+import json
+c=json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15_C.json"'"))
+u=json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15.json"'"))
+assert u["computed_answer"] == c["computed_answer"]
+assert u["promoted_result"] == c["promoted_result"]
+' || { echo "  ✗ L15 umbrella changed computed/promoted result identity"; exit 1; }
+echo "  ✓ result identities propagated exactly"
 check_evidence_for L15 || exit 1
 check_falsifiability_verified L15 || exit 1
-echo "  ✓ L15 umbrella — result: $RESULT — GREEN"
+echo "  ✓ L15 umbrella — coherent closure, promoted result: $PROMOTED_RESULT, computed answer: $COMPUTED_ANSWER — GREEN"

@@ -108,22 +108,22 @@
     "expected_bytes_sha256": "51e5f14e8f552d90c52d8e4181c8ca7c6905536811f4e7914514458126f95c25"
   },
   {
-    "op_chain": "reshape",
+    "op_chain": "reshape_split",
     "M": 32,
     "K": 32,
     "N": 32,
     "dist": "gauss",
-    "seed": 1664562632,
-    "expected_bytes_sha256": "be22dc0683c930f61d26c95cb6c436cc9e89fcc37478342aeec02a23e307d9be"
+    "seed": 2996038048,
+    "expected_bytes_sha256": "51b2b518e45df908051f119341b07c72afb8ed898f5158bcd54ba7d64a6284d4"
   },
   {
-    "op_chain": "reshape",
+    "op_chain": "reshape_split",
     "M": 64,
     "K": 64,
     "N": 32,
     "dist": "gauss",
-    "seed": 2607586568,
-    "expected_bytes_sha256": "9fe923bc09352a9467bb85472916caf5e041b2b0ad744d1ce7d6f24bd9ded576"
+    "seed": 1254637920,
+    "expected_bytes_sha256": "aeae3e2668512315aa041fa511b6f92a698a39ff0687f631960eee3ad02556a6"
   },
   {
     "op_chain": "expand_right",

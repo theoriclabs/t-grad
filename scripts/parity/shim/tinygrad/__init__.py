@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from importlib import import_module
 
-from tgrad import Tensor as Tensor
 from .device import Device as Device
 from .dtype import dtypes as dtypes
+from .tensor import Tensor as Tensor
 from .engine.jit import TinyJit as TinyJit
 from .helpers import Context as Context, GlobalCounters as GlobalCounters, getenv as getenv
 from .uop.ops import UOp as UOp

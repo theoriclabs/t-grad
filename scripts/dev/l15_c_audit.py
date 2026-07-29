@@ -7,14 +7,17 @@ Emits a single JSON document on stdout with:
 - `lean_invariants[]`: at least 5 Lean-explicit invariants named with
   file + negative_case.
 - `experiment_result_word_count`, `experiment_result_sha256`.
-- `result`: yes | no | inconclusive (final computed verdict over
-  L15.A's 3 + L15.B's 3 + L15.C's 2 + `len(lean_invariants) >= 5`).
+- `computed_answer`: yes | no | inconclusive (the eight-criterion answer).
+- `promoted_result`: yes | no | inconclusive (parsed only from the memo's
+  Verdict section).
+- `memo_contract`: section, declaration, and promotion-coherence evidence.
 """
 from __future__ import annotations
 import hashlib
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -32,16 +35,127 @@ def _memo_text() -> str:
     return MEMO.read_text() if MEMO.exists() else ""
 
 
+REQUIRED_NON_EVIDENCE_SECTIONS = (
+    "Verdict",
+    "Scope",
+    "Where Lean Helped",
+    "Where Lean Did Not Yet Help",
+    "Performance Interpretation",
+    "Not Claimed",
+    "Next Move",
+)
+EVIDENCE_SECTIONS = (
+    "Evidence",
+    "Historical Evidence",
+    "Mixed Historical Evidence",
+)
+PROMOTED_RESULTS = ("yes", "no", "inconclusive")
+
+
+def _section_entries(text: str) -> list[dict]:
+    """Return every level-two section with source offsets and body."""
+    matches = list(re.finditer(r"^## ([^\n]+)[ \t]*$", text, re.M))
+    entries: list[dict] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        entries.append({
+            "name": match.group(1).strip(),
+            "start": match.start(),
+            "body_start": match.end(),
+            "end": end,
+            "body": text[match.end():end].lstrip("\n"),
+        })
+    return entries
+
+
 def _section_blocks(text: str) -> dict[str, str]:
     """Split memo into `## Heading -> body` blocks. Returns the body string
     for each `## ...` header. Stops at the next `## ` line."""
-    blocks: dict[str, str] = {}
-    parts = re.split(r"^## ", text, flags=re.M)
-    for chunk in parts[1:]:
-        head, *rest = chunk.split("\n", 1)
-        body = rest[0] if rest else ""
-        blocks[head.strip()] = body
-    return blocks
+    return {entry["name"]: entry["body"] for entry in _section_entries(text)}
+
+
+def analyze_memo_contract(text: str) -> dict:
+    """Parse the promoted result and evidence provenance from the memo.
+
+    The declaration is intentionally not a whole-file substring search: one
+    exact declaration must occur in the one Verdict section, and declaration-
+    like lines elsewhere make the artifact ambiguous and therefore invalid.
+    """
+    entries = _section_entries(text)
+    counts = Counter(entry["name"] for entry in entries)
+    errors: list[str] = []
+
+    for name in REQUIRED_NON_EVIDENCE_SECTIONS:
+        if counts[name] != 1:
+            errors.append(f"section {name!r} count={counts[name]} expected=1")
+
+    evidence_names = [name for name in EVIDENCE_SECTIONS if counts[name] > 0]
+    evidence_count = sum(counts[name] for name in EVIDENCE_SECTIONS)
+    if evidence_count != 1:
+        errors.append(
+            "evidence section count="
+            f"{evidence_count} expected=1 among {list(EVIDENCE_SECTIONS)!r}"
+        )
+    evidence_section = evidence_names[0] if evidence_count == 1 else None
+    evidence_kind = (
+        "current" if evidence_section == "Evidence"
+        else "historical" if evidence_section in {
+            "Historical Evidence", "Mixed Historical Evidence"
+        }
+        else None
+    )
+
+    declaration_like = list(re.finditer(
+        r"^[ \t]*current promoted result[^\n]*$", text, re.M | re.I
+    ))
+    promoted_result = None
+    declaration_section = None
+    if len(declaration_like) != 1:
+        errors.append(
+            f"current promoted result declaration count={len(declaration_like)} expected=1"
+        )
+    else:
+        declaration = declaration_like[0]
+        line = declaration.group(0).strip()
+        exact = re.fullmatch(
+            r"current promoted result: (yes|no|inconclusive)", line
+        )
+        if exact is None:
+            errors.append(f"malformed current promoted result declaration: {line!r}")
+        else:
+            promoted_result = exact.group(1)
+        containing = [
+            entry for entry in entries
+            if entry["body_start"] <= declaration.start() < entry["end"]
+        ]
+        declaration_section = containing[0]["name"] if len(containing) == 1 else None
+        if declaration_section != "Verdict":
+            errors.append(
+                "current promoted result declaration is in "
+                f"{declaration_section!r}, expected 'Verdict'"
+            )
+
+    coherence_ok = not (
+        promoted_result == "yes" and evidence_kind == "historical"
+    )
+    if not coherence_ok:
+        errors.append(
+            "promoted result 'yes' is incoherent with historical-only evidence"
+        )
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "section_counts": {
+            name: counts[name]
+            for name in (*REQUIRED_NON_EVIDENCE_SECTIONS, *EVIDENCE_SECTIONS)
+        },
+        "evidence_section": evidence_section,
+        "evidence_kind": evidence_kind,
+        "promoted_result": promoted_result,
+        "declaration_section": declaration_section,
+        "coherence_ok": coherence_ok,
+    }
 
 
 # -------- Criterion 7: Lean-better evidence ---------------------------
@@ -160,7 +274,7 @@ def check_honesty() -> dict:
 
 # -------- Verdict computation -----------------------------------------
 
-def compute_verdict(criteria_c: list[dict], lean_invariants: list[dict]) -> str:
+def compute_answer(criteria_c: list[dict], lean_invariants: list[dict]) -> str:
     # L15.A + L15.B criteria must already be pass (the gate runs after both).
     l15a = _load("L15_A.json")
     l15b = _load("L15_B.json")
@@ -176,21 +290,90 @@ def compute_verdict(criteria_c: list[dict], lean_invariants: list[dict]) -> str:
     return "inconclusive"
 
 
+def self_test() -> int:
+    """Falsify parser scope and promotion coherence without gate evidence."""
+    common = """# Memo
+## Verdict
+{declaration}
+## Scope
+scope
+## {evidence}
+evidence
+## Where Lean Helped
+helped
+## Where Lean Did Not Yet Help
+not yet
+## Performance Interpretation
+perf
+## Not Claimed
+not claimed
+## Next Move
+next
+"""
+    honest = analyze_memo_contract(common.format(
+        declaration="current promoted result: inconclusive",
+        evidence="Mixed Historical Evidence",
+    ))
+    false_promotion = analyze_memo_contract(common.format(
+        declaration="current promoted result: yes",
+        evidence="Mixed Historical Evidence",
+    ))
+    current_yes = analyze_memo_contract(common.format(
+        declaration="current promoted result: yes",
+        evidence="Evidence",
+    ))
+    duplicate = analyze_memo_contract(
+        common.format(
+            declaration="current promoted result: inconclusive",
+            evidence="Mixed Historical Evidence",
+        ) + "\ncurrent promoted result: yes\n"
+    )
+    if not (
+        honest["valid"]
+        and honest["promoted_result"] == "inconclusive"
+        and honest["evidence_kind"] == "historical"
+        and not false_promotion["valid"]
+        and not false_promotion["coherence_ok"]
+        and current_yes["valid"]
+        and not duplicate["valid"]
+    ):
+        print("l15_c_audit_self_test: FAIL", file=sys.stderr)
+        print(json.dumps({
+            "honest": honest,
+            "false_promotion": false_promotion,
+            "current_yes": current_yes,
+            "duplicate": duplicate,
+        }, indent=2), file=sys.stderr)
+        return 1
+    print("l15_c_audit_self_test: pass")
+    print("l15_c_self_test_promoted_result: inconclusive")
+    print("l15_c_self_test_evidence_kind: historical")
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:] == ["--self-test"]:
+        return self_test()
+    if sys.argv[1:]:
+        print("usage: l15_c_audit.py [--self-test]", file=sys.stderr)
+        return 2
     lean_invariants = gather_lean_invariants()
     criteria = [
         check_lean_better_evidence(lean_invariants),
         check_honesty(),
     ]
     memo_text = _memo_text()
+    memo_contract = analyze_memo_contract(memo_text)
     word_count = len(memo_text.split()) if memo_text else 0
     sha = hashlib.sha256(memo_text.encode()).hexdigest() if memo_text else ""
     out = {
         "criteria": criteria,
         "lean_invariants": lean_invariants,
+        "memo_contract": memo_contract,
         "experiment_result_word_count": word_count,
         "experiment_result_sha256": sha,
-        "result": compute_verdict(criteria, lean_invariants),
+        "computed_answer": compute_answer(criteria, lean_invariants),
+        "promoted_result": memo_contract["promoted_result"],
     }
     print(json.dumps(out, indent=2))
     return 0

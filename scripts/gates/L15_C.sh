@@ -14,28 +14,59 @@ cd "$REPO_ROOT"
 PY="${TGRAD_PY:-$REPO_ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || PY="python3"
 
+# Observer self-test runs before consuming gate evidence or the real memo.
+[[ -f "$TGRAD_DIR/scripts/dev/l15_c_audit.py" ]] \
+  || { echo "  ✗ l15_c_audit.py missing"; exit 1; }
+SELFTEST_LOG="$(mktemp "${TMPDIR:-/tmp}/tgrad_L15_C_selftest.XXXXXX")"
+trap 'rm -f "$SELFTEST_LOG"' EXIT
+if ! "$PY" "$TGRAD_DIR/scripts/dev/l15_c_audit.py" --self-test \
+        >"$SELFTEST_LOG" 2>&1; then
+  echo "  ✗ L15.C observer self-test failed:"
+  sed 's/^/      /' "$SELFTEST_LOG"
+  exit 1
+fi
+grep -qF 'l15_c_audit_self_test: pass' "$SELFTEST_LOG" \
+  || { echo "  ✗ L15.C observer self-test did not report pass"; exit 1; }
+grep -qF 'l15_c_self_test_promoted_result: inconclusive' "$SELFTEST_LOG" \
+  || { echo "  ✗ L15.C self-test lost promoted-result identity"; exit 1; }
+grep -qF 'l15_c_self_test_evidence_kind: historical' "$SELFTEST_LOG" \
+  || { echo "  ✗ L15.C self-test lost evidence provenance"; exit 1; }
+echo "  ✓ observer self-test: scoped result parsing + historical coherence"
+
 # Layer A.2: L15.A AND L15.B must be present.
 [[ -f "$TGRAD_DIR/fixtures/gate_evidence/L15_A.json" ]] || { echo "  ✗ L15_A evidence missing"; exit 1; }
 [[ -f "$TGRAD_DIR/fixtures/gate_evidence/L15_B.json" ]] || { echo "  ✗ L15_B evidence missing"; exit 1; }
 echo "  ✓ L15.A + L15.B evidence present"
 
-# Layer B — EXPERIMENT_RESULT.md exists and has all 8 required sections.
+# Layer B — the memo exists. Exact section/declaration/coherence structure is
+# parsed by the observer below, including the honest historical-evidence form.
 MEMO="$TGRAD_DIR/EXPERIMENT_RESULT.md"
 [[ -f "$MEMO" ]] || { echo "  ✗ $MEMO missing"; exit 1; }
-N_SECTIONS="$(grep -cE '^## (Verdict|Scope|Evidence|Where Lean Helped|Where Lean Did Not Yet Help|Performance Interpretation|Not Claimed|Next Move)\b' "$MEMO")"
-[[ "$N_SECTIONS" -eq 8 ]] || { echo "  ✗ EXPERIMENT_RESULT.md has $N_SECTIONS/8 required sections"; exit 1; }
-echo "  ✓ EXPERIMENT_RESULT.md has all 8 required sections"
-
-# Required audit script.
-[[ -f "$TGRAD_DIR/scripts/dev/l15_c_audit.py" ]] || { echo "  ✗ l15_c_audit.py missing"; exit 1; }
 
 # Layer C — run the audit; capture JSON.
-AUDIT_OUT=/tmp/tgrad_L15_C_audit.json
-"$PY" "$TGRAD_DIR/scripts/dev/l15_c_audit.py" >"$AUDIT_OUT" 2>/tmp/tgrad_L15_C_audit.err
+AUDIT_OUT="$(mktemp "${TMPDIR:-/tmp}/tgrad_L15_C_audit.XXXXXX")"
+AUDIT_ERR="$(mktemp "${TMPDIR:-/tmp}/tgrad_L15_C_audit_err.XXXXXX")"
+trap 'rm -f "$SELFTEST_LOG" "$AUDIT_OUT" "$AUDIT_ERR"' EXIT
+"$PY" "$TGRAD_DIR/scripts/dev/l15_c_audit.py" >"$AUDIT_OUT" 2>"$AUDIT_ERR"
 if [[ ! -s "$AUDIT_OUT" ]]; then
   echo "  ✗ audit produced no output"
-  cat /tmp/tgrad_L15_C_audit.err; exit 1
+  cat "$AUDIT_ERR"; exit 1
 fi
+
+MEMO_VALID="$("$PY" -c '
+import json
+print(json.load(open("'"$AUDIT_OUT"'"))["memo_contract"]["valid"])
+')"
+if [[ "$MEMO_VALID" != "True" ]]; then
+  echo "  ✗ EXPERIMENT_RESULT.md contract is incoherent:"
+  "$PY" -c '
+import json
+d=json.load(open("'"$AUDIT_OUT"'"))["memo_contract"]
+print("\n".join(f"      {e}" for e in d["errors"]))
+'
+  exit 1
+fi
+echo "  ✓ memo shape, promoted declaration, and evidence provenance are coherent"
 
 N_PASS="$("$PY" -c '
 import json
@@ -52,12 +83,24 @@ print(len(json.load(open("'"$AUDIT_OUT"'"))["lean_invariants"]))
 [[ "$N_INV" -ge 5 ]] || { echo "  ✗ only $N_INV Lean invariants named (need >= 5)"; exit 1; }
 echo "  ✓ $N_INV Lean-explicit invariants named (>= 5)"
 
-RESULT="$("$PY" -c '
+COMPUTED_ANSWER="$("$PY" -c '
 import json
-print(json.load(open("'"$AUDIT_OUT"'"))["result"])
+print(json.load(open("'"$AUDIT_OUT"'"))["computed_answer"])
 ')"
-[[ "$RESULT" == "yes" ]] || { echo "  ✗ result=$RESULT (expected yes)"; cat "$AUDIT_OUT"; exit 1; }
-echo "  ✓ result: yes"
+PROMOTED_RESULT="$("$PY" -c '
+import json
+print(json.load(open("'"$AUDIT_OUT"'"))["promoted_result"])
+')"
+EVIDENCE_KIND="$("$PY" -c '
+import json
+print(json.load(open("'"$AUDIT_OUT"'"))["memo_contract"]["evidence_kind"])
+')"
+[[ "$COMPUTED_ANSWER" =~ ^(yes|no|inconclusive)$ ]] \
+  || { echo "  ✗ malformed computed answer=$COMPUTED_ANSWER"; exit 1; }
+[[ "$PROMOTED_RESULT" =~ ^(yes|no|inconclusive)$ ]] \
+  || { echo "  ✗ malformed promoted result=$PROMOTED_RESULT"; exit 1; }
+echo "  ✓ computed answer: $COMPUTED_ANSWER"
+echo "  ✓ promoted result: $PROMOTED_RESULT (evidence kind: $EVIDENCE_KIND)"
 
 # Layer D — anti-cheat
 # D1: word count >= 400 (memo not a stub).
@@ -67,10 +110,10 @@ print(json.load(open("'"$AUDIT_OUT"'"))["experiment_result_word_count"])
 ')"
 [[ "$WC" -ge 400 ]] || { echo "  ✗ memo word_count = $WC (need >= 400)"; exit 1; }
 echo "  ✓ memo word count = $WC (>= 400)"
-# D2: verdict comes from audit JSON, NOT hardcoded in gate.
-N_HARDCODED="$(grep -cE '"result"[[:space:]]*:[[:space:]]*"yes"' "$TGRAD_DIR/scripts/gates/L15_C.sh" || true)"
-[[ "$N_HARDCODED" -eq 0 ]] || { echo "  ✗ result hardcoded in gate script"; exit 1; }
-echo "  ✓ D2 result not hardcoded in gate"
+# D2: promoted result comes from audit JSON, not a gate literal.
+N_HARDCODED="$(grep -cE '"promoted_result"[[:space:]]*:[[:space:]]*"(yes|no|inconclusive)"' "$TGRAD_DIR/scripts/gates/L15_C.sh" || true)"
+[[ "$N_HARDCODED" -eq 0 ]] || { echo "  ✗ promoted result hardcoded in gate script"; exit 1; }
+echo "  ✓ D2 promoted result not hardcoded in gate"
 # D4: forbidden over-claim phrases absent (audit already checks).
 echo "  ✓ D4 honesty audit passed (no over-claims)"
 
@@ -100,7 +143,9 @@ out = {
     'scope': 'L15.C — verdict + EXPERIMENT_RESULT.md authoring (criteria 7-8)',
     'criteria': audit['criteria'],
     'lean_invariants': audit['lean_invariants'],
-    'result': audit['result'],
+    'memo_contract': audit['memo_contract'],
+    'computed_answer': audit['computed_answer'],
+    'promoted_result': audit['promoted_result'],
     'experiment_result_word_count': audit['experiment_result_word_count'],
     'experiment_result_sha256':     audit['experiment_result_sha256'],
     'hashes': {
@@ -112,6 +157,16 @@ out = {
 json.dump(out, open('$TGRAD_DIR/fixtures/gate_evidence/L15_C.json', 'w'), indent=2)
 print('  ✓ L15_C evidence written')
 "
+# The evidence must propagate both identities exactly; substituting the
+# computed answer for the promoted result is a gate failure, not a promotion.
+"$PY" -c '
+import json
+audit=json.load(open("'"$AUDIT_OUT"'"))
+evidence=json.load(open("'"$TGRAD_DIR/fixtures/gate_evidence/L15_C.json"'"))
+assert evidence["computed_answer"] == audit["computed_answer"]
+assert evidence["promoted_result"] == audit["promoted_result"]
+' || { echo "  ✗ L15.C result identities were not propagated exactly"; exit 1; }
+echo "  ✓ computed and promoted result identities propagated exactly"
 check_evidence_for L15_C || exit 1
 check_falsifiability_verified L15_C || exit 1
-echo "  ✓ L15.C — result: $RESULT, $N_INV invariants — GREEN"
+echo "  ✓ L15.C — coherent closure; promoted result: $PROMOTED_RESULT, computed answer: $COMPUTED_ANSWER, $N_INV invariants — GREEN"

@@ -17,9 +17,18 @@ L15_A.json:narrowing_notes` per `GOAL_L15.md §4`).
 | 7 | Stub Layer C's audit functions to always return `verdict: pass` | `check_evidence_for L15_A` enforces a schema that requires `criteria` to be a list of objects with `verdict ∈ {pass,fail,inconclusive}` AND that all 3 criteria say pass. A stub returning the same hardcoded result would still be detected by the EVIDENCE-DERIVED nature of the audit: when L13/L13_F/L14 evidence files mismatch the verdicts (e.g. when those files are sabotaged), the audit's verdicts MUST diverge from the evidence. A static "always pass" stub would be caught at #1/#3/#4/#5 sabotages by Layer B's required-grep checks. | ✓ 2026-05-14 |
 | 8 | Route `1536x1536x1536` (TC-eligible, non-sentinel) through scalar fallback in `pickDispatchPlan` | `L13_F.json.tc_general_scalar_routes` would become > 0; Criterion 3 audit and static_check `no_tc_general_scalar_route` both fail | ✓ 2026-05-14 |
 | 9 | Make Python `__matmul__` choose TC-vs-scalar SOLELY by `_TRIPLE_SET` membership (no FFI dispatch) | static_check `no_python_triple_set_routing`: requires that if `_TRIPLE_SET` appears in `tgrad.py`, there is also an FFI dispatch call (`_lib.tgrad_matmul*`). A pure `_TRIPLE_SET` router with no FFI flips the check to `false` → gate fails | ✓ 2026-05-14 |
+| 10 | Change the final bf16 scalar catch-all in `pickDispatchPlan` from `some plan` to `none` | The compiled `pickDispatchPlan_bf16_total` proposition becomes false for unmatched bf16 shapes; explicit `lake build Tgrad.Codegen.Opt.Heuristic` fails before the audit runs | ✓ 2026-07-29 — build failed at the theorem with the unmatched-shape case still requiring `M < 8 ∨ K < 8 ∨ N < 8` |
+| 11 | Couple `pickDispatchPlan` to `ShapeSentinel.ofTriple M K N` while retaining a total default | Totality still compiles, but the distinct declaration-scoped no-lookup architecture check rejects the captured-table dependency | ✓ 2026-07-29 — theorem module built; focused self-test then rejected `current pickDispatchPlan failed no-lookup architecture check` |
+| 12 | Reintroduce the duplicated raw parser block with `pickDispatchPlan\\b` from `56c2fa4` | The focused `l15_a_audit.py --self-test` detects the doubled-escape regression and exits nonzero before GPU work | ✓ 2026-07-29 — self-test exited 1 with `duplicated double-escaped pickDispatchPlan parser present` |
 
 The narrowings in `narrowing_notes` are documented inside the evidence
 JSON; L15.C must carry the same narrowings into `EXPERIMENT_RESULT.md`
 per `GOAL_L15.md §4`. They tighten the prose ("opaque Lean tensor
 handle"; "not Python-owned view metadata") without expanding what the
 audit accepts.
+
+Dispatch totality and dispatch architecture are intentionally separate:
+`pickDispatchPlan_bf16_total` proves that every bf16 triple returns a plan,
+while the declaration-scoped architecture check rejects a total implementation
+that merely looks up captured sentinels and defaults afterward. Neither check
+substitutes for the other.

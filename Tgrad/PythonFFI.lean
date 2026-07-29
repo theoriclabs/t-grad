@@ -398,15 +398,9 @@ def get? (h : UInt64) : IO (Option Tgrad.Tensor) := do
 
 end TensorRegistry
 
-/-- Stable FFI dtype encoding. Matches what `python/tgrad.py`
-    passes for L14.A constructors. -/
-def dtypeOfCode (code : UInt8) : Tgrad.Dtype :=
-  match code with
-  | 0 => .bfloat16_
-  | 1 => .float32_
-  | 2 => .float16_
-  | 3 => .int32_
-  | _ => .bfloat16_  -- default; FFI callers should not exceed the table
+/-- Stable FFI dtype decoding. Invalid codes remain invalid; no metadata or
+tensor path may silently substitute bf16. -/
+def dtypeOfCode? (code : UInt8) : Option Tgrad.Dtype := Tgrad.Dtype.ofCode? code
 
 /-- L14.A: construct a `Tensor` with `uop := .buffer h shape dtype`,
     register it, return the opaque handle.
@@ -418,10 +412,174 @@ def dtypeOfCode (code : UInt8) : Tgrad.Dtype :=
 def tensorFromBuffer
     (bufHandle : UInt64) (shape : @& Array USize) (dtypeCode : UInt8) :
     IO UInt64 := do
-  let dt   := dtypeOfCode dtypeCode
+  let some dt := dtypeOfCode? dtypeCode | return 0
+  if !dt.computeSupported then return 0
   let dims : List Nat := shape.toList.map USize.toNat
   let t    : Tgrad.Tensor := { uop := .buffer bufHandle dims dt, dtype := dt }
   TensorRegistry.register t
+
+/-! ## Foreign-grounded dtype query boundary
+
+One stable code identifies a semantic dtype. Query selectors are intentionally
+small integers so C/Python only marshal answers computed in Lean.
+
+`dtypeQuery`: 0 valid, 1 priority (two's complement), 2 bits, 3 itemsize,
+4 float, 5 int, 6 unsigned, 7 bool, 8 range kind, 9 min bits, 10 max bits,
+11 finfo exponent, 12 finfo mantissa, 13 immediate-parent bitmask,
+14 format ASCII, 15 compute supported, 16 non-associative triple count.
+
+`dtypeBinaryQuery`: 0 LUB code, 1 lossless-cast bool, 2 less-than bool.
+`dtypeUnaryQuery`: 0 strong dtype, 1 least-upper float.
+-/
+
+/-- Process-local dtype defaults.  The state is in Lean so every public
+observer sees one authority; Python only transports codes to these refs. -/
+initialize dtypeDefaultIntState : IO.Ref Tgrad.Dtype ←
+  IO.mkRef Tgrad.Dtype.defaultInt
+initialize dtypeDefaultFloatState : IO.Ref Tgrad.Dtype ←
+  IO.mkRef Tgrad.Dtype.defaultFloat
+
+private def readDtypeDefaults : IO (Tgrad.Dtype × Tgrad.Dtype) := do
+  pure (← dtypeDefaultIntState.get, ← dtypeDefaultFloatState.get)
+
+private def boolCode (b : Bool) : UInt64 := if b then 1 else 0
+
+private def parentMask (d : Tgrad.Dtype) : UInt64 :=
+  d.immediateParents.foldl (fun mask parent =>
+    mask ||| ((1 : UInt64) <<< parent.code.toUInt64)) 0
+
+@[export tgrad_dtype_query_lean]
+def dtypeQuery (code query : UInt8) : IO UInt64 := do
+  let some d := Tgrad.Dtype.ofCode? code | return (0 : UInt64) - 1
+  pure (match query with
+    | 0 => 1
+    | 1 => if d == .void_ then (0 : UInt64) - 1 else UInt64.ofNat d.priority.natAbs
+    | 2 => UInt64.ofNat d.bits
+    | 3 => UInt64.ofNat d.sizeBytes
+    | 4 => boolCode d.isFloat
+    | 5 => boolCode d.isInt
+    | 6 => boolCode d.isUnsigned
+    | 7 => boolCode d.isBool
+    | 8 => d.rangeKind.toUInt64
+    | 9 => d.rangeMinBits
+    | 10 => d.rangeMaxBits
+    | 11 => UInt64.ofNat ((d.finfo.map Prod.fst).getD 255)
+    | 12 => UInt64.ofNat ((d.finfo.map Prod.snd).getD 255)
+    | 13 => parentMask d
+    | 14 => d.formatCode.toUInt64
+    | 15 => boolCode d.computeSupported
+    | 16 => UInt64.ofNat Tgrad.Dtype.nonAssociativeTriples.length
+    | _ => (0 : UInt64) - 1)
+
+@[export tgrad_dtype_binary_query_lean]
+def dtypeBinaryQuery (query leftCode rightCode : UInt8) : IO UInt8 := do
+  let some left := Tgrad.Dtype.ofCode? leftCode | return 255
+  let some right := Tgrad.Dtype.ofCode? rightCode | return 255
+  pure (match query with
+    | 0 => (Tgrad.Dtype.lub left right).code
+    | 1 => if Tgrad.Dtype.canLosslessCast left right then 1 else 0
+    | 2 => if Tgrad.Dtype.lt left right then 1 else 0
+    | _ => 255)
+
+@[export tgrad_dtype_unary_query_lean]
+def dtypeUnaryQuery (query code : UInt8) : IO UInt8 := do
+  let some d := Tgrad.Dtype.ofCode? code | return 255
+  let (defaultInt, defaultFloat) ← readDtypeDefaults
+  pure (match query with
+    | 0 => (Tgrad.Dtype.strongWithDefaults defaultInt defaultFloat d).code
+    | 1 => (Tgrad.Dtype.leastUpperFloatWithDefault defaultFloat d).code
+    | _ => 255)
+
+@[export tgrad_dtype_lub_many_lean]
+def dtypeLubMany (codes : @& Array UInt8) : IO UInt8 := do
+  let decoded := codes.toList.mapM Tgrad.Dtype.ofCode?
+  let some dtypes := decoded | return 255
+  pure ((Tgrad.Dtype.leastUpperMany? dtypes).map Tgrad.Dtype.code |>.getD 255)
+
+@[export tgrad_dtype_infer_python_lean]
+def dtypeInferPython (tags : @& Array UInt8) : IO UInt8 := do
+  let (defaultInt, defaultFloat) ← readDtypeDefaults
+  pure ((Tgrad.Dtype.inferPythonTagsWithDefaults?
+    defaultInt defaultFloat tags.toList).map Tgrad.Dtype.code |>.getD 255)
+
+@[export tgrad_dtype_default_lean]
+def dtypeDefault (which : UInt8) : IO UInt8 := do
+  if which == 0 then return (← dtypeDefaultIntState.get).code
+  if which == 1 then return (← dtypeDefaultFloatState.get).code
+  pure 255
+
+/-- Mutate one runtime default iff the decoded dtype belongs to the exact
+foreign-admitted set for that role.  Returns one on mutation and zero on every
+rejection, including invalid codes. -/
+@[export tgrad_dtype_set_default_lean]
+def dtypeSetDefault (which code : UInt8) : IO UInt8 := do
+  let some d := Tgrad.Dtype.ofCode? code | return 0
+  if which == 0 && d.integerDefaultAllowed then
+    dtypeDefaultIntState.set d
+    return 1
+  if which == 1 && d.floatingDefaultAllowed then
+    dtypeDefaultFloatState.set d
+    return 1
+  pure 0
+
+/-- Resolve the current floating default through creation admission without
+allocating or dispatching.  `255` means the semantic default is valid but the
+current compute backend does not admit it; no substitution occurs. -/
+@[export tgrad_dtype_creation_default_lean]
+def dtypeCreationDefault : IO UInt8 := do
+  let d ← dtypeDefaultFloatState.get
+  pure (if d.computeSupported then d.code else 255)
+
+@[export tgrad_dtype_backend_name_lean]
+def dtypeBackendName (code : UInt8) : IO String :=
+  pure ((Tgrad.Dtype.ofCode? code).map Tgrad.Dtype.backendName |>.getD "")
+
+@[export tgrad_dtype_public_name_lean]
+def dtypePublicName (code : UInt8) : IO String :=
+  pure ((Tgrad.Dtype.ofCode? code).map Tgrad.Dtype.toStr |>.getD "")
+
+@[export tgrad_dtype_display_name_lean]
+def dtypeDisplayName (code : UInt8) : IO String :=
+  pure ((Tgrad.Dtype.ofCode? code).map Tgrad.Dtype.displayName |>.getD "")
+
+/-- Indexed access to compiler-checked Lean alias/collection declarations.
+Table 0 is aliases: query 0 row-count, query 1 target code.
+Table 1 is collections: query 0 row-count, query 1 member-count,
+query 2 member code at `column`. Invalid requests return UInt64 max. -/
+@[export tgrad_dtype_table_query_lean]
+def dtypeTableQuery (table query : UInt8) (row column : USize) : IO UInt64 := do
+  if table == 0 then
+    if query == 0 then return UInt64.ofNat Tgrad.Dtype.aliases.length
+    let some entry := Tgrad.Dtype.aliases[row.toNat]? | return (0 : UInt64) - 1
+    if query == 1 then return entry.2.code.toUInt64
+    return (0 : UInt64) - 1
+  if table == 1 then
+    if query == 0 then return UInt64.ofNat Tgrad.Dtype.collections.length
+    let some entry := Tgrad.Dtype.collections[row.toNat]? | return (0 : UInt64) - 1
+    if query == 1 then return UInt64.ofNat entry.2.length
+    if query == 2 then
+      let some member := entry.2[column.toNat]? | return (0 : UInt64) - 1
+      return member.code.toUInt64
+    return (0 : UInt64) - 1
+  pure ((0 : UInt64) - 1)
+
+@[export tgrad_dtype_table_name_lean]
+def dtypeTableName (table : UInt8) (row : USize) : IO String :=
+  pure (if table == 0 then (Tgrad.Dtype.aliases[row.toNat]?).map Prod.fst |>.getD ""
+        else if table == 1 then (Tgrad.Dtype.collections[row.toNat]?).map Prod.fst |>.getD ""
+        else "")
+
+@[export tgrad_bf16_pack_bytes_lean]
+def bf16PackBytes (bytes : @& ByteArray) : IO ByteArray :=
+  pure ((Tgrad.Dtype.packFp32BytesToBf16? bytes).getD ByteArray.empty)
+
+@[export tgrad_bf16_expand_bytes_lean]
+def bf16ExpandBytes (bytes : @& ByteArray) : IO ByteArray :=
+  pure ((Tgrad.Dtype.expandBf16BytesToFp32? bytes).getD ByteArray.empty)
+
+@[export tgrad_bf16_round_bits_lean]
+def bf16RoundBits (bits : UInt32) : IO UInt32 :=
+  pure (Tgrad.Dtype.bf16RoundedF32Bits bits)
 
 /-- L14.A: query the registered shape rank for a tensor handle. Lets
     L14.B's view-method tests verify lookups round-trip via the FFI.
@@ -628,12 +786,7 @@ private def runBufferMatmul (a b : Tgrad.Tensor) (M K N : Nat) :
 @[export tgrad_tensor_dtype_lean]
 def tensorDtype (h : UInt64) : IO UInt8 := do
   let some t ← TensorRegistry.get? h | return 255
-  pure (match t.dtype with
-        | .bfloat16_ => 0
-        | .float32_  => 1
-        | .float16_  => 2
-        | .int32_    => 3
-        | _          => 255)
+  pure t.dtype.code
 
 /-- Compiled-kernel cache for pointwise ops. Keyed on the operator, the
     output extent and a hash of BOTH rendered index expressions, so two
@@ -886,21 +1039,26 @@ def realizeGraph (h : UInt64) : IO UInt64 := do
 -- Constant-fill creation (`Tensor.full` / `ones` / `zeros`).
 --
 -- Python normalises the calling convention (`_argfix`, kwargs) and
--- marshals shape + fill + dtype code. Lean owns the dtype default
--- (`255` → float32), dtype admission (bf16/f32/i32 only), GPU
+-- marshals shape + fill + dtype code. For `255`, Lean resolves the current
+-- runtime floating default and then applies dtype admission (bf16/f32/i32
+-- only), GPU
 -- allocation, fill-kernel compile/dispatch, and registry insert.
 -- A host-side `numpy.full` upload is deliberately not a path.
 -- ----------------------------------------------------------------------
 
 /-- Creation-surface dtype codes. `255` is the Python `dtype=None`
-    default sentinel — Lean applies float32. Unsupported codes are
-    `none` (never silently remapped to a supported dtype). -/
-def creationDtype? : UInt8 → Option Tgrad.Dtype
-  | 0   => some .bfloat16_
-  | 1   => some .float32_
-  | 3   => some .int32_
-  | 255 => some .float32_
-  | _   => none
+    sentinel — Lean resolves the current runtime floating default and then
+    applies compute admission. Unsupported codes/defaults are `none` (never
+    silently remapped to a supported dtype). -/
+def creationDtype? (code : UInt8) : IO (Option Tgrad.Dtype) := do
+  let candidate ← if code == 255 then do
+      let d ← dtypeDefaultFloatState.get
+      pure (some d)
+    else
+      pure (Tgrad.Dtype.ofCode? code)
+  pure (match candidate with
+    | some d => if d.computeSupported then some d else none
+    | none => none)
 
 initialize libCacheFill : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
@@ -926,7 +1084,7 @@ private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
 @[export tgrad_tensor_full_lean]
 def tensorFull (shape : @& Array USize) (fill : Float) (dtypeCode : UInt8) :
     IO UInt64 := do
-  let some ty := creationDtype? dtypeCode | return 0
+  let some ty ← creationDtype? dtypeCode | return 0
   let dims : List Nat := shape.toList.map USize.toNat
   if dims.length > 3 then return 0
   if dims.any (fun d => d < 1) then return 0

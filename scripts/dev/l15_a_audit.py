@@ -40,13 +40,137 @@ Both narrowings tighten the spec's prose ("opaque Lean tensor handle";
 reducing what the audit detects.
 """
 from __future__ import annotations
+import functools
 import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+HEURISTIC_PATH = REPO / "Tgrad" / "Codegen" / "Opt" / "Heuristic.lean"
+DISPATCH_TOTAL_OBLIGATION = "pickDispatchPlan_bf16_total"
+
+
+def _lean_declaration_source(text: str, kind: str, name: str) -> str:
+    """Return one top-level Lean declaration, excluding the next doc block.
+
+    This parser is used only for the distinct architecture check. Dispatch
+    totality is established by compiling an exact-type Lean witness below,
+    never by interpreting the spelling of the implementation body.
+    """
+    start = re.search(
+        rf"^{re.escape(kind)}[ \t]+{re.escape(name)}(?=[ \t(]|$)", text, re.M
+    )
+    if start is None:
+        return ""
+    following = text[start.end():]
+    end = re.search(
+        r"^(?:/--|/-!|def[ \t]|theorem[ \t]|structure[ \t]|inductive[ \t]|"
+        r"namespace[ \t]|end(?:[ \t]|$))",
+        following,
+        re.M,
+    )
+    stop = start.end() + (end.start() if end else len(following))
+    return text[start.start():stop]
+
+
+@functools.lru_cache(maxsize=1)
+def _pick_dispatch_plan_body() -> str:
+    if not HEURISTIC_PATH.exists():
+        return ""
+    return _lean_declaration_source(
+        HEURISTIC_PATH.read_text(), "def", "pickDispatchPlan"
+    )
+
+
+def _strip_lean_comments(text: str) -> str:
+    """Remove comments before inspecting architectural dependencies.
+
+    `pickDispatchPlan` currently has no nested block comments. Iterating the
+    non-greedy block pattern nevertheless handles nested-looking comment text
+    from the inside out well enough for this bounded declaration parser.
+    """
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"/-.*?-/", "", text, flags=re.S)
+    return re.sub(r"--[^\n]*", "", text)
+
+
+def _dispatch_body_is_general(body: str) -> bool:
+    """Reject captured-table coupling while allowing one algorithmic tile.
+
+    The 64³ branch is a genuine two-warp algorithmic special case. A captured
+    lookup is different: it imports sentinel/table identity or enumerates
+    multiple exact triples. Totality is checked separately in Lean.
+    """
+    if not body:
+        return False
+    code = _strip_lean_comments(body)
+    forbidden_dependencies = (
+        "ShapeSentinel",
+        "dispatchDimsForSentinel",
+        "ofTriple",
+        "toTriple",
+    )
+    if any(name in code for name in forbidden_dependencies):
+        return False
+    if re.search(r"\.bf16_(?:64x64|[0-9]+x[0-9]+)", code):
+        return False
+
+    # Two or more complete literal triples constitute an explicit shape
+    # table. One exact triple is permitted for the 64³ two-warp algorithm.
+    tuple_literals = re.findall(
+        r"[\(⟨\[][ \t]*[0-9]+[ \t]*,[ \t]*[0-9]+[ \t]*,[ \t]*[0-9]+[ \t]*[\)⟩\]]",
+        code,
+    )
+    exact_triple_guards = re.findall(
+        r"M[ \t]*==[ \t]*[0-9]+.{0,160}?"
+        r"K[ \t]*==[ \t]*[0-9]+.{0,160}?"
+        r"N[ \t]*==[ \t]*[0-9]+",
+        code,
+        re.S,
+    )
+    return len(tuple_literals) < 2 and len(exact_triple_guards) <= 1
+
+
+@functools.lru_cache(maxsize=1)
+def _compiled_dispatch_total_obligation() -> bool:
+    """Compile an exact-type witness for the Lean dispatch-total theorem."""
+    if not HEURISTIC_PATH.exists():
+        return False
+    source = HEURISTIC_PATH.read_text()
+    if not re.search(
+        rf"^theorem[ \t]+{re.escape(DISPATCH_TOTAL_OBLIGATION)}(?=[ \t(]|$)",
+        source,
+        re.M,
+    ):
+        return False
+    witness = f"""import Tgrad.Codegen.Opt.Heuristic
+
+example (M K N : Nat) :
+    (Tgrad.Codegen.Opt.pickDispatchPlan M K N
+      .bfloat16_ .bfloat16_).isSome = true :=
+  Tgrad.Codegen.Opt.{DISPATCH_TOTAL_OBLIGATION} M K N
+"""
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".lean", prefix="tgrad_l15a_dispatch_", delete=True
+        ) as handle:
+            handle.write(witness)
+            handle.flush()
+            result = subprocess.run(
+                ["lake", "env", "lean", handle.name],
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 def _count_matches(path: Path, pattern: str) -> int:
@@ -154,33 +278,10 @@ def check_rewrite_codegen() -> dict:
     # Pipeline.realize: no runtime MSL fixture read; no ShapeSentinel-only.
     pipe_text = pipeline.read_text() if pipeline.exists() else ""
     n_msl_read = len(re.findall(r"IO\.FS\.readFile.*matmul.*\.msl", pipe_text))
-    # ShapeSentinel-only would mean: every dispatch arm panics on non-matched.
-    # We just check that pickDispatchPlan has a non-sentinel fallthrough.
-    plan_path = REPO / "Tgrad" / "Codegen" / "Opt" / "Heuristic.lean"
-    plan_text = plan_path.read_text() if plan_path.exists() else ""
-    # `pickDispatchPlan` is an if/else-if/else chain, not a `match`, so
-    # looking only for `| _ =>` arms cannot see its fallthrough. It also
-    # spells the concept "catch-all" (hyphenated), which `catchall` misses.
-    # Both gaps made this read False while the property genuinely held: the
-    # function ends in a terminal `else` routing any non-sentinel bf16 shape
-    # to the scalar kernel, and Lean proves it total (no sorry/partial).
-    # Scoped to the function body so an unrelated `else` cannot satisfy it.
-    _m = re.search(r"^def pickDispatchPlan\b.*?(?=^def |^theorem |^end |\Z)",
-                   plan_text, re.M | re.S)
-    _body = _m.group(0) if _m else ""
-    # `pickDispatchPlan` is an if/else-if/else chain, not a `match`, so
-    # looking only for `| _ =>` cannot see its fallthrough; it also spells
-    # the concept "catch-all" (hyphenated), which `catchall` misses. Both
-    # made this read False while the property genuinely held: the function
-    # ends in a terminal `else` routing any non-sentinel bf16 shape to the
-    # scalar kernel, and Lean proves it total (no sorry, no partial).
-    # Scoped to the function body so an unrelated `else` cannot satisfy it.
-    _m = re.search(r"^def pickDispatchPlan\\b.*?(?=^def |^theorem |^end |\\Z)",
-                    plan_text, re.M | re.S)
-    _body = _m.group(0) if _m else ""
-    has_fallthrough = (bool(re.search(r"\\|\\s+_\\s*=>", _body))
-                       or bool(re.search(r"otherwise|catch[-_]?all", _body, re.I))
-                       or bool(re.search(r"^\\s*else\\s*$", _body, re.M)))
+    # Dispatch totality is a compiled Lean proposition. The audit compiles an
+    # exact-type witness rather than inferring semantics from `else`, comments
+    # or match-arm spelling.
+    dispatch_total = _compiled_dispatch_total_obligation()
     # Evidence-based assertions.
     l13d_evidence = _load("L13_D.json")
     # L13_D.json uses `random_correct` for the success count.
@@ -197,7 +298,7 @@ def check_rewrite_codegen() -> dict:
         l13d_pass >= 30 and
         tc_wmma_pinned == 8 and tc_wmma_random == 10 and tc_scalar == 0 and
         pinned_views_pass == 16 and random_views_pass == 20 and
-        n_msl_read == 0 and has_fallthrough
+        n_msl_read == 0 and dispatch_total
     ) else "fail"
     return {
         "criterion": "rewrite_codegen",
@@ -211,7 +312,8 @@ def check_rewrite_codegen() -> dict:
             f"scalar_routes={tc_scalar}/0, "
             f"L14_B_3.pinned_views_pass={pinned_views_pass}/16, "
             f"L14_C.random_views_pass={random_views_pass}/20, "
-            f"pipeline_msl_read={n_msl_read}/0, dispatch_has_fallthrough={has_fallthrough}"
+            f"pipeline_msl_read={n_msl_read}/0, "
+            f"dispatch_bf16_total_compiled={dispatch_total}"
         ),
     }
 
@@ -241,31 +343,8 @@ def static_check_no_runtime_msl_read() -> bool:
 
 
 def static_check_dispatch_fallthrough() -> bool:
-    """pickDispatchPlan / Pipeline.realize must have a non-ShapeSentinel
-    fallthrough arm (otherwise the dispatcher is hardcoded to known shapes)."""
-    plan = REPO / "Tgrad" / "Codegen" / "Opt" / "Heuristic.lean"
-    if not plan.exists():
-        return False
-    text = plan.read_text()
-    # Scope to pickDispatchPlan's own body: an `else` elsewhere in the file
-    # must not satisfy this, and a fallthrough in some other function is not
-    # this function's fallthrough.
-    m = re.search(r"^def pickDispatchPlan\b.*?(?=^def |^theorem |^end |\Z)",
-                  text, re.M | re.S)
-    body = m.group(0) if m else ""
-    if not body:
-        return False
-    # `pickDispatchPlan` is an if/else-if/else chain, not a `match`, so
-    # `| _ =>` cannot appear; and it spells the concept "catch-all", which
-    # the old `catchall` pattern missed. Both made this return False while
-    # the property genuinely held -- the function ends in a terminal `else`
-    # routing any non-sentinel bf16 shape to the scalar kernel, and Lean
-    # proves it total (no `sorry`, no `partial`). Accepting a terminal
-    # `else` follows the code; it does not weaken the check.
-    return (bool(re.search(r"\|\s+_\s*=>", body))
-            or bool(re.search(r"otherwise|catch[-_]?all|TcGeneral|ScalarFallback",
-                              body, re.I))
-            or bool(re.search(r"^\s*else\s*$", body, re.M)))
+    """bf16 dispatch totality is established by a compiled Lean theorem."""
+    return _compiled_dispatch_total_obligation()
 
 
 def static_check_no_python_owned_view_graph() -> bool:
@@ -330,18 +409,9 @@ def static_check_no_view_method_buffer_alloc() -> bool:
 
 def static_check_no_pickDispatchPlan_lookup_table() -> bool:
     """pickDispatchPlan must not be an explicit lookup table over the
-    pinned shapes — it must use bucketing logic (general parameter
-    predicates), and there must be a non-pinned fallthrough."""
-    plan = REPO / "Tgrad" / "Codegen" / "Opt" / "Heuristic.lean"
-    if not plan.exists():
-        return False
-    text = plan.read_text()
-    # Heuristic: count case arms that match specific shape literals like
-    # `⟨8192, 8192, 8192⟩` or `(8192, 8192, 8192)`. If most arms are
-    # specific literals AND there's no fallthrough, that's a lookup table.
-    fallthrough_count = len(re.findall(r"\|\s+_\s*=>\s*", text))
-    # A non-lookup table will have at least one fallthrough arm.
-    return fallthrough_count >= 1
+    pinned shapes. This is distinct from totality: a lookup plus a default is
+    total but still couples production dispatch to captured fixtures."""
+    return _dispatch_body_is_general(_pick_dispatch_plan_body())
 
 
 def static_check_rangeify_traces_present() -> bool:
@@ -361,6 +431,54 @@ def static_check_rangeify_traces_present() -> bool:
         except Exception:
             continue
     return rows >= 1 and nontrivial >= 1
+
+
+def run_self_test() -> int:
+    """Focused regression tests for the dispatch audit instrument."""
+    failures: list[str] = []
+    audit_source = Path(__file__).read_text()
+    # Construct the old raw-regex spelling without embedding it verbatim in
+    # this file, otherwise the self-test would match its own guard.
+    doubled_escape = "pickDispatchPlan" + ("\\" * 2) + "b"
+    if doubled_escape in audit_source:
+        failures.append("duplicated double-escaped pickDispatchPlan parser present")
+
+    synthetic = """def pickDispatchPlan (M : Nat) :=
+  some M
+
+/-- next declaration -/
+def unrelated := 7
+"""
+    extracted = _lean_declaration_source(synthetic, "def", "pickDispatchPlan")
+    if "some M" not in extracted or "unrelated" in extracted:
+        failures.append("top-level Lean declaration parser did not stay scoped")
+
+    body = _pick_dispatch_plan_body()
+    if not _dispatch_body_is_general(body):
+        failures.append("current pickDispatchPlan failed no-lookup architecture check")
+    coupled = body.replace(
+        ":=\n",
+        ":=\n  let _captured := "
+        "Tgrad.Renderer.Metal.ShapeSentinel.ofTriple M K N\n",
+        1,
+    )
+    if _dispatch_body_is_general(coupled):
+        failures.append("ShapeSentinel-coupled dispatch escaped architecture check")
+    tabled = body.replace(
+        ":=\n", ":=\n  let _pinned := [(64, 64, 64), (1024, 1024, 1024)]\n", 1
+    )
+    if _dispatch_body_is_general(tabled):
+        failures.append("explicit pinned-shape table escaped architecture check")
+
+    if not _compiled_dispatch_total_obligation():
+        failures.append("exact-type Lean dispatch-total witness did not compile")
+
+    if failures:
+        for failure in failures:
+            print(f"l15_a_audit_self_test: FAIL: {failure}", file=sys.stderr)
+        return 1
+    print("l15_a_audit_self_test: pass")
+    return 0
 
 
 def main() -> int:
@@ -385,4 +503,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--self-test"]:
+        sys.exit(run_self_test())
+    if sys.argv[1:]:
+        print("usage: l15_a_audit.py [--self-test]", file=sys.stderr)
+        sys.exit(2)
     sys.exit(main())

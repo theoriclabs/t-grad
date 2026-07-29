@@ -62,6 +62,51 @@ _lib.tgrad_tensor_write_bytes.restype  = ctypes.c_int
 _lib.tgrad_tensor_read_bytes.argtypes  = [
     ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
 _lib.tgrad_tensor_read_bytes.restype   = ctypes.c_int
+_lib.tgrad_dtype_query.argtypes = [ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_dtype_query.restype = ctypes.c_uint64
+_lib.tgrad_dtype_binary_query.argtypes = [
+    ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_dtype_binary_query.restype = ctypes.c_uint8
+_lib.tgrad_dtype_unary_query.argtypes = [ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_dtype_unary_query.restype = ctypes.c_uint8
+_lib.tgrad_dtype_lub_many.argtypes = [
+    ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+_lib.tgrad_dtype_lub_many.restype = ctypes.c_uint8
+_lib.tgrad_dtype_infer_python.argtypes = [
+    ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+_lib.tgrad_dtype_infer_python.restype = ctypes.c_uint8
+_lib.tgrad_dtype_default.argtypes = [ctypes.c_uint8]
+_lib.tgrad_dtype_default.restype = ctypes.c_uint8
+_lib.tgrad_dtype_set_default.argtypes = [ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_dtype_set_default.restype = ctypes.c_uint8
+_lib.tgrad_dtype_creation_default.argtypes = []
+_lib.tgrad_dtype_creation_default.restype = ctypes.c_uint8
+_lib.tgrad_dtype_backend_name.argtypes = [
+    ctypes.c_uint8, ctypes.POINTER(ctypes.c_char), ctypes.c_size_t]
+_lib.tgrad_dtype_backend_name.restype = ctypes.c_size_t
+_lib.tgrad_dtype_public_name.argtypes = [
+    ctypes.c_uint8, ctypes.POINTER(ctypes.c_char), ctypes.c_size_t]
+_lib.tgrad_dtype_public_name.restype = ctypes.c_size_t
+_lib.tgrad_dtype_display_name.argtypes = [
+    ctypes.c_uint8, ctypes.POINTER(ctypes.c_char), ctypes.c_size_t]
+_lib.tgrad_dtype_display_name.restype = ctypes.c_size_t
+_lib.tgrad_dtype_table_query.argtypes = [
+    ctypes.c_uint8, ctypes.c_uint8, ctypes.c_size_t, ctypes.c_size_t]
+_lib.tgrad_dtype_table_query.restype = ctypes.c_uint64
+_lib.tgrad_dtype_table_name.argtypes = [
+    ctypes.c_uint8, ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_char), ctypes.c_size_t]
+_lib.tgrad_dtype_table_name.restype = ctypes.c_size_t
+_lib.tgrad_bf16_pack_bytes.argtypes = [
+    ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+_lib.tgrad_bf16_pack_bytes.restype = ctypes.c_int
+_lib.tgrad_bf16_expand_bytes.argtypes = [
+    ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+_lib.tgrad_bf16_expand_bytes.restype = ctypes.c_int
+_lib.tgrad_bf16_round_bits.argtypes = [ctypes.c_uint32]
+_lib.tgrad_bf16_round_bits.restype = ctypes.c_uint32
 _lib.tgrad_matmul_64x64.argtypes = [
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_64x64.restype  = ctypes.c_int32
@@ -174,8 +219,9 @@ _lib.tgrad_realize.restype  = ctypes.c_uint64
 _lib.tgrad_tensor_dtype.argtypes = [ctypes.c_uint64]
 _lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
 
-# Constant-fill creation. Lean owns dtype default/admission and the GPU
-# fill; Python only marshals shape / fill / dtype code.
+# Constant-fill creation. Lean resolves the current runtime floating default,
+# applies dtype admission, and owns the GPU fill; Python only marshals shape /
+# fill / dtype code.
 _lib.tgrad_tensor_full.argtypes = [
     ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t,
     ctypes.c_double, ctypes.c_uint8]
@@ -189,19 +235,70 @@ _DTYPE_BF16 = 0
 _DTYPE_F32  = 1
 _DTYPE_F16  = 2
 _DTYPE_I32  = 3
+_DTYPE_BOOL = 4
+_DTYPE_WEAKINT = 5
+_DTYPE_I8 = 6
+_DTYPE_U8 = 7
+_DTYPE_I16 = 8
+_DTYPE_U16 = 9
+_DTYPE_U32 = 10
+_DTYPE_I64 = 11
+_DTYPE_U64 = 12
+_DTYPE_WEAKFLOAT = 13
+_DTYPE_FP8E4M3 = 14
+_DTYPE_FP8E5M2 = 15
+_DTYPE_FP8E4M3FNUZ = 16
+_DTYPE_FP8E5M2FNUZ = 17
+_DTYPE_F64 = 18
+_DTYPE_VOID = 254
 # Creation-surface sentinels (matches PythonFFI.creationDtype?):
-_CREATION_DTYPE_DEFAULT = 255  # dtype=None → Lean applies float32
-_CREATION_DTYPE_UNKNOWN = 254  # unrecognised name → Lean rejects
-_DTYPE_CODES = {"bf16": _DTYPE_BF16, "f32": _DTYPE_F32,
-                "f16": _DTYPE_F16, "i32": _DTYPE_I32}
+_CREATION_DTYPE_DEFAULT = 255  # dtype=None → Lean resolves runtime default
+_CREATION_DTYPE_UNKNOWN = 253  # unrecognised name → Lean rejects
+_DTYPE_CODES = {
+    "bf16": _DTYPE_BF16, "bfloat16": _DTYPE_BF16,
+    "f32": _DTYPE_F32, "float32": _DTYPE_F32,
+    "f16": _DTYPE_F16, "float16": _DTYPE_F16,
+    "i32": _DTYPE_I32, "int32": _DTYPE_I32,
+    "bool": _DTYPE_BOOL, "weakint": _DTYPE_WEAKINT,
+    "int8": _DTYPE_I8, "uint8": _DTYPE_U8,
+    "int16": _DTYPE_I16, "uint16": _DTYPE_U16,
+    "uint32": _DTYPE_U32, "int64": _DTYPE_I64, "uint64": _DTYPE_U64,
+    "weakfloat": _DTYPE_WEAKFLOAT,
+    "fp8e4m3": _DTYPE_FP8E4M3, "fp8e5m2": _DTYPE_FP8E5M2,
+    "fp8e4m3fnuz": _DTYPE_FP8E4M3FNUZ,
+    "fp8e5m2fnuz": _DTYPE_FP8E5M2FNUZ,
+    "float64": _DTYPE_F64, "void": _DTYPE_VOID,
+}
 def _dtype_code(name: str) -> int:
-    return _DTYPE_CODES.get(name, _DTYPE_BF16)
+    return _DTYPE_CODES.get(name, 255)
 
-def _creation_dtype_code(dtype: str | None) -> int:
+def _marshaled_dtype_code(dtype) -> int | None:
+    """Extract a public dtype object's stable code without interpreting it.
+
+    The strict tinygrad shim passes Lean-backed singleton objects here. This is
+    boundary plumbing: admission and meaning remain in Lean.
+    """
+    code = getattr(dtype, "code", None)
+    return int(code) if isinstance(code, int) else None
+
+
+def _native_dtype_name(dtype) -> str:
+    if isinstance(dtype, str):
+        return dtype
+    code = _marshaled_dtype_code(dtype)
+    if code is None or code not in _DTYPE_OF_CODE:
+        raise TgradTypeError(f"unsupported dtype object {dtype!r}")
+    return _DTYPE_OF_CODE[code]
+
+
+def _creation_dtype_code(dtype) -> int:
     """Marshal a creation dtype kwarg for Lean. Does not validate —
-    Lean owns admission and the float32 default."""
+    Lean owns runtime-default resolution and compute admission."""
     if dtype is None:
         return _CREATION_DTYPE_DEFAULT
+    code = _marshaled_dtype_code(dtype)
+    if code is not None:
+        return code
     return _DTYPE_CODES.get(dtype, _CREATION_DTYPE_UNKNOWN)
 
 # Legacy L12 cache toggle. Both entries execute the generated declaration;
@@ -250,7 +347,6 @@ _BINOP_ADD = 0
 _BINOP_MUL = 1
 _BINOP_SUB = 2
 
-_SUPPORTED_DTYPES = {"bf16", "f32", "i32"}
 _REDUCE_DTYPES = {"bf16", "f32"}
 # Bytes per element, used to check that a materialized buffer is
 # exactly as large as its declared shape requires.
@@ -258,6 +354,129 @@ _DTYPE_BYTES = {"bf16": 2, "f32": 4, "i32": 4}
 
 
 _DTYPE_OF_CODE = {0: "bf16", 1: "f32", 2: "f16", 3: "i32"}
+
+
+def _dtype_query(code: int, query: int) -> int:
+    return int(_lib.tgrad_dtype_query(code, query))
+
+
+def _dtype_binary_query(query: int, left: int, right: int) -> int:
+    value = int(_lib.tgrad_dtype_binary_query(query, left, right))
+    if value == 255:
+        raise TgradTypeError(
+            f"invalid Lean binary dtype query={query} left={left} right={right}")
+    return value
+
+
+def _dtype_unary_query(query: int, code: int) -> int:
+    value = int(_lib.tgrad_dtype_unary_query(query, code))
+    if value == 255:
+        raise TgradTypeError(f"invalid Lean unary dtype query={query} code={code}")
+    return value
+
+
+def _dtype_lub_many(codes) -> int:
+    values = tuple(int(code) for code in codes)
+    if not values:
+        raise TgradTypeError("least-upper dtype requires at least one dtype")
+    arr = (ctypes.c_uint8 * len(values))(*values)
+    result = int(_lib.tgrad_dtype_lub_many(arr, len(values)))
+    if result == 255:
+        raise TgradTypeError(f"Lean rejected dtype-code sequence {values!r}")
+    return result
+
+
+def _dtype_infer_python(tags) -> int:
+    values = tuple(int(tag) for tag in tags)
+    arr = (ctypes.c_uint8 * len(values))(*values)
+    result = int(_lib.tgrad_dtype_infer_python(arr, len(values)))
+    if result == 255:
+        raise TgradTypeError(f"Lean rejected Python dtype tags {values!r}")
+    return result
+
+
+def _dtype_default(which: int) -> int:
+    value = int(_lib.tgrad_dtype_default(which))
+    if value == 255:
+        raise TgradTypeError(f"invalid Lean default dtype selector={which}")
+    return value
+
+
+def _dtype_set_default(which: int, code: int) -> bool:
+    return bool(_lib.tgrad_dtype_set_default(which, code))
+
+
+def _dtype_creation_default() -> int:
+    """Current default after Lean creation admission; 255 means rejected."""
+    return int(_lib.tgrad_dtype_creation_default())
+
+
+def _dtype_backend_name(code: int) -> str:
+    needed = int(_lib.tgrad_dtype_backend_name(code, None, 0))
+    if needed == 0:
+        raise TgradTypeError(f"invalid Lean dtype name code={code}")
+    out = ctypes.create_string_buffer(needed + 1)
+    actual = int(_lib.tgrad_dtype_backend_name(code, out, len(out)))
+    if actual != needed:
+        raise TgradError(f"dtype name length changed: {needed} -> {actual}")
+    return out.value.decode("utf-8")
+
+
+def _dtype_public_name(code: int) -> str:
+    needed = int(_lib.tgrad_dtype_public_name(code, None, 0))
+    if needed == 0:
+        raise TgradTypeError(f"invalid Lean public dtype name code={code}")
+    out = ctypes.create_string_buffer(needed + 1)
+    actual = int(_lib.tgrad_dtype_public_name(code, out, len(out)))
+    if actual != needed:
+        raise TgradError(f"public dtype name length changed: {needed} -> {actual}")
+    return out.value.decode("utf-8")
+
+
+def _dtype_display_name(code: int) -> str:
+    needed = int(_lib.tgrad_dtype_display_name(code, None, 0))
+    if needed == 0:
+        raise TgradTypeError(f"invalid Lean display dtype name code={code}")
+    out = ctypes.create_string_buffer(needed + 1)
+    actual = int(_lib.tgrad_dtype_display_name(code, out, len(out)))
+    if actual != needed:
+        raise TgradError(f"display dtype name length changed: {needed} -> {actual}")
+    return out.value.decode("utf-8")
+
+
+def _dtype_table_query(table: int, query: int, row: int = 0, column: int = 0) -> int:
+    return int(_lib.tgrad_dtype_table_query(table, query, row, column))
+
+
+def _dtype_table_name(table: int, row: int) -> str:
+    needed = int(_lib.tgrad_dtype_table_name(table, row, None, 0))
+    if needed == 0:
+        raise TgradTypeError(f"invalid Lean dtype table name table={table} row={row}")
+    out = ctypes.create_string_buffer(needed + 1)
+    actual = int(_lib.tgrad_dtype_table_name(table, row, out, len(out)))
+    if actual != needed:
+        raise TgradError(f"dtype table name length changed: {needed} -> {actual}")
+    return out.value.decode("utf-8")
+
+
+# Compute admission is a Lean relation. This is only its authoring-name
+# projection; a newly admitted Lean code without a boundary spelling fails
+# closed instead of silently disappearing from Python.
+_SUPPORTED_DTYPE_CODES = frozenset(
+    code for code in range(255)
+    if _dtype_query(code, 0) == 1 and _dtype_query(code, 15) == 1)
+_UNNAMED_SUPPORTED_DTYPE_CODES = _SUPPORTED_DTYPE_CODES.difference(_DTYPE_OF_CODE)
+if _UNNAMED_SUPPORTED_DTYPE_CODES:
+    raise RuntimeError(
+        "Lean compute-supported dtype codes lack Python authoring spellings: "
+        f"{sorted(_UNNAMED_SUPPORTED_DTYPE_CODES)}")
+_SUPPORTED_DTYPES = frozenset(
+    _DTYPE_OF_CODE[code] for code in _SUPPORTED_DTYPE_CODES)
+
+
+def _bf16_round_bits(bits: int) -> int:
+    """Lean-owned scalar float_to_bf16 result, represented as fp32 bits."""
+    return int(_lib.tgrad_bf16_round_bits(int(bits)))
 
 
 def _dtype_of_handle(h: int) -> str:
@@ -352,19 +571,26 @@ _SMALL_TRIPLE_SET = set(_L13_B_SMALL_TRIPLES)
 
 
 def _bf16_from_fp32(arr_fp32: np.ndarray) -> bytes:
-    """Convert an fp32 ndarray to bf16 bytes (truncation, IEEE 754 → bf16)."""
-    flat = arr_fp32.astype(np.float32).flatten()
-    view = flat.view(np.uint32)
-    # Take the high 16 bits = the bf16 representation (no rounding; tinygrad-compatible
-    # since tinygrad's f32→bf16 cast also truncates the trailing mantissa bits).
-    hi = (view >> 16).astype(np.uint16)
-    return hi.tobytes()
+    """Marshal fp32 bytes through Lean's bf16 round-to-nearest-even rule."""
+    src = np.asarray(arr_fp32, dtype=np.float32).ravel().tobytes()
+    src_buf = (ctypes.c_uint8 * len(src)).from_buffer_copy(src)
+    dst_len = len(src) // 2
+    dst_buf = (ctypes.c_uint8 * dst_len)()
+    rc = _lib.tgrad_bf16_pack_bytes(src_buf, len(src), dst_buf, dst_len)
+    if rc != 0:
+        raise TgradError(f"Lean bf16 pack returned rc={rc}")
+    return bytes(dst_buf)
 
 
 def _fp32_from_bf16(b: bytes, shape: tuple[int, ...]) -> np.ndarray:
-    """Lift bf16 bytes back to fp32 (zero-pad the mantissa)."""
-    hi = np.frombuffer(b, dtype=np.uint16).astype(np.uint32) << 16
-    return hi.view(np.float32).reshape(shape).copy()
+    """Marshal bf16 storage through Lean's exact fp32 expansion."""
+    src_buf = (ctypes.c_uint8 * len(b)).from_buffer_copy(b)
+    dst_len = len(b) * 2
+    dst_buf = (ctypes.c_uint8 * dst_len)()
+    rc = _lib.tgrad_bf16_expand_bytes(src_buf, len(b), dst_buf, dst_len)
+    if rc != 0:
+        raise TgradError(f"Lean bf16 expansion returned rc={rc}")
+    return np.frombuffer(bytes(dst_buf), dtype=np.float32).reshape(shape).copy()
 
 
 class Tensor:
@@ -451,6 +677,7 @@ class Tensor:
         return tensor
 
     def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
+        dtype = _native_dtype_name(dtype)
         if dtype not in _SUPPORTED_DTYPES:
             raise TgradTypeError(
                 f"unsupported dtype {dtype!r}; supported: {sorted(_SUPPORTED_DTYPES)}")

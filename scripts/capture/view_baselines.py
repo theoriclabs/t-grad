@@ -35,7 +35,7 @@ def _alloc_shapes_for(op, M, K, N):
     if op == "transpose_right":  return (M, K), (N, K)
     if op == "transpose_both":   return (K, M), (N, K)
     if op == "slice_2":          return (2 * M, K), (K, N)
-    if op == "reshape":          return (M, K), (K, N)
+    if op == "reshape_split":    return (2 * M, K // 2), (K, N)
     if op == "expand_right":     return (M, K), (K, 1)
     raise ValueError(op)
 
@@ -45,7 +45,7 @@ def _apply_op_numpy(op, a, b, M, K, N):
     if op == "transpose_right":  return a @ b.T
     if op == "transpose_both":   return a.T @ b.T
     if op == "slice_2":          return a[::2, :] @ b
-    if op == "reshape":          return a.reshape(M, K) @ b
+    if op == "reshape_split":    return a.reshape(M, K) @ b
     if op == "expand_right":     return a @ np.broadcast_to(b, (K, N))
     raise ValueError(op)
 
@@ -63,8 +63,8 @@ MANIFEST_SOURCE = [
     ("transpose_both", 32,  64,  32, "gauss"),
     ("slice_2", 32, 32, 32, "gauss"),
     ("slice_2", 64, 32, 32, "gauss"),
-    ("reshape", 32, 32, 32, "gauss"),
-    ("reshape", 64, 64, 32, "gauss"),
+    ("reshape_split", 32, 32, 32, "gauss"),
+    ("reshape_split", 64, 64, 32, "gauss"),
     ("expand_right", 32, 32, 32, "gauss"),
     ("expand_right", 64, 32, 64, "gauss"),
 ]

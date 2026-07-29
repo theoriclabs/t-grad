@@ -83,8 +83,12 @@ def make_inputs(M: int, K: int, N: int, dist: str) -> tuple[np.ndarray, np.ndarr
 
 
 def _bf16_from_fp32(arr_fp32: np.ndarray) -> bytes:
-    """Truncating cast f32→bf16 (no rounding; matches tinygrad's
-    f32→bf16 cast at host time)."""
+    """Legacy truncating f32→bf16 encoder for pre-encoded benchmark inputs.
+
+    This helper does not match current tinygrad's round-to-nearest-even
+    storage conversion; changing those benchmark inputs is a separate evidence
+    maintenance operation.
+    """
     flat = arr_fp32.astype(np.float32).flatten()
     view = flat.view(np.uint32)
     hi = (view >> 16).astype(np.uint16)
@@ -618,10 +622,12 @@ def _make_view_inputs(op: str, M: int, K: int, N: int, dist: str, seed: int):
 
 
 def _to_bf16_f32_for_view(arr):
+    """Apply pinned tinygrad's finite fp32→bf16 RNE rule, then lift to fp32."""
     flat = arr.astype(np.float32).flatten()
     view = flat.view(np.uint32)
-    hi = (view >> 16).astype(np.uint16)
-    lifted = hi.astype(np.uint32) << 16
+    finite = (view & np.uint32(0x7F800000)) != np.uint32(0x7F800000)
+    rounded = view + np.uint32(0x7FFF) + ((view >> 16) & np.uint32(1))
+    lifted = np.where(finite, rounded & np.uint32(0xFFFF0000), view)
     return lifted.view(np.float32).reshape(arr.shape).copy()
 
 
@@ -640,7 +646,7 @@ def _apply_op_numpy_for_view(op, a, b, M, K, N):
 def run_bench_views(manifest_path: Path, output_path: Path) -> dict:
     """L14.B.3: walk the 16-entry view manifest; per entry, build the
     view chain via Tgrad and verify via np.allclose against the numpy
-    bf16-roundtripped reference (L13.E route b)."""
+    foreign-RNE bf16 reference (L13.E route b)."""
     import tgrad as _tg
     pairs = json.loads(Path(manifest_path).read_text())
     summary = {
@@ -739,7 +745,7 @@ def _sample_random_view(rng, op):
 def run_bench_random_views(seed_hex: str, count: int, output_path: Path) -> dict:
     """L14.C harness: sample `count` random `(op, M, K, N)` view-chain
     cases under `seed_hex`; verify each via np.allclose against a numpy
-    bf16-roundtripped reference (NOT a second Tgrad call). The seed
+    foreign-RNE bf16 reference (NOT a second Tgrad call). The seed
     MUST derive from `git rev-parse HEAD | head -c 16`."""
     import sys as _sys
     _here = Path(__file__).resolve().parent

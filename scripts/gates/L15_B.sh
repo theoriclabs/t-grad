@@ -45,6 +45,23 @@ for m in "${required_scripts[@]}"; do
 done
 echo "  ✓ runtime-indep + audit scripts present"
 
+# Layer B2 — timeout conversion must be calibrated before GPU work. This
+# exercises a harmless deliberately over-budget child and requires a
+# structured failure rather than a traceback escaping the audit.
+SELFTEST_LOG="$(mktemp "${TMPDIR:-/tmp}/tgrad_L15_B_selftest.XXXXXX")"
+trap 'rm -f "$SELFTEST_LOG"' EXIT
+if ! "$PY" "$TGRAD_DIR/scripts/dev/l15_b_audit.py" --self-test \
+        >"$SELFTEST_LOG" 2>&1; then
+  echo "  ✗ L15.B audit timeout self-test failed:"
+  sed 's/^/      /' "$SELFTEST_LOG"
+  exit 1
+fi
+grep -qF 'l15_b_self_test_budget_seconds: 180' "$SELFTEST_LOG" \
+  || { echo "  ✗ L15.B static budget is not the fixed 180 seconds"; exit 1; }
+grep -qF 'l15_b_self_test_timeout_structured: true' "$SELFTEST_LOG" \
+  || { echo "  ✗ L15.B timeout was not converted to structured evidence"; exit 1; }
+echo "  ✓ static independence timeout wrapper: 180-second budget, structured expiry"
+
 # Layer C — fresh random samples under HEAD-derived seed.
 ensure_dylib /tmp/tgrad_L15_B_dylib.log || exit 1
 
@@ -133,6 +150,7 @@ l12_hash="$(shasum -a 256 "$TGRAD_DIR/fixtures/gate_evidence/L12.json" | awk '{p
 shapes_hash="$(shasum -a 256 "$OUT_S" | awk '{print $1}')"
 views_hash="$(shasum -a 256 "$OUT_V" | awk '{print $1}')"
 audit_hash="$(shasum -a 256 "$TGRAD_DIR/scripts/dev/l15_b_audit.py" | awk '{print $1}')"
+static_budget="$($PY -c 'import json; print(json.load(open("'"$AUDIT_OUT"'"))["criteria"][1]["static_execution"]["timeout_seconds"])')"
 
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 "$PY" -c "
@@ -147,6 +165,7 @@ out = {
     'scope': 'L15.B — runtime + benchmark recheck (criteria 4-6 + §5 runtime checks)',
     'criteria': audit['criteria'],
     'runtime_independence': audit['runtime_independence'],
+    'static_independence_budget_seconds': $static_budget,
     'random_recheck': {
         'shapes_total': 10,
         'shapes_pass':  $N_SHAPES_CORRECT,

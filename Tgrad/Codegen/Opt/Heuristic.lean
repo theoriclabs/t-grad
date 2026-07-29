@@ -129,6 +129,18 @@ def pickDispatchPlan
         useTc := false
       }
 
+/-- Every bf16/bf16 matmul shape has a dispatch plan. This is the semantic
+    catch-all obligation consumed by L15.A: it says nothing about whether the
+    selected implementation is scalar or tensor-core, only that dispatch does
+    not fall back to `none` outside the captured sentinel set. -/
+theorem pickDispatchPlan_bf16_total (M K N : Nat) :
+    (pickDispatchPlan M K N .bfloat16_ .bfloat16_).isSome = true := by
+  have hBf16Ne : (Dtype.bfloat16_ != Dtype.bfloat16_) = false := by decide
+  simp only [pickDispatchPlan, hBf16Ne, Bool.false_eq_true]
+  split <;> simp_all
+  split <;> simp_all
+  split <;> simp_all
+
 /-- Captured-table view per ShapeSentinel — the spec the cross-check
     theorem compares the formula against. Distinct from the Pipeline-
     side dispatcher: this is the typed fixture, `Pipeline`'s function

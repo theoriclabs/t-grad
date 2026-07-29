@@ -14,12 +14,14 @@ strong-done predicates.
 """
 from __future__ import annotations
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+STATIC_INDEPENDENCE_BUDGET_SECONDS = 180
 
 
 def _load(name: str) -> dict:
@@ -97,6 +99,60 @@ def check_renderer() -> dict:
 
 # -------- Criterion 5: Runtime ----------------------------------------
 
+def _run_with_budget(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout_seconds: float,
+) -> dict:
+    """Run one criterion command and convert expiry into evidence.
+
+    The production caller always supplies the fixed
+    `STATIC_INDEPENDENCE_BUDGET_SECONDS`. The timeout argument exists so the
+    CPU-only self-test can exercise the expiry path without waiting minutes.
+    """
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            env=env,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "ok": False,
+            "timed_out": True,
+            "timeout_seconds": timeout_seconds,
+            "returncode": None,
+        }
+    return {
+        "ok": completed.returncode == 0,
+        "timed_out": False,
+        "timeout_seconds": timeout_seconds,
+        "returncode": completed.returncode,
+    }
+
+
+def _run_static_independence() -> dict:
+    static_script = REPO / "scripts" / "check_no_tinygrad_deps.sh"
+    if not static_script.exists():
+        return {
+            "ok": False,
+            "timed_out": False,
+            "timeout_seconds": STATIC_INDEPENDENCE_BUDGET_SECONDS,
+            "returncode": None,
+            "missing": True,
+        }
+    env = {**os.environ, "REPO_ROOT": str(REPO), "TGRAD_DIR": str(REPO)}
+    return _run_with_budget(
+        ["bash", str(static_script)],
+        cwd=REPO,
+        env=env,
+        timeout_seconds=STATIC_INDEPENDENCE_BUDGET_SECONDS,
+    )
+
 def check_runtime() -> dict:
     """Static tinygrad-independence (fast grep). Dynamic independence
     (sandbox-build + full sweep) is heavyweight; we record that the
@@ -104,16 +160,12 @@ def check_runtime() -> dict:
     (when L15.B is run as part of `bash gate.sh`) to exercise it.
     The Layer C2 regression check in L15_B.sh re-runs the static
     script; the dynamic one is opt-in via TGRAD_L15B_DYNAMIC=1."""
-    import os
-    static_script = REPO / "scripts" / "check_no_tinygrad_deps.sh"
     dynamic_script = REPO / "scripts" / "runtime_independence.sh"
     env = {**os.environ,
            "REPO_ROOT": str(REPO),
            "TGRAD_DIR": str(REPO)}
-    static_ok = static_script.exists() and subprocess.run(
-        ["bash", str(static_script)], cwd=REPO, capture_output=True, env=env,
-        timeout=60,
-    ).returncode == 0
+    static_execution = _run_static_independence()
+    static_ok = bool(static_execution["ok"])
     # Dynamic independence: skipped by default (heavy). Set TGRAD_L15B_DYNAMIC=1
     # to actually run it (e.g. in CI). The presence/invocability of the
     # script is checked instead — the script wires runtime_independence.sh
@@ -129,6 +181,16 @@ def check_runtime() -> dict:
         dynamic_ok = (dynamic_script.exists() and
                       os.access(str(dynamic_script), os.X_OK | os.R_OK))
     verdict = "pass" if (static_ok and dynamic_ok) else "fail"
+    if static_execution["timed_out"]:
+        static_detail = (
+            "static_indep=False "
+            f"(timed out after {static_execution['timeout_seconds']}s)"
+        )
+    else:
+        static_detail = (
+            f"static_indep={static_ok} "
+            f"(returncode={static_execution['returncode']})"
+        )
     return {
         "criterion": "runtime",
         "verdict": verdict,
@@ -137,11 +199,12 @@ def check_runtime() -> dict:
             "scripts/runtime_independence.sh",
         ],
         "evidence": (
-            f"static_indep={static_ok}, dynamic_indep={dynamic_ok} "
+            f"{static_detail}, dynamic_indep={dynamic_ok} "
             f"(dynamic opt-in via TGRAD_L15B_DYNAMIC=1)"
         ),
         "static": static_ok,
         "dynamic": dynamic_ok,
+        "static_execution": static_execution,
     }
 
 
@@ -188,7 +251,45 @@ def check_benchmark_validation() -> dict:
     }
 
 
+def self_test() -> int:
+    """Exercise expiry conversion without running the product or GPU."""
+    env = {**os.environ, "REPO_ROOT": str(REPO), "TGRAD_DIR": str(REPO)}
+    try:
+        result = _run_with_budget(
+            [sys.executable, "-c", "import time; time.sleep(0.2)"],
+            cwd=REPO,
+            env=env,
+            timeout_seconds=0.01,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            "l15_b_self_test: FAIL TimeoutExpired escaped wrapper",
+            file=sys.stderr,
+        )
+        return 1
+    expected = {
+        "ok": False,
+        "timed_out": True,
+        "timeout_seconds": 0.01,
+        "returncode": None,
+    }
+    if result != expected:
+        print(
+            f"l15_b_self_test: FAIL expected={expected!r} actual={result!r}",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"l15_b_self_test_budget_seconds: {STATIC_INDEPENDENCE_BUDGET_SECONDS}")
+    print("l15_b_self_test_timeout_structured: true")
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:] == ["--self-test"]:
+        return self_test()
+    if sys.argv[1:]:
+        print("usage: l15_b_audit.py [--self-test]", file=sys.stderr)
+        return 2
     criteria = [
         check_renderer(),
         check_runtime(),

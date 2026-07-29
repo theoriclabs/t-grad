@@ -168,13 +168,44 @@ end View
     `View`. `none` for any chain this representation cannot express
     (e.g. reshape of a transposed view), which callers must handle —
     no `panic!`. -/
-partial def viewOfUOp : UOp → Option View
+def viewOfUOp : UOp → Option View
   | .buffer _ shape _  => some (View.contiguous shape)
   | .permute src axes  => (viewOfUOp src).bind (fun v => v.permute axes)
   | .reshape src ns    => (viewOfUOp src).bind (fun v => v.reshape ns)
   | .expand  src ns    => (viewOfUOp src).bind (fun v => v.expand ns)
   | .slice   src sls   => (viewOfUOp src).bind (fun v => v.slice sls)
   | _                  => none
+
+/-! The equations below are deliberately named obligations, not tests that
+    grep constructor spellings. L14.B.3 imports these declarations as the
+    structural contract for the shared view derivation. If an implementation
+    arm is removed or stops delegating to the corresponding `View` transform,
+    its equation no longer type-checks even when another function in this file
+    happens to match the same `UOp` constructor. -/
+
+theorem viewOfUOp_buffer_eq (handle : UInt64) (shape : List Nat) (dtype : Dtype) :
+    viewOfUOp (.buffer handle shape dtype) = some (View.contiguous shape) := by
+  simp [viewOfUOp]
+
+theorem viewOfUOp_permute_eq (src : UOp) (axes : List Nat) :
+    viewOfUOp (.permute src axes) =
+      (viewOfUOp src).bind (fun v => v.permute axes) := by
+  simp [viewOfUOp]
+
+theorem viewOfUOp_reshape_eq (src : UOp) (newShape : List Nat) :
+    viewOfUOp (.reshape src newShape) =
+      (viewOfUOp src).bind (fun v => v.reshape newShape) := by
+  simp [viewOfUOp]
+
+theorem viewOfUOp_expand_eq (src : UOp) (newShape : List Nat) :
+    viewOfUOp (.expand src newShape) =
+      (viewOfUOp src).bind (fun v => v.expand newShape) := by
+  simp [viewOfUOp]
+
+theorem viewOfUOp_slice_eq (src : UOp) (slices : List Slice) :
+    viewOfUOp (.slice src slices) =
+      (viewOfUOp src).bind (fun v => v.slice slices) := by
+  simp [viewOfUOp]
 
 /-- The `.buffer` leaf under a movement chain, if there is one. -/
 partial def bufferRootOf : UOp → Option UOp

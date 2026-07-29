@@ -29,6 +29,26 @@ for m in "${required[@]}"; do
 done
 echo "  ✓ all ${#required[@]} required modules present"
 
+# Dispatch totality is a Lean proposition, not a source-spelling inference.
+# Build its defining module explicitly, then run the audit's exact-type witness
+# and architecture self-tests before any GPU work.
+HEURISTIC_BUILD_LOG="$(mktemp "${TMPDIR:-/tmp}/tgrad_L15_A_heuristic.XXXXXX")"
+if ! (cd "$REPO_ROOT" && lake build Tgrad.Codegen.Opt.Heuristic) \
+    >"$HEURISTIC_BUILD_LOG" 2>&1; then
+  echo "  ✗ dispatch-total obligation module failed to build"
+  sed 's/^/      /' "$HEURISTIC_BUILD_LOG"
+  exit 1
+fi
+grep -qE '^theorem[[:space:]]+pickDispatchPlan_bf16_total([[:space:](]|$)' \
+  "$TGRAD_DIR/Tgrad/Codegen/Opt/Heuristic.lean" \
+  || { echo "  ✗ missing pickDispatchPlan_bf16_total obligation"; exit 1; }
+echo "  ✓ pickDispatchPlan_bf16_total module builds"
+
+if ! "$PY" "$TGRAD_DIR/scripts/dev/l15_a_audit.py" --self-test; then
+  echo "  ✗ L15.A dispatch audit self-test failed"
+  exit 1
+fi
+
 # Required method/property defs (Criterion 1 / Layer B).
 N_METHODS="$(grep -cE '^[[:space:]]+(def|@property)[[:space:]]+(from_numpy|numpy|__matmul__|T|transpose|reshape|__getitem__)\b' \
               "$TGRAD_DIR/python/tgrad.py" || true)"
@@ -97,6 +117,7 @@ uop_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/UOp.lean" | awk '{print $1}')"
 pipeline_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Pipeline.lean" | awk '{print $1}')"
 trace_hash="$(shasum -a 256 "$TRACE" 2>/dev/null | awk '{print $1}')"
 audit_hash="$(shasum -a 256 "$TGRAD_DIR/scripts/dev/l15_a_audit.py" | awk '{print $1}')"
+heuristic_hash="$(shasum -a 256 "$TGRAD_DIR/Tgrad/Codegen/Opt/Heuristic.lean" | awk '{print $1}')"
 
 mkdir -p "$TGRAD_DIR/fixtures/gate_evidence"
 "$PY" -c "
@@ -109,6 +130,7 @@ out = {
     'platform': '$plat',
     'commit': '$commit',
     'scope': 'L15.A — static + structural audit (criteria 1-3 + §4 static checks)',
+    'dispatch_total_obligation': 'pickDispatchPlan_bf16_total',
     'criteria': audit['criteria'],
     'static_checks': audit['static_checks'],
     'narrowing_notes': [
@@ -129,6 +151,7 @@ out = {
         'pipeline_module_sha256': '$pipeline_hash',
         'rangeify_trace_sha256':  '$trace_hash',
         'audit_module_sha256':    '$audit_hash',
+        'heuristic_module_sha256': '$heuristic_hash',
     },
 }
 json.dump(out, open('$TGRAD_DIR/fixtures/gate_evidence/L15_A.json', 'w'), indent=2)

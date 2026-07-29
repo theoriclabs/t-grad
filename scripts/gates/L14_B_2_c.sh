@@ -135,8 +135,9 @@ import tgrad
 def _to_bf16_f32(arr):
     flat = arr.astype(np.float32).flatten()
     view = flat.view(np.uint32)
-    hi = (view >> 16).astype(np.uint16)
-    lifted = hi.astype(np.uint32) << 16
+    finite = (view & np.uint32(0x7F800000)) != np.uint32(0x7F800000)
+    rounded = view + np.uint32(0x7FFF) + ((view >> 16) & np.uint32(1))
+    lifted = np.where(finite, rounded & np.uint32(0xFFFF0000), view)
     return lifted.view(np.float32).reshape(arr.shape).copy()
 
 # Smoke case: transpose_left 64×64×64, gauss inputs (seed=0xBEEF).
@@ -147,8 +148,8 @@ a = tgrad.Tensor.from_numpy(a_np)
 b = tgrad.Tensor.from_numpy(b_np)
 c = a.transpose() @ b
 
-# Anti-self-comparison reference: numpy matmul on bf16-roundtripped
-# inputs (matches what the Tgrad kernel sees).
+# Anti-self-comparison reference: numpy matmul on inputs converted with the
+# pinned foreign finite fp32→bf16 RNE rule (matches what the Tgrad kernel sees).
 ref = _to_bf16_f32(a_np).T @ _to_bf16_f32(b_np)
 got = c.numpy()
 

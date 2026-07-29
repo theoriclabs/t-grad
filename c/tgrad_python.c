@@ -35,6 +35,23 @@ extern lean_object* tgrad_tensor_free_lean(uint64_t buf_ptr, size_t n_bytes);
 extern lean_object* tgrad_tensor_write_bytes_lean(uint64_t buf_ptr, lean_object* bytes);
 extern lean_object* tgrad_tensor_read_bytes_lean(uint64_t buf_ptr, size_t n_bytes);
 extern lean_object* tgrad_matmul_64x64_lean(uint64_t a, uint64_t b, uint64_t out);
+extern lean_object* tgrad_dtype_query_lean(uint8_t code, uint8_t query);
+extern lean_object* tgrad_dtype_binary_query_lean(uint8_t query, uint8_t left, uint8_t right);
+extern lean_object* tgrad_dtype_unary_query_lean(uint8_t query, uint8_t code);
+extern lean_object* tgrad_dtype_lub_many_lean(lean_object* codes);
+extern lean_object* tgrad_dtype_infer_python_lean(lean_object* tags);
+extern lean_object* tgrad_dtype_default_lean(uint8_t which);
+extern lean_object* tgrad_dtype_set_default_lean(uint8_t which, uint8_t code);
+extern lean_object* tgrad_dtype_creation_default_lean(void);
+extern lean_object* tgrad_dtype_backend_name_lean(uint8_t code);
+extern lean_object* tgrad_dtype_public_name_lean(uint8_t code);
+extern lean_object* tgrad_dtype_display_name_lean(uint8_t code);
+extern lean_object* tgrad_dtype_table_query_lean(
+    uint8_t table, uint8_t query, size_t row, size_t column);
+extern lean_object* tgrad_dtype_table_name_lean(uint8_t table, size_t row);
+extern lean_object* tgrad_bf16_pack_bytes_lean(lean_object* bytes);
+extern lean_object* tgrad_bf16_expand_bytes_lean(lean_object* bytes);
+extern lean_object* tgrad_bf16_round_bits_lean(uint32_t bits);
 
 static int g_initialized = 0;
 
@@ -133,6 +150,185 @@ int tgrad_tensor_read_bytes(uint64_t buf_ptr, uint8_t* dst, size_t n_bytes) {
     memcpy(dst, lean_sarray_cptr(arr), n_bytes);
     lean_dec_ref(result);
     return 0;
+}
+
+/* Foreign-grounded dtype metadata/query surface.  Python interprets stable
+ * numeric/string answers but never carries its own lattice or rounding rule. */
+uint64_t tgrad_dtype_query(uint8_t code, uint8_t query) {
+    lean_object* result = tgrad_dtype_query_lean(code, query);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return UINT64_MAX; }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_binary_query(uint8_t query, uint8_t left, uint8_t right) {
+    lean_object* result = tgrad_dtype_binary_query_lean(query, left, right);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_unary_query(uint8_t query, uint8_t code) {
+    lean_object* result = tgrad_dtype_unary_query_lean(query, code);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_lub_many(const uint8_t* codes, size_t count) {
+    if (!codes || count == 0) return 255;
+    lean_object* arr = lean_alloc_array(count, count);
+    for (size_t i = 0; i < count; i++) {
+        lean_array_set_core(arr, i, lean_box((size_t)codes[i]));
+    }
+    lean_object* result = tgrad_dtype_lub_many_lean(arr);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_infer_python(const uint8_t* tags, size_t count) {
+    if (!tags && count) return 255;
+    lean_object* arr = lean_alloc_array(count, count);
+    for (size_t i = 0; i < count; i++) {
+        lean_array_set_core(arr, i, lean_box((size_t)tags[i]));
+    }
+    lean_object* result = tgrad_dtype_infer_python_lean(arr);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_default(uint8_t which) {
+    lean_object* result = tgrad_dtype_default_lean(which);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_set_default(uint8_t which, uint8_t code) {
+    lean_object* result = tgrad_dtype_set_default_lean(which, code);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_dtype_creation_default(void) {
+    lean_object* result = tgrad_dtype_creation_default_lean();
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+/* Returns the required UTF-8 byte count (excluding NUL). If dst/cap are
+ * supplied, copies a NUL-terminated prefix. */
+size_t tgrad_dtype_backend_name(uint8_t code, char* dst, size_t cap) {
+    lean_object* result = tgrad_dtype_backend_name_lean(code);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
+    lean_object* value = lean_io_result_get_value(result);
+    const char* src = lean_string_cstr(value);
+    size_t needed = strlen(src);
+    if (dst && cap) {
+        size_t n = needed < cap - 1 ? needed : cap - 1;
+        memcpy(dst, src, n);
+        dst[n] = '\0';
+    }
+    lean_dec_ref(result);
+    return needed;
+}
+
+size_t tgrad_dtype_public_name(uint8_t code, char* dst, size_t cap) {
+    lean_object* result = tgrad_dtype_public_name_lean(code);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
+    const char* src = lean_string_cstr(lean_io_result_get_value(result));
+    size_t needed = strlen(src);
+    if (dst && cap) {
+        size_t n = needed < cap - 1 ? needed : cap - 1;
+        memcpy(dst, src, n); dst[n] = '\0';
+    }
+    lean_dec_ref(result);
+    return needed;
+}
+
+size_t tgrad_dtype_display_name(uint8_t code, char* dst, size_t cap) {
+    lean_object* result = tgrad_dtype_display_name_lean(code);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
+    const char* src = lean_string_cstr(lean_io_result_get_value(result));
+    size_t needed = strlen(src);
+    if (dst && cap) {
+        size_t n = needed < cap - 1 ? needed : cap - 1;
+        memcpy(dst, src, n); dst[n] = '\0';
+    }
+    lean_dec_ref(result);
+    return needed;
+}
+
+uint64_t tgrad_dtype_table_query(
+    uint8_t table, uint8_t query, size_t row, size_t column) {
+    lean_object* result = tgrad_dtype_table_query_lean(table, query, row, column);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return UINT64_MAX; }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+size_t tgrad_dtype_table_name(
+    uint8_t table, size_t row, char* dst, size_t cap) {
+    lean_object* result = tgrad_dtype_table_name_lean(table, row);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
+    const char* src = lean_string_cstr(lean_io_result_get_value(result));
+    size_t needed = strlen(src);
+    if (dst && cap) {
+        size_t n = needed < cap - 1 ? needed : cap - 1;
+        memcpy(dst, src, n); dst[n] = '\0';
+    }
+    lean_dec_ref(result);
+    return needed;
+}
+
+static int tgrad_convert_bytes(
+    lean_object* (*convert)(lean_object*),
+    const uint8_t* src, size_t src_bytes, uint8_t* dst, size_t dst_bytes) {
+    if ((!src && src_bytes) || (!dst && dst_bytes)) return -1;
+    lean_object* input = lean_alloc_sarray(1, src_bytes, src_bytes);
+    if (!input) return -2;
+    if (src_bytes) memcpy(lean_sarray_cptr(input), src, src_bytes);
+    lean_object* result = convert(input);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return -3; }
+    lean_object* output = lean_io_result_get_value(result);
+    size_t actual = lean_sarray_size(output);
+    if (actual != dst_bytes) { lean_dec_ref(result); return -4; }
+    if (dst_bytes) memcpy(dst, lean_sarray_cptr(output), dst_bytes);
+    lean_dec_ref(result);
+    return 0;
+}
+
+int tgrad_bf16_pack_bytes(
+    const uint8_t* src, size_t src_bytes, uint8_t* dst, size_t dst_bytes) {
+    if (src_bytes % 4 != 0 || dst_bytes != src_bytes / 2) return -5;
+    return tgrad_convert_bytes(tgrad_bf16_pack_bytes_lean, src, src_bytes, dst, dst_bytes);
+}
+
+int tgrad_bf16_expand_bytes(
+    const uint8_t* src, size_t src_bytes, uint8_t* dst, size_t dst_bytes) {
+    if (src_bytes % 2 != 0 || dst_bytes != src_bytes * 2) return -5;
+    return tgrad_convert_bytes(tgrad_bf16_expand_bytes_lean, src, src_bytes, dst, dst_bytes);
+}
+
+uint32_t tgrad_bf16_round_bits(uint32_t bits) {
+    lean_object* result = tgrad_bf16_round_bits_lean(bits);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
+    uint32_t value = lean_unbox_uint32(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
 }
 
 /* int32_t tgrad_matmul_64x64(uint64_t a, uint64_t b, uint64_t out)

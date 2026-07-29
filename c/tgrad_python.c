@@ -59,7 +59,7 @@ extern lean_object* tgrad_range_query_lean(
     lean_object* start_int, lean_object* stop_int, lean_object* step_int,
     double start_float, double stop_float, double step_float,
     uint8_t start_tag, uint8_t stop_tag, uint8_t step_tag,
-    uint8_t has_stop, uint8_t dtype_code, uint8_t query);
+    uint8_t has_stop, uint8_t dtype_code, uint8_t query, size_t index);
 extern lean_object* tgrad_tensor_arange_lean(
     lean_object* start_int, lean_object* stop_int, lean_object* step_int,
     double start_float, double stop_float, double step_float,
@@ -154,6 +154,8 @@ int tgrad_tensor_write_bytes(uint64_t buf_ptr, const uint8_t* src, size_t n_byte
  * Copies `n_bytes` from the buffer's contents into `dst`.
  * Returns 0 on success, negative on error. */
 int tgrad_tensor_read_bytes(uint64_t buf_ptr, uint8_t* dst, size_t n_bytes) {
+    if (n_bytes == 0) return 0;
+    if (!buf_ptr) return -1;
     if (!dst) return -1;
     lean_object* result = tgrad_tensor_read_bytes_lean(buf_ptr, n_bytes);
     if (lean_io_result_is_error(result)) {
@@ -517,6 +519,7 @@ extern lean_object* tgrad_tensor_from_buffer_lean(
 extern lean_object* tgrad_tensor_rank_lean(uint64_t h);
 extern lean_object* tgrad_tensor_shape_dim_lean(uint64_t h, size_t i);
 extern lean_object* tgrad_tensor_raw_buffer_lean(uint64_t h);
+extern lean_object* tgrad_tensor_size_bytes_lean(uint64_t h);
 
 uint64_t tgrad_tensor_from_buffer(
     uint64_t handle, const size_t* shape, size_t ndim, uint8_t dtype_code) {
@@ -568,6 +571,17 @@ uint64_t tgrad_tensor_raw_buffer(uint64_t h) {
         return 0;
     }
     uint64_t v = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return v;
+}
+
+size_t tgrad_tensor_size_bytes(uint64_t h) {
+    lean_object* result = tgrad_tensor_size_bytes_lean(h);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return 0;
+    }
+    size_t v = lean_unbox_usize(lean_io_result_get_value(result));
     lean_dec_ref(result);
     return v;
 }
@@ -795,7 +809,7 @@ uint64_t tgrad_range_query(
     const char* start_int, const char* stop_int, const char* step_int,
     double start_float, double stop_float, double step_float,
     uint8_t start_tag, uint8_t stop_tag, uint8_t step_tag,
-    uint8_t has_stop, uint8_t dtype_code, uint8_t query) {
+    uint8_t has_stop, uint8_t dtype_code, uint8_t query, size_t index) {
     if (!start_int || !stop_int || !step_int) return UINT64_MAX;
     /* The generated export transfers these objects into owned constructors
        and consumes them; a caller-side lean_dec would double-decrement. */
@@ -805,7 +819,7 @@ uint64_t tgrad_range_query(
     lean_object* result = tgrad_range_query_lean(
         tgrad_range_query_start_int, tgrad_range_query_stop_int,
         tgrad_range_query_step_int, start_float, stop_float, step_float,
-        start_tag, stop_tag, step_tag, has_stop, dtype_code, query);
+        start_tag, stop_tag, step_tag, has_stop, dtype_code, query, index);
     if (lean_io_result_is_error(result)) {
         lean_dec_ref(result);
         return UINT64_MAX;

@@ -118,8 +118,48 @@ theorem bf16_fill_render_is_portable :
 -- Arithmetic-progression creation (`Tensor.arange`).
 -- ----------------------------------------------------------------------
 
-private def rangeIntTag (value : Int) : String :=
-  if value < 0 then s!"n{(-value).toNat}" else s!"p{value.toNat}"
+inductive RangeKernelScalar where
+  | integral (value : Int)
+  | floating (value : Float)
+  deriving Repr
+
+namespace RangeKernelScalar
+
+/-- Bit-exact cache identity.  Floating values are keyed by their IEEE-754
+    binary64 payload, not by a decimal rendering that might merge distinct
+    authoring inputs. -/
+def tag : RangeKernelScalar → String
+  | .integral value =>
+      if value < 0 then s!"in{(-value).toNat}" else s!"ip{value.toNat}"
+  | .floating value => s!"f{value.toBits}"
+
+end RangeKernelScalar
+
+private def rangeStorageType : Dtype → Option String
+  | .int8_ => some "char"
+  | .int32_ => some "int"
+  | .int64_ => some "long"
+  | .bfloat16_ => some "ushort"
+  | .float32_ => some "float"
+  | _ => none
+
+private def f32BitsExpr (value : Float) : String :=
+  s!"as_type<float>({value.toFloat32.toBits}u)"
+
+private def rangeScalarFloat? : RangeKernelScalar → Option Float
+  | .integral value =>
+      let converted := Float.ofInt value
+      if converted.isFinite then some converted else none
+  | .floating value => some value
+
+private def rangeFloatParts? (start step : RangeKernelScalar) :
+    Option (Float × Float) := do
+  let stepValue ← rangeScalarFloat? step
+  let offset ← match start, step with
+    | .integral start, .integral step => rangeScalarFloat? (.integral (start - step))
+    | .floating start, .floating step => some (start - step)
+    | _, _ => none
+  some (stepValue, offset)
 
 /-- Compute expression for one integral arithmetic-progression element.
 
@@ -128,25 +168,44 @@ private def rangeIntTag (value : Int) : String :=
     final dtype storage cast, preserving admitted wrap at that cast while also
     avoiding intermediate int32 overflow for a progression such as
     `[-2^31, -1, 2^31-2]`. -/
-def rangeValueExpr (ty : Dtype) (start step : Int) : Option String :=
-  let integral :=
-    s!"(((long){start}) + (((long)gid.x) * ((long){step})))"
-  match ty with
-  | .int32_ => some integral
-  | .float32_ | .bfloat16_ => some s!"((float){integral})"
-  | _ => none
+def rangeValueExpr (ty : Dtype) (start step : RangeKernelScalar) : Option String :=
+  match ty, start, step with
+  | .int8_, .integral start, .integral step =>
+    let integral :=
+      s!"(((long){start}) + (((long)gid.x) * ((long){step})))"
+    some integral
+  | .int32_, .integral start, .integral step =>
+    let integral :=
+      s!"(((long){start}) + (((long)gid.x) * ((long){step})))"
+    some integral
+  | .int64_, .integral start, .integral step =>
+    let integral :=
+      s!"(((long){start}) + (((long)gid.x) * ((long){step})))"
+    some integral
+  | .float32_, start, step => do
+    let (stepValue, offset) ← rangeFloatParts? start step
+    some s!"fma(((float)(gid.x + 1u)), {f32BitsExpr stepValue}, {f32BitsExpr offset})"
+  | .bfloat16_, start, step => do
+    let (stepValue, offset) ← rangeFloatParts? start step
+    let prefixExpr := s!"(((float)(gid.x + 1u)) * {f32BitsExpr stepValue})"
+    let prefixBits := s!"as_type<uint>({prefixExpr})"
+    let rounded := roundedBf16BitsExpr prefixBits
+    let prefixBf16 := s!"as_type<float>(((uint)({rounded} >> 16)) << 16)"
+    some s!"({prefixBf16} + {f32BitsExpr offset})"
+  | _, _, _ => none
 
 /-- One-thread-per-element arithmetic progression: `out[i] = start + i*step`.
 
     Length, normalized start, step, dtype, and representability are decided by
     the Lean range resolver before this declaration can be constructed. -/
-def rangeKernelDecl (length : Nat) (ty : Dtype) (start step : Int) :
+def rangeKernelDecl (length : Nat) (ty : Dtype)
+    (start step : RangeKernelScalar) :
     Option KernelDecl :=
-  match mslStorageType ty, rangeValueExpr ty start step with
+  match rangeStorageType ty, rangeValueExpr ty start step with
   | some outS, some rhs =>
     let outIdx := UOp.var "gid.x" .uint32_
     some
-      { name := s!"range_{ty.toStr}_{rangeIntTag start}_{rangeIntTag step}_{length}",
+      { name := s!"range_{ty.toStr}_{start.tag}_{step.tag}_{length}",
         wmmaArgs := [],
         args := [
           .buffer { qualifier := "device", baseType := outS, name := "data0" },
@@ -158,22 +217,54 @@ def rangeKernelDecl (length : Nat) (ty : Dtype) (start step : Int) :
   | _, _ => none
 
 theorem range_names_separate_values :
-    (rangeKernelDecl 10 .int32_ 0 1).map (fun d => d.name) ≠
-      (rangeKernelDecl 10 .int32_ 1 1).map (fun d => d.name) := by
+    (rangeKernelDecl 10 .int32_ (.integral 0) (.integral 1)).map (fun d => d.name) ≠
+      (rangeKernelDecl 10 .int32_ (.integral 1) (.integral 1)).map (fun d => d.name) := by
   native_decide
 
 theorem range_names_separate_steps :
-    (rangeKernelDecl 10 .int32_ 0 1).map (fun d => d.name) ≠
-      (rangeKernelDecl 10 .int32_ 0 2).map (fun d => d.name) := by
+    (rangeKernelDecl 10 .int32_ (.integral 0) (.integral 1)).map (fun d => d.name) ≠
+      (rangeKernelDecl 10 .int32_ (.integral 0) (.integral 2)).map (fun d => d.name) := by
+  native_decide
+
+theorem range_names_separate_float_bits :
+    (rangeKernelDecl 10 .float32_ (.floating 0.0) (.floating 0.0)).map (fun d => d.name) ≠
+      (rangeKernelDecl 10 .float32_ (.floating 0.0) (.floating (-0.0))).map (fun d => d.name) := by
+  native_decide
+
+theorem range_names_separate_numeric_modes :
+    (rangeKernelDecl 10 .float32_ (.integral 0) (.integral 1)).map (fun d => d.name) ≠
+      (rangeKernelDecl 10 .float32_ (.floating 0.0) (.floating 1.0)).map (fun d => d.name) := by
+  native_decide
+
+theorem range_names_separate_dtypes :
+    (rangeKernelDecl 10 .float32_ (.floating 0.0) (.floating 0.25)).map (fun d => d.name) ≠
+      (rangeKernelDecl 10 .bfloat16_ (.floating 0.0) (.floating 0.25)).map (fun d => d.name) := by
+  native_decide
+
+theorem range_names_separate_lengths :
+    (rangeKernelDecl 10 .float32_ (.floating 0.0) (.floating 0.25)).map (fun d => d.name) ≠
+      (rangeKernelDecl 11 .float32_ (.floating 0.0) (.floating 0.25)).map (fun d => d.name) := by
+  native_decide
+
+theorem range_names_separate_nearby_float_bits :
+    (rangeKernelDecl 10 .float32_ (.floating 0.0)
+      (.floating (Float.ofBits 4599075939470750515))).map (fun d => d.name) ≠
+      (rangeKernelDecl 10 .float32_ (.floating 0.0)
+        (.floating (Float.ofBits 4599075939470750516))).map (fun d => d.name) := by
   native_decide
 
 theorem range_rejects_float16 :
-    (rangeKernelDecl 10 .float16_ 0 1).isNone := by
+    (rangeKernelDecl 10 .float16_ (.integral 0) (.integral 1)).isNone := by
+  native_decide
+
+theorem range_admits_required_int_storage :
+    (rangeKernelDecl 10 .int8_ (.integral 0) (.integral 1)).isSome &&
+      (rangeKernelDecl 10 .int64_ (.integral 0) (.integral 1)).isSome = true := by
   native_decide
 
 theorem bf16_range_render_is_portable :
     portableBf16ScalarSource
-      ((rangeKernelDecl 10 .bfloat16_ 0 1).map renderKernel |>.getD "")
+      ((rangeKernelDecl 10 .bfloat16_ (.integral 0) (.integral 1)).map renderKernel |>.getD "")
       ["data0"] false = true := by
   native_decide
 

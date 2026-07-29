@@ -45,7 +45,8 @@ def tensorWriteBytes (bufPtr : UInt64) (bytes : @& ByteArray) : IO Unit :=
 /-- Read `nBytes` from a buffer's contents into a fresh `ByteArray`. -/
 @[export tgrad_tensor_read_bytes_lean]
 def tensorReadBytes (bufPtr : UInt64) (nBytes : USize) : IO ByteArray :=
-  Tgrad.Runtime.Metal.metalBufferReadBytes bufPtr nBytes
+  if nBytes == 0 then pure ByteArray.empty
+  else Tgrad.Runtime.Metal.metalBufferReadBytes bufPtr nBytes
 
 /-- Cache for the compiled bf16 64×64 matmul library. Lazy: first
     matmul64x64 call renders the KernelDecl and compiles; subsequent
@@ -426,7 +427,8 @@ small integers so C/Python only marshal answers computed in Lean.
 `dtypeQuery`: 0 valid, 1 priority (two's complement), 2 bits, 3 itemsize,
 4 float, 5 int, 6 unsigned, 7 bool, 8 range kind, 9 min bits, 10 max bits,
 11 finfo exponent, 12 finfo mantissa, 13 immediate-parent bitmask,
-14 format ASCII, 15 compute supported, 16 non-associative triple count.
+14 format ASCII, 15 compute supported, 16 non-associative triple count,
+17 emulated by the current backend.
 
 `dtypeBinaryQuery`: 0 LUB code, 1 lossless-cast bool, 2 less-than bool.
 `dtypeUnaryQuery`: 0 strong dtype, 1 least-upper float.
@@ -469,6 +471,7 @@ def dtypeQuery (code query : UInt8) : IO UInt64 := do
     | 14 => d.formatCode.toUInt64
     | 15 => boolCode d.computeSupported
     | 16 => UInt64.ofNat Tgrad.Dtype.nonAssociativeTriples.length
+    | 17 => boolCode d.isEmulated
     | _ => (0 : UInt64) - 1)
 
 @[export tgrad_dtype_binary_query_lean]
@@ -601,6 +604,13 @@ def tensorShapeDim (h : UInt64) (i : USize) : IO USize := do
 def tensorRawBuffer (h : UInt64) : IO UInt64 := do
   let some t ← TensorRegistry.get? h | pure 0
   pure t.buffer.raw
+
+/-- Byte size from the registered Lean tensor, including the canonical zero
+    for a storage-free empty tensor. -/
+@[export tgrad_tensor_size_bytes_lean]
+def tensorSizeBytes (h : UInt64) : IO USize := do
+  let some t ← TensorRegistry.get? h | pure 0
+  pure (USize.ofNat t.sizeBytes)
 
 -- ----------------------------------------------------------------------
 -- L14.B.1: view-method @[export] entries.
@@ -1263,25 +1273,57 @@ def fullLikeQuery (sourceHandle : UInt64) (fillTag dtypeCode query : UInt8)
 -- ----------------------------------------------------------------------
 
 /-- A scalar transported by the Python/C authoring boundary. Both payloads
-    are retained so extending the Lean resolver to floating progressions does
-    not require moving scalar interpretation into Python or changing the ABI.
-    The current packet admits integral/bool tags and rejects floating tags in
-    Lean. -/
+    are retained so Lean, rather than the authoring layer, selects the integer
+    or binary64 domain and interprets the scalar tag. -/
 structure RangeBoundaryScalar where
   intValue : Int
   floatValue : Float
   tag : UInt8
   deriving Repr
 
+inductive RangeScalar where
+  | integral (value : Int)
+  | floating (value : Float)
+  deriving Repr
+
+namespace RangeScalar
+
+def same : RangeScalar → RangeScalar → Bool
+  | .integral a, .integral b => a == b
+  | .floating a, .floating b => a.toBits == b.toBits
+  | _, _ => false
+
+def isFloating : RangeScalar → Bool
+  | .integral _ => false
+  | .floating _ => true
+
+def isNaN : RangeScalar → Bool
+  | .integral _ => false
+  | .floating value => value.isNaN
+
+def isInfinite : RangeScalar → Bool
+  | .integral _ => false
+  | .floating value => value.isInf
+
+def identityBits : RangeScalar → UInt64
+  | .integral value => UInt64.ofInt value
+  | .floating value => value.toBits
+
+def kernelScalar : RangeScalar → Tgrad.Renderer.Metal.RangeKernelScalar
+  | .integral value => .integral value
+  | .floating value => .floating value
+
+end RangeScalar
+
 structure RangeResolution where
-  start : Int
-  stop : Int
-  step : Int
+  start : RangeScalar
+  stop : RangeScalar
+  step : RangeScalar
   length : Nat
-  last : Int
+  last : RangeScalar
   dtype : Tgrad.Dtype
-  computeAdmitted : Bool
-  deriving Repr, DecidableEq
+  materializeAdmitted : Bool
+  deriving Repr
 
 inductive RangeDecision where
   | accepted (spec : RangeResolution)
@@ -1290,7 +1332,8 @@ inductive RangeDecision where
   | invalidDtype
   | unrepresentable
   | lengthOverflow
-  deriving Repr, DecidableEq
+  | invalidNumeric
+  deriving Repr
 
 namespace RangeDecision
 
@@ -1301,13 +1344,61 @@ def code : RangeDecision → UInt8
   | .invalidDtype => 3
   | .unrepresentable => 4
   | .lengthOverflow => 5
+  | .invalidNumeric => 6
 
 end RangeDecision
 
-private def rangeIntegralValue? (scalar : RangeBoundaryScalar) : Option Int :=
+private def rangeBoundaryValue? (scalar : RangeBoundaryScalar) : Option RangeScalar :=
   match FillScalarTag.ofCode? scalar.tag with
-  | some .bool | some .int => some scalar.intValue
-  | some .float | none => none
+  | some .bool | some .int => some (.integral scalar.intValue)
+  | some .float => some (.floating scalar.floatValue)
+  | none => none
+
+private def rangeIntToFloat? (value : Int) : Option Float :=
+  let converted := Float.ofInt value
+  if converted.isFinite then some converted else none
+
+private def RangeScalar.toFloat? : RangeScalar → Option Float
+  | .integral value => rangeIntToFloat? value
+  | .floating value => some value
+
+structure NormalizedRange where
+  start : RangeScalar
+  stop : RangeScalar
+  step : RangeScalar
+  floating : Bool
+  deriving Repr
+
+/-- Omitted-stop normalization and Python's mixed numeric domain are owned by
+    Lean.  Once any supplied operand is a Python float, all arithmetic occurs
+    in binary64 exactly as it does before tinygrad builds its graph. -/
+private def requireRangeValue (reason : RangeDecision) (value : Option α) :
+    Except RangeDecision α :=
+  match value with
+  | some result => .ok result
+  | none => .error reason
+
+private def normalizeRange (startArg stopArg stepArg : RangeBoundaryScalar)
+    (hasStop : UInt8) : Except RangeDecision NormalizedRange := do
+  let rawStart ← requireRangeValue .scalarUnsupported (rangeBoundaryValue? startArg)
+  let rawStop ← if hasStop == 0 then pure (RangeScalar.integral 0)
+    else requireRangeValue .scalarUnsupported (rangeBoundaryValue? stopArg)
+  let rawStep ← requireRangeValue .scalarUnsupported (rangeBoundaryValue? stepArg)
+  let start := if hasStop == 0 then RangeScalar.integral 0 else rawStart
+  let stop := if hasStop == 0 then rawStart else rawStop
+  let floating := start.isFloating || stop.isFloating || rawStep.isFloating
+  if floating then
+    let startF ← requireRangeValue .lengthOverflow start.toFloat?
+    let stopF ← requireRangeValue .lengthOverflow stop.toFloat?
+    let stepF ← requireRangeValue .lengthOverflow rawStep.toFloat?
+    let result : NormalizedRange := {
+      start := RangeScalar.floating startF
+      stop := RangeScalar.floating stopF
+      step := RangeScalar.floating stepF
+      floating := true }
+    pure result
+  else
+    pure { start := start, stop := stop, step := rawStep, floating := false }
 
 /-- Exact half-open length for an integral progression. All divisions occur
     on positive values, avoiding host-language signed-division conventions. -/
@@ -1345,6 +1436,37 @@ private def aboveDtypeMaximum (dtype : Tgrad.Dtype) (value : Int) : Bool :=
 private def outsidePinnedRangeBounds (dtype : Tgrad.Dtype) (lo hi : Int) : Bool :=
   belowDtypeMinimum dtype lo || aboveDtypeMaximum dtype hi
 
+private def dtypeMinimumFloat? (dtype : Tgrad.Dtype) : Option Float :=
+  let pow2 (bits : Nat) : Int := Int.ofNat (2 ^ bits)
+  match dtype.rangeKind with
+  | 0 | 2 => some 0.0
+  | 1 => rangeIntToFloat? (-(pow2 (dtype.bits - 1)))
+  | 3 => none
+  | _ => none
+
+private def dtypeMaximumFloat? (dtype : Tgrad.Dtype) : Option Float :=
+  let pow2 (bits : Nat) : Int := Int.ofNat (2 ^ bits)
+  match dtype.rangeKind with
+  | 0 => some 1.0
+  | 1 => rangeIntToFloat? (pow2 (dtype.bits - 1) - 1)
+  | 2 => rangeIntToFloat? (pow2 dtype.bits - 1)
+  | 3 => none
+  | _ => none
+
+private def outsidePinnedFloatBounds (dtype : Tgrad.Dtype)
+    (lo hi : Float) : Bool :=
+  if dtype.rangeKind == 3 then false else
+  match dtypeMinimumFloat? dtype, dtypeMaximumFloat? dtype with
+  | some minValue, some maxValue => lo < minValue || maxValue < hi
+  | _, _ => true
+
+private def outsidePinnedScalarBounds (dtype : Tgrad.Dtype)
+    (lo hi : RangeScalar) : Bool :=
+  match lo, hi with
+  | .integral lo, .integral hi => outsidePinnedRangeBounds dtype lo hi
+  | .floating lo, .floating hi => outsidePinnedFloatBounds dtype lo hi
+  | _, _ => true
+
 private def rangeLengthFitsBoundary (length : Nat) : Bool :=
   length ≤ 18446744073709551615
 
@@ -1358,61 +1480,424 @@ example : rangeByteCountFits 4611686018427387904 4 = false := by native_decide
 private def rangeByteCountFitsBoundary (spec : RangeResolution) : Bool :=
   rangeByteCountFits spec.length spec.dtype.sizeBytes
 
+/-- Range creation has a deliberately local backend relation.  It does not
+    broaden `Dtype.computeSupported`: int8 and int64 are admitted only by this
+    nullary generator because the three pinned arange leaves require them. -/
+def rangeMaterializeSupported (dtype : Tgrad.Dtype) : Bool :=
+  [.int8_, .int32_, .int64_, .bfloat16_, .float32_].contains dtype
+
+/-- Exact domain of the generated Metal index expression. Integral kernels
+    consume raw `uint gid.x`, while float/bf16 kernels consume `gid.x + 1u`
+    and therefore must reserve the final UInt32 value to avoid wraparound. -/
+def rangeKernelIndexFits (dtype : Tgrad.Dtype) (length : Nat) : Bool :=
+  if dtype == .float32_ || dtype == .bfloat16_ then
+    length ≤ 4294967295
+  else
+    length ≤ 4294967296
+
+example : rangeKernelIndexFits .int64_ 4294967296 = true := by native_decide
+example : rangeKernelIndexFits .int64_ 4294967297 = false := by native_decide
+example : rangeKernelIndexFits .float32_ 4294967295 = true := by native_decide
+example : rangeKernelIndexFits .float32_ 4294967296 = false := by native_decide
+
+/-- One materialization predicate shared by the pure observer and allocator.
+    Empty tensors need no kernel. Nonempty tensors additionally require an
+    actual typed range declaration for the resolved scalar-domain/dtype pair. -/
+def rangeMaterializationAdmitted (start step : RangeScalar)
+    (length : Nat) (dtype : Tgrad.Dtype) : Bool :=
+  rangeMaterializeSupported dtype &&
+    rangeKernelIndexFits dtype length &&
+    rangeByteCountFits length dtype.sizeBytes &&
+    (length == 0 || (Tgrad.Renderer.Metal.rangeKernelDecl
+      length dtype start.kernelScalar step.kernelScalar).isSome)
+
+example : rangeMaterializationAdmitted (.integral 0) (.integral 1)
+    4294967296 .int64_ = true := by native_decide
+example : rangeMaterializationAdmitted (.integral 0) (.integral 1)
+    4294967297 .int64_ = false := by native_decide
+example : rangeMaterializationAdmitted (.integral 0) (.integral 1)
+    2305843009213693952 .int64_ = false := by native_decide
+
+private def nonnegativeIntegralFloatToNat? (value : Float) : Option Nat :=
+  if !value.isFinite || value < 0.0 then none else
+  let bits := value.toBits
+  let sign := bits >>> 63
+  let exponent := ((bits >>> 52) &&& 0x7ff).toNat
+  let fraction := (bits &&& 0x000fffffffffffff).toNat
+  if sign != 0 || exponent == 0x7ff then none
+  else if exponent == 0 then some 0
+  else
+    let significand := (2 ^ 52) + fraction
+    if 1075 ≤ exponent then some (significand * 2 ^ (exponent - 1075))
+    else some (significand / 2 ^ (1075 - exponent))
+
+@[extern "fmod"] private opaque pythonFloatFmod : Float → Float → Float
+
+/-- Finite, nonzero-divisor floor-division value used only to derive the Nat
+    count in pinned `ceildiv`. It follows CPython `_float_div_mod` for the
+    integer value but deliberately does not expose a quotient-sign contract:
+    subtraction below does not preserve CPython's signed zero, and the caller
+    immediately erases zero sign while converting the nonnegative count. -/
+private def pythonFiniteFloorDivForCount? (left right : Float) : Option Float :=
+  if !left.isFinite || !right.isFinite || right == 0.0 then none else
+  let modulo := pythonFloatFmod left right
+  if !modulo.isFinite then none else
+  let quotient := (left - modulo) / right
+  if !quotient.isFinite then none else
+  let corrected :=
+    if modulo != 0.0 && ((right < 0.0) != (modulo < 0.0)) then
+      quotient - 1.0
+    else quotient
+  if corrected == 0.0 then some corrected
+  else
+    let floored := corrected.floor
+    some (if 0.5 < corrected - floored then floored + 1.0 else floored)
+
+/-- Pinned tinygrad float ceildiv follows
+    `int(-((stop-start) // -step))` in Python binary64 arithmetic. Infinite
+    steps over finite endpoints are the two useful non-finite cases: aligned
+    direction has length one and opposite/zero direction has length zero. -/
+private def floatingRangeLength? (start stop step : Float) : Option Nat := do
+  if step == 0.0 || start.isNaN || stop.isNaN || step.isNaN then none
+  else if step.isInf then
+    if !start.isFinite || !stop.isFinite then none else
+    let delta := stop - start
+    if 0.0 < step then some (if 0.0 < delta then 1 else 0)
+    else some (if delta < 0.0 then 1 else 0)
+  else if !start.isFinite || !stop.isFinite then none
+  else
+    let floorQuotient ← pythonFiniteFloorDivForCount? (stop - start) (-step)
+    let count := -floorQuotient
+    if !count.isFinite then none
+    else if count ≤ 0.0 then some 0
+    else nonnegativeIntegralFloatToNat? count
+
+private def rangeLength? (start stop step : RangeScalar) : Option Nat :=
+  match start, stop, step with
+  | .integral start, .integral stop, .integral step =>
+      integerRangeLength? start stop step
+  | .floating start, .floating stop, .floating step =>
+      floatingRangeLength? start stop step
+  | _, _, _ => none
+
+/-- The one pinned post-length rejection: a nonempty infinite-step range
+    cannot construct an integer-valued lazy tensor.  Keeping this predicate
+    separate makes its intentionally narrow boundary compiler-checkable
+    without evaluating the external finite-float `fmod` implementation. -/
+private def rejectsInfiniteIntegerOutput
+    (step : RangeScalar) (length : Nat) (dtype : Tgrad.Dtype) : Bool :=
+  length != 0 && step.isInfinite && dtype.isInt
+
+private def rangeValueAt (start step : RangeScalar) (index : Nat) : Option RangeScalar :=
+  match start, step with
+  | .integral start, .integral step =>
+      some (.integral (start + Int.ofNat index * step))
+  | .floating start, .floating step =>
+      some (.floating (start + (UInt64.ofNat index).toFloat * step))
+  | _, _ => none
+
+private def RangeScalar.toFloat32? : RangeScalar → Option Float32
+  | .integral value =>
+      let converted := Float32.ofInt value
+      if converted.isFinite then some converted else none
+  | .floating value =>
+      some value.toFloat32
+
+/-- Pinned float32 codegen is one fused multiply-add over binary32 inputs:
+    `fma(float32(i+1), float32(step), float32(start-step))`.  Widening the
+    binary32 operands to binary64 makes this operation exact for the pinned
+    magnitudes, then one conversion reproduces the fused binary32 rounding. -/
+private def rangeF32FusedValue? (start step : RangeScalar)
+    (index : Nat) : Option Float32 := do
+  let step32 ← step.toFloat32?
+  let offset32 ← match start, step with
+    | .integral start, .integral step =>
+        let converted := Float32.ofInt (start - step)
+        if converted.isFinite then some converted else none
+    | .floating start, .floating step =>
+        some (start - step).toFloat32
+    | _, _ => none
+  let count32 := Float32.ofNat (index + 1)
+  some ((count32.toFloat * step32.toFloat + offset32.toFloat).toFloat32)
+
+private def rangeBf16ValueBits? (start step : RangeScalar)
+    (index : Nat) : Option UInt32 := do
+  let step32 ← step.toFloat32?
+  let offset32 ← match start, step with
+    | .integral start, .integral step =>
+        let converted := Float32.ofInt (start - step)
+        if converted.isFinite then some converted else none
+    | .floating start, .floating step =>
+        some (start - step).toFloat32
+    | _, _ => none
+  let prefix32 := Float32.ofNat (index + 1) * step32
+  let prefixBf16 := Float32.ofBits (Tgrad.Dtype.bf16PackBits prefix32.toBits <<< 16)
+  let result32 := prefixBf16 + offset32
+  some (Tgrad.Dtype.bf16PackBits result32.toBits)
+
+/-- Stored element bits predicted by the same scalar lowering used by the
+    generated kernel.  The allocation-free checker can therefore validate all
+    foreign values without manufacturing a host tensor. -/
+def rangeStoredBits? (spec : RangeResolution) (index : Nat) : Option UInt64 := do
+  if spec.length ≤ index then none else
+  match spec.start, spec.step, spec.dtype with
+  | .integral start, .integral step, .int8_ =>
+      some (UInt64.ofInt (start + Int.ofNat index * step) &&& 0xff)
+  | .integral start, .integral step, .int32_ =>
+      some (UInt64.ofInt (start + Int.ofNat index * step) &&& 0xffffffff)
+  | .integral start, .integral step, .int64_ =>
+      some (UInt64.ofInt (start + Int.ofNat index * step))
+  | start, step, .float32_ =>
+      some (UInt64.ofNat (← rangeF32FusedValue? start step index).toBits.toNat)
+  | start, step, .bfloat16_ =>
+      some (UInt64.ofNat (← rangeBf16ValueBits? start step index).toNat)
+  | _, _, _ => none
+
+inductive RangeStoragePlan where
+  | empty (tensor : Tgrad.Tensor)
+  | metal (bytes : Nat)
+
+/-- One pure materialization authority consumed by both observation and the
+    allocating path.  Empty ranges carry an actual canonical Lean Tensor;
+    nonempty ranges carry a byte count already proved safe for the C/Metal
+    boundary. -/
+def rangeStoragePlan? (spec : RangeResolution) : Option RangeStoragePlan :=
+  if !spec.materializeAdmitted || !rangeByteCountFitsBoundary spec then none
+  else if spec.length == 0 then
+    (Tgrad.Tensor.ofEmpty? [0] spec.dtype).map RangeStoragePlan.empty
+  else some (.metal (spec.length * spec.dtype.sizeBytes))
+
+private def rangeStorageQuery (spec : RangeResolution) (query : UInt8) : UInt64 :=
+  match rangeStoragePlan? spec with
+  | none => (0 : UInt64) - 1
+  | some (.metal bytes) =>
+      match query with
+      | 9 => 1
+      | 10 => 1
+      | 11 => UInt64.ofNat spec.length
+      | 12 => spec.dtype.code.toUInt64
+      | 13 => UInt64.ofNat bytes
+      | 14 => 0
+      | _ => (0 : UInt64) - 1
+  | some (.empty tensor) =>
+      match query with
+      | 9 => 0
+      | 10 => UInt64.ofNat tensor.shape.length
+      | 11 => UInt64.ofNat ((tensor.shape[0]?).getD 1)
+      | 12 => tensor.dtype.code.toUInt64
+      | 13 => UInt64.ofNat tensor.sizeBytes
+      | 14 => tensor.buffer.raw
+      | _ => (0 : UInt64) - 1
+
+/-- Allocation-free observation of the actual typed declaration and rendered
+    MSL consumed by the range compiler/cache.  This binds semantic checks to
+    code generation instead of comparing only a parallel value model. -/
+private def rangeKernelQuery (spec : RangeResolution) (query : UInt8) : UInt64 :=
+  match Tgrad.Renderer.Metal.rangeKernelDecl
+      spec.length spec.dtype spec.start.kernelScalar spec.step.kernelScalar with
+  | none => (0 : UInt64) - 1
+  | some decl =>
+    let source := Tgrad.Renderer.Metal.renderKernel decl
+    match query with
+    | 15 => String.hash decl.name
+    | 16 => String.hash source
+    | 17 =>
+      let flags : UInt64 :=
+        (if !decl.name.isEmpty && !source.isEmpty then 1 else 0) |||
+        (if source.contains "fma(" then 2 else 0) |||
+        (if source.contains "device char* data0" then 4 else 0) |||
+        (if source.contains "device long* data0" then 8 else 0) |||
+        (if Tgrad.Renderer.Metal.portableBf16ScalarSource source ["data0"] false
+          then 16 else 0) |||
+        (if source.contains "*(data0+" then 32 else 0)
+      flags
+    | 18 => UInt64.ofNat source.length
+    | _ => (0 : UInt64) - 1
+
 /-- Pure range semantics under explicit runtime defaults. Dtype selection is
-    semantic first; `computeAdmitted` records the independent current backend
+    semantic first; `materializeAdmitted` records a range-local backend
     relation and never substitutes another dtype. -/
 def resolveRangeWithDefaults (startArg stopArg stepArg : RangeBoundaryScalar)
-    (hasStop dtypeCode : UInt8) (defaultInt _defaultFloat : Tgrad.Dtype) :
+    (hasStop dtypeCode : UInt8) (defaultInt defaultFloat : Tgrad.Dtype) :
     RangeDecision :=
-  let startValue? := rangeIntegralValue? startArg
-  let stopValue? := if hasStop == 0 then some 0 else rangeIntegralValue? stopArg
-  let stepValue? := rangeIntegralValue? stepArg
-  match startValue?, stopValue?, stepValue? with
-  | some rawStart, some rawStop, some step =>
-    let start := if hasStop == 0 then 0 else rawStart
-    let stop := if hasStop == 0 then rawStart else rawStop
-    let lo := if step > 0 then start else stop - step
-    let hi := if step > 0 then stop - step else start
+  match normalizeRange startArg stopArg stepArg hasStop with
+  | .ok normalized =>
+    let start := normalized.start
+    let stop := normalized.stop
+    let step := normalized.step
+    let (lo, hi, zero) := match start, stop, step with
+      | .integral start, .integral stop, .integral step =>
+          if step > 0 then
+            (RangeScalar.integral start,
+              RangeScalar.integral (stop - step), step == 0)
+          else (RangeScalar.integral (stop - step),
+            RangeScalar.integral start, step == 0)
+      | .floating start, .floating stop, .floating step =>
+          if step > 0.0 then
+            (RangeScalar.floating start,
+              RangeScalar.floating (stop - step), step == 0.0)
+          else (RangeScalar.floating (stop - step),
+            RangeScalar.floating start, step == 0.0)
+      | _, _, _ => (start, stop, false)
     let semantic? :=
-      if dtypeCode == 255 then some defaultInt
+      if dtypeCode == 255 then
+        some (if normalized.floating then defaultFloat else defaultInt)
       else Tgrad.Dtype.ofCode? dtypeCode
     match semantic? with
     | none => .invalidDtype
     | some initialDtype =>
       let dtype :=
-        if dtypeCode == 255 && initialDtype == defaultInt &&
-            outsidePinnedRangeBounds initialDtype lo hi then
+        if dtypeCode == 255 && !normalized.floating &&
+            initialDtype == defaultInt &&
+            outsidePinnedScalarBounds initialDtype lo hi then
           Tgrad.Dtype.int64_
         else initialDtype
-      if outsidePinnedRangeBounds dtype lo hi then
+      if outsidePinnedScalarBounds dtype lo hi then
         .unrepresentable
-      else if step == 0 then
+      else if zero then
         .zeroStep
+      else if start.isNaN || stop.isNaN || step.isNaN then
+        .invalidNumeric
+      else if start.isInfinite || stop.isInfinite then
+        -- Bounds were checked first, matching pinned tinygrad's asymmetric
+        -- `lo < min || max < hi` rule.  Any infinite endpoint surviving that
+        -- check reaches `int(NaN)` in foreign ceildiv and is a ValueError,
+        -- distinct from an unrepresentable integer bound.
+        .invalidNumeric
       else
-        match integerRangeLength? start stop step with
-        | none => .zeroStep
+        match rangeLength? start stop step with
+        | none => .lengthOverflow
         | some length =>
           if !rangeLengthFitsBoundary length then .lengthOverflow else
-          let last := if length == 0 then start
-            else start + Int.ofNat (length - 1) * step
-          .accepted {
-            start := start, stop := stop, step := step, length := length,
-            last := last, dtype := dtype,
-            computeAdmitted := dtype.computeSupported }
-  | _, _, _ => .scalarUnsupported
+          -- Pinned tinygrad computes the one-element ceildiv for a positive
+          -- infinite step, then rejects while constructing an integer-valued
+          -- lazy tensor.  Empty negative-infinite ranges never construct an
+          -- element and remain valid.  This is deliberately narrower than a
+          -- ban on ordinary finite floating ranges with an integer dtype.
+          if rejectsInfiniteIntegerOutput step length dtype then
+            .unrepresentable
+          else
+          match if length == 0 then some start
+              else rangeValueAt start step (length - 1) with
+          | none => .scalarUnsupported
+          | some last => .accepted {
+              start := start, stop := stop, step := step, length := length,
+              last := last, dtype := dtype,
+              materializeAdmitted := rangeMaterializationAdmitted
+                start step length dtype }
+  | .error reason => reason
 
 private def rangeInt (value : Int) (tag : UInt8 := 1) : RangeBoundaryScalar :=
   { intValue := value, floatValue := 0.0, tag := tag }
 
+private def rangeFloat (value : Float) : RangeBoundaryScalar :=
+  { intValue := 0, floatValue := value, tag := 2 }
+
 private def rangeMatches (decision : RangeDecision) (start stop step : Int)
     (length : Nat) (last : Int) (dtype : Tgrad.Dtype)
-    (computeAdmitted : Bool) : Bool :=
+    (materializeAdmitted : Bool) : Bool :=
   match decision with
   | .accepted spec =>
-    spec.start == start && spec.stop == stop && spec.step == step &&
-      spec.length == length && spec.last == last && spec.dtype == dtype &&
-      spec.computeAdmitted == computeAdmitted
+    spec.start.same (.integral start) && spec.stop.same (.integral stop) &&
+      spec.step.same (.integral step) && spec.length == length &&
+      spec.last.same (.integral last) && spec.dtype == dtype &&
+      spec.materializeAdmitted == materializeAdmitted
   | _ => false
+
+private def rangeEmptyPlanMatches (decision : RangeDecision)
+    (dtype : Tgrad.Dtype) : Bool :=
+  match decision with
+  | .accepted spec =>
+      match rangeStoragePlan? spec with
+      | some (.empty tensor) =>
+          tensor.shape == [0] && tensor.dtype == dtype &&
+            tensor.sizeBytes == 0 && tensor.buffer.raw == 0
+      | _ => false
+  | _ => false
+
+private def rangeResolutionFacts (decision : RangeDecision) (length : Nat)
+    (dtype : Tgrad.Dtype) (materializeAdmitted planExists : Bool) : Bool :=
+  match decision with
+  | .accepted spec =>
+      spec.length == length && spec.dtype == dtype &&
+        spec.materializeAdmitted == materializeAdmitted &&
+        (rangeStoragePlan? spec).isSome == planExists
+  | _ => false
+
+private def positiveInfinity : Float := Float.ofBits 0x7ff0000000000000
+private def negativeInfinity : Float := Float.ofBits 0xfff0000000000000
+private def quietNaN : Float := Float.ofBits 0x7ff8000000000001
+
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+      (rangeFloat positiveInfinity) 1 1 .int32_ .float32_)
+    1 .float32_ true true = true := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+      (rangeFloat negativeInfinity) 1 1 .int32_ .float32_)
+    0 .float32_ true true = true := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+    (rangeFloat positiveInfinity) 1 6 .int32_ .float32_).code = 4 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+    (rangeFloat positiveInfinity) 1 3 .int32_ .float32_).code = 4 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+    (rangeFloat positiveInfinity) 1 11 .int32_ .float32_).code = 4 := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+      (rangeFloat negativeInfinity) 1 6 .int32_ .float32_)
+    0 .int8_ true true = true := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+      (rangeFloat negativeInfinity) 1 3 .int32_ .float32_)
+    0 .int32_ true true = true := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+      (rangeFloat negativeInfinity) 1 11 .int32_ .float32_)
+    0 .int64_ true true = true := by native_decide
+example : rejectsInfiniteIntegerOutput
+    (.floating positiveInfinity) 1 .int8_ = true := by native_decide
+example : rejectsInfiniteIntegerOutput
+    (.floating negativeInfinity) 0 .int8_ = false := by native_decide
+example : rejectsInfiniteIntegerOutput
+    (.floating 0.25) 4 .int8_ = false := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0) (rangeFloat 1.0)
+    (rangeFloat quietNaN) 1 1 .int32_ .float32_).code = 6 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0)
+    (rangeFloat positiveInfinity) (rangeFloat 1.0)
+    1 1 .int32_ .float32_).code = 6 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat positiveInfinity)
+    (rangeFloat 1.0) (rangeFloat 1.0)
+    1 0 .int32_ .float32_).code = 6 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat negativeInfinity)
+    (rangeFloat 1.0) (rangeFloat 1.0)
+    1 1 .int32_ .float32_).code = 6 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0)
+    (rangeFloat negativeInfinity) (rangeFloat (-1.0))
+    1 1 .int32_ .float32_).code = 6 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat positiveInfinity)
+    (rangeFloat 1.0) (rangeFloat 1.0)
+    1 6 .int32_ .float32_).code = 6 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat negativeInfinity)
+    (rangeFloat 1.0) (rangeFloat 1.0)
+    1 6 .int32_ .float32_).code = 4 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0)
+    (rangeFloat positiveInfinity) (rangeFloat 1.0)
+    1 6 .int32_ .float32_).code = 4 := by native_decide
+example : (resolveRangeWithDefaults (rangeFloat 0.0)
+    (rangeFloat negativeInfinity) (rangeFloat (-1.0))
+    1 6 .int32_ .float32_).code = 4 := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeInt 0) (rangeInt 4294967296) (rangeInt 1)
+      1 11 .int32_ .float32_)
+    4294967296 .int64_ true true = true := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeInt 0) (rangeInt 4294967297) (rangeInt 1)
+      1 11 .int32_ .float32_)
+    4294967297 .int64_ false false = true := by native_decide
+example : rangeResolutionFacts
+    (resolveRangeWithDefaults (rangeInt 0) (rangeInt 2305843009213693952)
+      (rangeInt 1) 1 11 .int32_ .float32_)
+    2305843009213693952 .int64_ false false = true := by native_decide
 
 example : rangeMatches
     (resolveRangeWithDefaults (rangeInt 10) (rangeInt 0) (rangeInt 1)
@@ -1426,14 +1911,14 @@ example : rangeMatches
     (resolveRangeWithDefaults (rangeInt 5) (rangeInt 10) (rangeInt (-1))
       1 255 .int32_ .float32_)
     5 10 (-1) 0 5 .int32_ true = true := by native_decide
-example : resolveRangeWithDefaults (rangeInt 0) (rangeInt 10) (rangeInt 0)
-    1 255 .int32_ .float32_ = .zeroStep := by native_decide
-example : resolveRangeWithDefaults
+example : (resolveRangeWithDefaults (rangeInt 0) (rangeInt 10) (rangeInt 0)
+    1 255 .int32_ .float32_).code = 1 := by native_decide
+example : (resolveRangeWithDefaults
     (rangeInt 1099511627776) (rangeInt 0) (rangeInt 0)
-    1 3 .int32_ .float32_ = .unrepresentable := by native_decide
-example : resolveRangeWithDefaults
+    1 3 .int32_ .float32_).code = 4 := by native_decide
+example : (resolveRangeWithDefaults
     (rangeInt 1099511627776) (rangeInt 0) (rangeInt 0)
-    1 6 .int32_ .float32_ = .unrepresentable := by native_decide
+    1 6 .int32_ .float32_).code = 4 := by native_decide
 example : rangeMatches
     (resolveRangeWithDefaults (rangeInt 2) (rangeInt 9) (rangeInt 2)
       1 1 .int32_ .float32_)
@@ -1445,7 +1930,7 @@ example : rangeMatches
 example : rangeMatches
     (resolveRangeWithDefaults (rangeInt 0) (rangeInt 4) (rangeInt 1)
       1 255 .int64_ .float32_)
-    0 4 1 4 3 .int64_ false = true := by native_decide
+    0 4 1 4 3 .int64_ true = true := by native_decide
 example : rangeMatches
     (resolveRangeWithDefaults
       (rangeInt (-2147483648)) (rangeInt 2147483648)
@@ -1455,11 +1940,20 @@ example : rangeMatches
 example : rangeMatches
     (resolveRangeWithDefaults (rangeInt 125) (rangeInt 130) (rangeInt 3)
       1 6 .int32_ .float32_)
-    125 130 3 2 128 .int8_ false = true := by native_decide
+    125 130 3 2 128 .int8_ true = true := by native_decide
 example : rangeMatches
     (resolveRangeWithDefaults (rangeInt 128) (rangeInt 0) (rangeInt 1)
       1 6 .int32_ .float32_)
-    128 0 1 0 128 .int8_ false = true := by native_decide
+    128 0 1 0 128 .int8_ true = true := by native_decide
+example :
+    (rangeF32FusedValue? (.floating 0.0) (.floating 0.3) 6).map
+      (fun value => value.toBits) = some 1072064103 := by native_decide
+example : rangeBf16ValueBits? (.floating 3.0) (.floating 0.7) 6 =
+    some 16615 := by native_decide
+example : rangeEmptyPlanMatches
+    (resolveRangeWithDefaults (rangeInt 3) (rangeInt 5) (rangeInt (-2))
+      1 255 .int32_ .float32_)
+    .int32_ = true := by native_decide
 
 /-- Shared stateful authority used by both the allocation-free query and the
     allocating path. -/
@@ -1474,12 +1968,16 @@ private def boundaryRangeScalar (intValue : Int) (floatValue : Float)
   { intValue := intValue, floatValue := floatValue, tag := tag }
 
 /-- Allocation-free observation of the exact stateful range decision.
-    Query 0 is semantic dtype, 1 length, 2 compute admission, 3 normalized
-    start bits, 4 step bits, 5 last bits, and 6 the decision code. -/
+    Query 0 is semantic dtype, 1 length, 2 range-materialization admission,
+    3 normalized start identity, 4 step identity, 5 last identity, 6 decision,
+    7 dtype-storage bits at `index`, 8 scalar domain, and 9 validity of the
+    shared Lean storage plan: kind, rank, first dimension, dtype, byte count,
+    and raw-storage sentinel. -/
 @[export tgrad_range_query_lean]
 def rangeQuery (startInt stopInt stepInt : @& Int)
     (startFloat stopFloat stepFloat : Float)
-    (startTag stopTag stepTag hasStop dtypeCode query : UInt8) : IO UInt64 := do
+    (startTag stopTag stepTag hasStop dtypeCode query : UInt8)
+    (index : USize) : IO UInt64 := do
   let start := boundaryRangeScalar startInt startFloat startTag
   let stop := boundaryRangeScalar stopInt stopFloat stopTag
   let step := boundaryRangeScalar stepInt stepFloat stepTag
@@ -1490,17 +1988,14 @@ def rangeQuery (startInt stopInt stepInt : @& Int)
     pure (match query with
       | 0 => spec.dtype.code.toUInt64
       | 1 => UInt64.ofNat spec.length
-      | 2 => boolCode spec.computeAdmitted
-      | 3 => if spec.start < 0 then
-          (0 : UInt64) - UInt64.ofNat (-spec.start).toNat
-        else UInt64.ofNat spec.start.toNat
-      | 4 => if spec.step < 0 then
-          (0 : UInt64) - UInt64.ofNat (-spec.step).toNat
-        else UInt64.ofNat spec.step.toNat
-      | 5 => if spec.last < 0 then
-          (0 : UInt64) - UInt64.ofNat (-spec.last).toNat
-        else UInt64.ofNat spec.last.toNat
-      | _ => (0 : UInt64) - 1)
+      | 2 => boolCode spec.materializeAdmitted
+      | 3 => spec.start.identityBits
+      | 4 => spec.step.identityBits
+      | 5 => spec.last.identityBits
+      | 7 => (rangeStoredBits? spec index.toNat).getD ((0 : UInt64) - 1)
+      | 8 => boolCode spec.start.isFloating
+      | query => if 15 ≤ query then rangeKernelQuery spec query
+          else rangeStorageQuery spec query)
   | _ => pure ((0 : UInt64) - 1)
 
 initialize libCacheFill : IO.Ref (List (String × UInt64)) ← IO.mkRef []
@@ -1568,7 +2063,7 @@ initialize libCacheRange : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 private def compileOrCacheGetRange (spec : RangeResolution) :
     IO (Option (UInt64 × String)) := do
   match Tgrad.Renderer.Metal.rangeKernelDecl
-      spec.length spec.dtype spec.start spec.step with
+      spec.length spec.dtype spec.start.kernelScalar spec.step.kernelScalar with
   | none => return none
   | some decl =>
     let key := decl.name
@@ -1583,22 +2078,23 @@ private def compileOrCacheGetRange (spec : RangeResolution) :
     pure (some (lib, decl.name))
 
 private def allocateRangeTensor (spec : RangeResolution) : IO UInt64 := do
-  if !spec.computeAdmitted || spec.length == 0 ||
-      !rangeByteCountFitsBoundary spec then return 0
-  match (← compileOrCacheGetRange spec) with
-  | none => return 0
-  | some (lib, fnName) => do
-    let outBytes := spec.length * spec.dtype.sizeBytes
-    let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
-    if outBuf == 0 then return 0
-    let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName #[outBuf]
-      (USize.ofNat spec.length) 1 1 1 1 1
-    if rc != 0 then
-      Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
-      return 0
-    TensorRegistry.register
-      (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
-        [spec.length] spec.dtype)
+  let some plan := rangeStoragePlan? spec | return 0
+  match plan with
+  | .empty tensor => TensorRegistry.register tensor
+  | .metal outBytes =>
+    match (← compileOrCacheGetRange spec) with
+    | none => return 0
+    | some (lib, fnName) => do
+      let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+      if outBuf == 0 then return 0
+      let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName #[outBuf]
+        (USize.ofNat spec.length) 1 1 1 1 1
+      if rc != 0 then
+        Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+        return 0
+      TensorRegistry.register
+        (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+          [spec.length] spec.dtype)
 
 /-- Lean-owned arithmetic-progression allocation and dispatch. -/
 @[export tgrad_tensor_arange_lean]

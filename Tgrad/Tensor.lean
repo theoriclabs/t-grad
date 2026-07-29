@@ -117,6 +117,31 @@ where
 def Tensor.ofBuffer (buf : Runtime.BufferHandle) (shape : Shape) (dtype : Dtype) : Tensor :=
   { uop := .buffer buf.raw shape dtype, dtype := dtype }
 
+/-- Construct the canonical storage-free tensor representation exactly when
+    the logical shape has zero elements.  A nonzero registry handle identifies
+    the Tensor; raw buffer zero means there is intentionally no Metal object.
+    This invariant is range-independent and prevents callers from encoding an
+    empty tensor as a dummy one-element allocation. -/
+def Tensor.ofEmpty? (shape : Shape) (dtype : Dtype) : Option Tensor :=
+  if Tgrad.numel shape == 0 then
+    some (Tensor.ofBuffer { raw := 0, size := 0 } shape dtype)
+  else none
+
+example : (Tensor.ofEmpty? [0] .int32_).map Tensor.shape = some [0] := by
+  native_decide
+
+example : (Tensor.ofEmpty? [0] .int64_).map Tensor.dtype = some .int64_ := by
+  native_decide
+
+example : (Tensor.ofEmpty? [0] .float32_).map (fun t => t.buffer.raw) = some 0 := by
+  native_decide
+
+example : (Tensor.ofEmpty? [0] .bfloat16_).map (fun t => t.buffer.size) = some 0 := by
+  native_decide
+
+example : (Tensor.ofEmpty? [1] .int32_).isNone := by
+  native_decide
+
 /-! ## View methods (L14.B.1)
 
     Each composes a movement node onto `t.uop`. Pure (no IO); no

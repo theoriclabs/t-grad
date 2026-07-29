@@ -20,6 +20,7 @@ import ctypes
 import json
 import os
 import statistics
+import struct
 import sys
 import time
 import weakref
@@ -177,6 +178,8 @@ _lib.tgrad_tensor_shape_dim.argtypes  = [ctypes.c_uint64, ctypes.c_size_t]
 _lib.tgrad_tensor_shape_dim.restype   = ctypes.c_size_t
 _lib.tgrad_tensor_raw_buffer.argtypes = [ctypes.c_uint64]
 _lib.tgrad_tensor_raw_buffer.restype  = ctypes.c_uint64
+_lib.tgrad_tensor_size_bytes.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_size_bytes.restype  = ctypes.c_size_t
 
 # L14.B.1: view methods. Each composes a movement node on the
 # underlying Tensor's uop and returns a new opaque handle. Pure
@@ -244,7 +247,8 @@ _RANGE_BOUNDARY_ARGTYPES = [
     ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8,
     ctypes.c_uint8, ctypes.c_uint8,
 ]
-_lib.tgrad_range_query.argtypes = _RANGE_BOUNDARY_ARGTYPES + [ctypes.c_uint8]
+_lib.tgrad_range_query.argtypes = _RANGE_BOUNDARY_ARGTYPES + [
+    ctypes.c_uint8, ctypes.c_size_t]
 _lib.tgrad_range_query.restype = ctypes.c_uint64
 _lib.tgrad_tensor_arange.argtypes = _RANGE_BOUNDARY_ARGTYPES
 _lib.tgrad_tensor_arange.restype = ctypes.c_uint64
@@ -413,26 +417,58 @@ def _range_resolution(start, stop=None, step=1,
                       dtype_code: int = _CREATION_DTYPE_DEFAULT):
     """Allocation-free projection of Lean's shared arithmetic-range decision."""
     args = _range_boundary_args(start, stop, step, dtype_code)
-    decision = int(_lib.tgrad_range_query(*args, 6))
+    decision = int(_lib.tgrad_range_query(*args, 6, 0))
     if decision != 0:
         return None
-    dtype = int(_lib.tgrad_range_query(*args, 0))
-    length = int(_lib.tgrad_range_query(*args, 1))
-    admitted = bool(_lib.tgrad_range_query(*args, 2))
-    start_value = _signed_from_uint64_bits(
-        int(_lib.tgrad_range_query(*args, 3)))
-    step_value = _signed_from_uint64_bits(
-        int(_lib.tgrad_range_query(*args, 4)))
-    last_value = _signed_from_uint64_bits(
-        int(_lib.tgrad_range_query(*args, 5)))
+    dtype = int(_lib.tgrad_range_query(*args, 0, 0))
+    length = int(_lib.tgrad_range_query(*args, 1, 0))
+    admitted = bool(_lib.tgrad_range_query(*args, 2, 0))
+    floating = bool(_lib.tgrad_range_query(*args, 8, 0))
+    identity = lambda query: int(_lib.tgrad_range_query(*args, query, 0))
+    decode_identity = (lambda bits: struct.unpack("<d", struct.pack("<Q", bits))[0]) \
+        if floating else _signed_from_uint64_bits
+    storage_plan = {
+        "kind": int(_lib.tgrad_range_query(*args, 9, 0)),
+        "rank": int(_lib.tgrad_range_query(*args, 10, 0)),
+        "dim0": int(_lib.tgrad_range_query(*args, 11, 0)),
+        "dtype_code": int(_lib.tgrad_range_query(*args, 12, 0)),
+        "bytes": int(_lib.tgrad_range_query(*args, 13, 0)),
+        "raw": int(_lib.tgrad_range_query(*args, 14, 0)),
+    }
     return {
         "dtype_code": dtype,
         "length": length,
-        "compute_admitted": admitted,
-        "start": start_value,
-        "step": step_value,
-        "last": last_value,
+        "materialize_admitted": admitted,
+        "floating": floating,
+        "start": decode_identity(identity(3)),
+        "step": decode_identity(identity(4)),
+        "last": decode_identity(identity(5)),
+        "start_identity_bits": identity(3),
+        "step_identity_bits": identity(4),
+        "storage_plan": storage_plan,
         "empty": length == 0,
+    }
+
+
+def _range_value_bits(start, stop=None, step=1,
+                      dtype_code: int = _CREATION_DTYPE_DEFAULT,
+                      index: int = 0) -> int:
+    """Checker-only indexed observation; never used by public construction."""
+    args = _range_boundary_args(start, stop, step, dtype_code)
+    return int(_lib.tgrad_range_query(*args, 7, index))
+
+
+def _range_kernel_observation(start, stop=None, step=1,
+                              dtype_code: int = _CREATION_DTYPE_DEFAULT) -> dict[str, int] | None:
+    """Checker-only identity of Lean's actual range declaration/rendering."""
+    args = _range_boundary_args(start, stop, step, dtype_code)
+    if int(_lib.tgrad_range_query(*args, 6, 0)) != 0:
+        return None
+    return {
+        "name_hash": int(_lib.tgrad_range_query(*args, 15, 0)),
+        "source_hash": int(_lib.tgrad_range_query(*args, 16, 0)),
+        "source_flags": int(_lib.tgrad_range_query(*args, 17, 0)),
+        "source_length": int(_lib.tgrad_range_query(*args, 18, 0)),
     }
 
 
@@ -440,7 +476,7 @@ def _range_decision(start, stop=None, step=1,
                     dtype_code: int = _CREATION_DTYPE_DEFAULT) -> int:
     """Stable Lean rejection/acceptance code without allocation."""
     args = _range_boundary_args(start, stop, step, dtype_code)
-    return int(_lib.tgrad_range_query(*args, 6))
+    return int(_lib.tgrad_range_query(*args, 6, 0))
 
 
 def _creation_shape_admission(shape) -> int:
@@ -498,10 +534,12 @@ _BINOP_SUB = 2
 _REDUCE_DTYPES = {"bf16", "f32"}
 # Bytes per element, used to check that a materialized buffer is
 # exactly as large as its declared shape requires.
-_DTYPE_BYTES = {"bf16": 2, "f32": 4, "i32": 4}
+_DTYPE_BYTES = {"bf16": 2, "f32": 4, "i32": 4, "int8": 1, "int64": 8}
 
 
-_DTYPE_OF_CODE = {0: "bf16", 1: "f32", 2: "f16", 3: "i32"}
+_DTYPE_OF_CODE = {
+    0: "bf16", 1: "f32", 2: "f16", 3: "i32", 6: "int8", 11: "int64",
+}
 
 
 def _dtype_query(code: int, query: int) -> int:
@@ -654,6 +692,10 @@ def _numpy_from_bytes(b: bytes, shape: tuple[int, ...], dtype: str) -> np.ndarra
         return np.frombuffer(b, dtype=np.float32).reshape(shape).copy()
     if dtype == "i32":
         return np.frombuffer(b, dtype=np.int32).reshape(shape).copy()
+    if dtype == "int8":
+        return np.frombuffer(b, dtype=np.int8).reshape(shape).copy()
+    if dtype == "int64":
+        return np.frombuffer(b, dtype=np.int64).reshape(shape).copy()
     raise TgradTypeError(f"unsupported dtype {dtype!r}")
 
 
@@ -835,9 +877,18 @@ class Tensor:
             int(_lib.tgrad_tensor_shape_dim(handle, i))
             for i in range(out_rank))
         out_dtype = _dtype_of_handle(handle)
+        out_size = int(_lib.tgrad_tensor_size_bytes(handle))
+        expected_size = _numel(out_shape) * _DTYPE_BYTES[out_dtype]
+        if out_size != expected_size:
+            raise TgradError(
+                f"{operation}: Lean byte size {out_size} disagrees with "
+                f"shape/dtype size {expected_size}")
+        if (out_size == 0) != (out_buf == 0):
+            raise TgradError(
+                f"{operation}: invalid storage state raw={out_buf} bytes={out_size}")
         return cls._from_buffer(
-            out_buf, _numel(out_shape) * _DTYPE_BYTES[out_dtype],
-            out_shape, out_dtype, handle=handle, owns_buf=True)
+            out_buf, out_size, out_shape, out_dtype, handle=handle,
+            owns_buf=out_size != 0)
 
     def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
         dtype = _native_dtype_name(dtype)
@@ -994,19 +1045,20 @@ class Tensor:
                 raise TgradTypeError(f"unsupported dtype {dtype!r}")
             if decision == 4:
                 raise OverflowError("Tensor.arange bounds are not representable")
+            if decision == 5:
+                raise OverflowError("Tensor.arange length is not representable")
+            if decision == 6:
+                raise ValueError("Tensor.arange numeric inputs do not define a length")
             raise NotInLeanScope(
                 f"Tensor.arange scalar/range decision is not materializable "
                 f"(Lean reason={decision})")
         resolution = _range_resolution(start, stop, step, code)
         if resolution is None:
             raise TgradError("Lean range decision changed between queries")
-        if not resolution["compute_admitted"]:
+        if not resolution["materialize_admitted"]:
             raise NotInLeanScope(
                 f"Tensor.arange dtype code {resolution['dtype_code']} is not "
-                f"supported by the current compute backend")
-        if resolution["empty"]:
-            raise NotInLeanScope(
-                "zero-sized materialized Tensor is not supported")
+                f"supported by the current range materializer")
         handle = _lib.tgrad_tensor_arange(*args)
         return cls._from_result_handle(handle, "tgrad_tensor_arange")
 
@@ -1077,6 +1129,8 @@ class Tensor:
 
     def numpy(self) -> np.ndarray:
         tensor = self._materialize_for_readback("numpy")
+        if tensor._size == 0:
+            return _numpy_from_bytes(b"", tensor._shape, tensor._dtype)
         out = (ctypes.c_uint8 * tensor._size)()
         rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:
@@ -1085,6 +1139,8 @@ class Tensor:
 
     def to_bytes(self) -> bytes:
         tensor = self._materialize_for_readback("to_bytes")
+        if tensor._size == 0:
+            return b""
         out = (ctypes.c_uint8 * tensor._size)()
         rc = _lib.tgrad_tensor_read_bytes(tensor._buf, out, tensor._size)
         if rc != 0:

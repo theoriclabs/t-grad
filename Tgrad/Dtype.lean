@@ -176,6 +176,16 @@ def Dtype.computeSupported : Dtype → Bool
 def Dtype.computeSupportedSet : List Dtype :=
   Dtype.semanticAll.filter Dtype.computeSupported
 
+/-- Dtypes implemented through a foreign backend emulation rather than their
+    native storage/arithmetic.  The current Metal product has no such route.
+    Keeping the empty relation in Lean lets compatibility metadata expose the
+    truthful answer without recreating upstream ContextVar machinery. -/
+def Dtype.emulatedSet : List Dtype := []
+
+def Dtype.isEmulated (d : Dtype) : Bool := Dtype.emulatedSet.contains d
+
+theorem emulated_set_is_empty : Dtype.emulatedSet = [] := rfl
+
 def Dtype.defaultInt : Dtype := .int32_
 def Dtype.defaultFloat : Dtype := .float32_
 

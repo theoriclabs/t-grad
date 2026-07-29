@@ -35,7 +35,30 @@ Context = unsupported_type("tinygrad.helpers.Context")
 ContextVar = unsupported_type("tinygrad.helpers.ContextVar")
 Target = unsupported_type("tinygrad.helpers.Target")
 GlobalCounters = unsupported_type("tinygrad.helpers.GlobalCounters")
-EMULATED_DTYPES = unsupported("tinygrad.helpers.EMULATED_DTYPES")
+
+
+class _EmulatedDtypes:
+    """Projection of Tgrad's Lean-owned backend-emulation relation.
+
+    This intentionally implements only the public observation used by the
+    pinned dtype specification.  It is not a ContextVar and cannot be mutated
+    to manufacture backend capability.
+    """
+
+    @staticmethod
+    def tolist(obj=None):
+        codes = [code for code in range(255)
+                 if _tgrad._dtype_query(code, 0) == 1
+                 and _tgrad._dtype_query(code, 17) == 1]
+        if obj is None:
+            return [_tgrad._dtype_public_name(code) for code in codes]
+        return [getattr(obj, _tgrad._dtype_public_name(code)) for code in codes]
+
+    def __bool__(self):
+        return any(_tgrad._dtype_query(code, 17) == 1 for code in range(255))
+
+
+EMULATED_DTYPES = _EmulatedDtypes()
 WINO = unsupported("tinygrad.helpers.WINO")
 Timing = unsupported_type("tinygrad.helpers.Timing")
 

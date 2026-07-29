@@ -55,6 +55,16 @@ extern lean_object* tgrad_full_like_query_lean(
 extern lean_object* tgrad_tensor_full_like_lean(
     uint64_t source_handle, double fill, uint8_t fill_tag,
     uint8_t dtype_code);
+extern lean_object* tgrad_range_query_lean(
+    lean_object* start_int, lean_object* stop_int, lean_object* step_int,
+    double start_float, double stop_float, double step_float,
+    uint8_t start_tag, uint8_t stop_tag, uint8_t step_tag,
+    uint8_t has_stop, uint8_t dtype_code, uint8_t query);
+extern lean_object* tgrad_tensor_arange_lean(
+    lean_object* start_int, lean_object* stop_int, lean_object* step_int,
+    double start_float, double stop_float, double step_float,
+    uint8_t start_tag, uint8_t stop_tag, uint8_t step_tag,
+    uint8_t has_stop, uint8_t dtype_code);
 extern lean_object* tgrad_dtype_table_query_lean(
     uint8_t table, uint8_t query, size_t row, size_t column);
 extern lean_object* tgrad_dtype_table_name_lean(uint8_t table, size_t row);
@@ -779,4 +789,45 @@ uint64_t tgrad_tensor_full_like(
     uint8_t dtype_code) {
     return tgrad_unbox_handle(tgrad_tensor_full_like_lean(
         source_handle, fill, fill_tag, dtype_code));
+}
+
+uint64_t tgrad_range_query(
+    const char* start_int, const char* stop_int, const char* step_int,
+    double start_float, double stop_float, double step_float,
+    uint8_t start_tag, uint8_t stop_tag, uint8_t step_tag,
+    uint8_t has_stop, uint8_t dtype_code, uint8_t query) {
+    if (!start_int || !stop_int || !step_int) return UINT64_MAX;
+    /* The generated export transfers these objects into owned constructors
+       and consumes them; a caller-side lean_dec would double-decrement. */
+    lean_object* tgrad_range_query_start_int = lean_cstr_to_int(start_int);
+    lean_object* tgrad_range_query_stop_int = lean_cstr_to_int(stop_int);
+    lean_object* tgrad_range_query_step_int = lean_cstr_to_int(step_int);
+    lean_object* result = tgrad_range_query_lean(
+        tgrad_range_query_start_int, tgrad_range_query_stop_int,
+        tgrad_range_query_step_int, start_float, stop_float, step_float,
+        start_tag, stop_tag, step_tag, has_stop, dtype_code, query);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return UINT64_MAX;
+    }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint64_t tgrad_tensor_arange(
+    const char* start_int, const char* stop_int, const char* step_int,
+    double start_float, double stop_float, double step_float,
+    uint8_t start_tag, uint8_t stop_tag, uint8_t step_tag,
+    uint8_t has_stop, uint8_t dtype_code) {
+    if (!start_int || !stop_int || !step_int) return 0;
+    /* See tgrad_range_query: the generated export consumes all three Ints. */
+    lean_object* tgrad_tensor_arange_start_int = lean_cstr_to_int(start_int);
+    lean_object* tgrad_tensor_arange_stop_int = lean_cstr_to_int(stop_int);
+    lean_object* tgrad_tensor_arange_step_int = lean_cstr_to_int(step_int);
+    lean_object* result = tgrad_tensor_arange_lean(
+        tgrad_tensor_arange_start_int, tgrad_tensor_arange_stop_int,
+        tgrad_tensor_arange_step_int, start_float, stop_float, step_float,
+        start_tag, stop_tag, step_tag, has_stop, dtype_code);
+    return tgrad_unbox_handle(result);
 }

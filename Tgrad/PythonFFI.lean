@@ -1257,6 +1257,252 @@ def fullLikeQuery (sourceHandle : UInt64) (fillTag dtypeCode query : UInt8)
       | none => (0 : UInt64) - 1
     | _ => (0 : UInt64) - 1)
 
+
+-- ----------------------------------------------------------------------
+-- Arithmetic-progression creation (`Tensor.arange`).
+-- ----------------------------------------------------------------------
+
+/-- A scalar transported by the Python/C authoring boundary. Both payloads
+    are retained so extending the Lean resolver to floating progressions does
+    not require moving scalar interpretation into Python or changing the ABI.
+    The current packet admits integral/bool tags and rejects floating tags in
+    Lean. -/
+structure RangeBoundaryScalar where
+  intValue : Int
+  floatValue : Float
+  tag : UInt8
+  deriving Repr
+
+structure RangeResolution where
+  start : Int
+  stop : Int
+  step : Int
+  length : Nat
+  last : Int
+  dtype : Tgrad.Dtype
+  computeAdmitted : Bool
+  deriving Repr, DecidableEq
+
+inductive RangeDecision where
+  | accepted (spec : RangeResolution)
+  | zeroStep
+  | scalarUnsupported
+  | invalidDtype
+  | unrepresentable
+  | lengthOverflow
+  deriving Repr, DecidableEq
+
+namespace RangeDecision
+
+def code : RangeDecision → UInt8
+  | .accepted _ => 0
+  | .zeroStep => 1
+  | .scalarUnsupported => 2
+  | .invalidDtype => 3
+  | .unrepresentable => 4
+  | .lengthOverflow => 5
+
+end RangeDecision
+
+private def rangeIntegralValue? (scalar : RangeBoundaryScalar) : Option Int :=
+  match FillScalarTag.ofCode? scalar.tag with
+  | some .bool | some .int => some scalar.intValue
+  | some .float | none => none
+
+/-- Exact half-open length for an integral progression. All divisions occur
+    on positive values, avoiding host-language signed-division conventions. -/
+def integerRangeLength? (start stop step : Int) : Option Nat :=
+  if step == 0 then none
+  else if step > 0 then
+    if stop ≤ start then some 0
+    else some (((stop - start - 1) / step) + 1).toNat
+  else
+    if stop ≥ start then some 0
+    else some (((start - stop - 1) / (-step)) + 1).toNat
+
+private def belowDtypeMinimum (dtype : Tgrad.Dtype) (value : Int) : Bool :=
+  let pow2 (bits : Nat) : Int := Int.ofNat (2 ^ bits)
+  match dtype.rangeKind with
+  | 0 | 2 => value < 0
+  | 1 =>
+    let bound := pow2 (dtype.bits - 1)
+    value < -bound
+  | 3 => false
+  | _ => true
+
+private def aboveDtypeMaximum (dtype : Tgrad.Dtype) (value : Int) : Bool :=
+  let pow2 (bits : Nat) : Int := Int.ofNat (2 ^ bits)
+  match dtype.rangeKind with
+  | 0 => 1 < value
+  | 1 => pow2 (dtype.bits - 1) - 1 < value
+  | 2 => pow2 dtype.bits - 1 < value
+  | 3 => false
+  | _ => true
+
+/-- Pinned tinygrad's exact one-sided representability predicate:
+    `lo < dtype.min || dtype.max < hi`. In particular it does not require
+    `lo ≤ max` or `min ≤ hi` for an empty wrong-direction range. -/
+private def outsidePinnedRangeBounds (dtype : Tgrad.Dtype) (lo hi : Int) : Bool :=
+  belowDtypeMinimum dtype lo || aboveDtypeMaximum dtype hi
+
+private def rangeLengthFitsBoundary (length : Nat) : Bool :=
+  length ≤ 18446744073709551615
+
+private def rangeByteCountFits (length elementBytes : Nat) : Bool :=
+  elementBytes != 0 &&
+    length ≤ 18446744073709551615 / elementBytes
+
+example : rangeByteCountFits 4611686018427387903 4 = true := by native_decide
+example : rangeByteCountFits 4611686018427387904 4 = false := by native_decide
+
+private def rangeByteCountFitsBoundary (spec : RangeResolution) : Bool :=
+  rangeByteCountFits spec.length spec.dtype.sizeBytes
+
+/-- Pure range semantics under explicit runtime defaults. Dtype selection is
+    semantic first; `computeAdmitted` records the independent current backend
+    relation and never substitutes another dtype. -/
+def resolveRangeWithDefaults (startArg stopArg stepArg : RangeBoundaryScalar)
+    (hasStop dtypeCode : UInt8) (defaultInt _defaultFloat : Tgrad.Dtype) :
+    RangeDecision :=
+  let startValue? := rangeIntegralValue? startArg
+  let stopValue? := if hasStop == 0 then some 0 else rangeIntegralValue? stopArg
+  let stepValue? := rangeIntegralValue? stepArg
+  match startValue?, stopValue?, stepValue? with
+  | some rawStart, some rawStop, some step =>
+    let start := if hasStop == 0 then 0 else rawStart
+    let stop := if hasStop == 0 then rawStart else rawStop
+    let lo := if step > 0 then start else stop - step
+    let hi := if step > 0 then stop - step else start
+    let semantic? :=
+      if dtypeCode == 255 then some defaultInt
+      else Tgrad.Dtype.ofCode? dtypeCode
+    match semantic? with
+    | none => .invalidDtype
+    | some initialDtype =>
+      let dtype :=
+        if dtypeCode == 255 && initialDtype == defaultInt &&
+            outsidePinnedRangeBounds initialDtype lo hi then
+          Tgrad.Dtype.int64_
+        else initialDtype
+      if outsidePinnedRangeBounds dtype lo hi then
+        .unrepresentable
+      else if step == 0 then
+        .zeroStep
+      else
+        match integerRangeLength? start stop step with
+        | none => .zeroStep
+        | some length =>
+          if !rangeLengthFitsBoundary length then .lengthOverflow else
+          let last := if length == 0 then start
+            else start + Int.ofNat (length - 1) * step
+          .accepted {
+            start := start, stop := stop, step := step, length := length,
+            last := last, dtype := dtype,
+            computeAdmitted := dtype.computeSupported }
+  | _, _, _ => .scalarUnsupported
+
+private def rangeInt (value : Int) (tag : UInt8 := 1) : RangeBoundaryScalar :=
+  { intValue := value, floatValue := 0.0, tag := tag }
+
+private def rangeMatches (decision : RangeDecision) (start stop step : Int)
+    (length : Nat) (last : Int) (dtype : Tgrad.Dtype)
+    (computeAdmitted : Bool) : Bool :=
+  match decision with
+  | .accepted spec =>
+    spec.start == start && spec.stop == stop && spec.step == step &&
+      spec.length == length && spec.last == last && spec.dtype == dtype &&
+      spec.computeAdmitted == computeAdmitted
+  | _ => false
+
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 10) (rangeInt 0) (rangeInt 1)
+      0 255 .int32_ .float32_)
+    0 10 1 10 9 .int32_ true = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 10) (rangeInt 5) (rangeInt (-3))
+      1 255 .int32_ .float32_)
+    10 5 (-3) 2 7 .int32_ true = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 5) (rangeInt 10) (rangeInt (-1))
+      1 255 .int32_ .float32_)
+    5 10 (-1) 0 5 .int32_ true = true := by native_decide
+example : resolveRangeWithDefaults (rangeInt 0) (rangeInt 10) (rangeInt 0)
+    1 255 .int32_ .float32_ = .zeroStep := by native_decide
+example : resolveRangeWithDefaults
+    (rangeInt 1099511627776) (rangeInt 0) (rangeInt 0)
+    1 3 .int32_ .float32_ = .unrepresentable := by native_decide
+example : resolveRangeWithDefaults
+    (rangeInt 1099511627776) (rangeInt 0) (rangeInt 0)
+    1 6 .int32_ .float32_ = .unrepresentable := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 2) (rangeInt 9) (rangeInt 2)
+      1 1 .int32_ .float32_)
+    2 9 2 4 8 .float32_ true = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 0) (rangeInt 4) (rangeInt 1)
+      1 2 .int32_ .float32_)
+    0 4 1 4 3 .float16_ false = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 0) (rangeInt 4) (rangeInt 1)
+      1 255 .int64_ .float32_)
+    0 4 1 4 3 .int64_ false = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults
+      (rangeInt (-2147483648)) (rangeInt 2147483648)
+      (rangeInt 2147483647) 1 255 .int32_ .float32_)
+    (-2147483648) 2147483648 2147483647 3 2147483646
+      .int32_ true = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 125) (rangeInt 130) (rangeInt 3)
+      1 6 .int32_ .float32_)
+    125 130 3 2 128 .int8_ false = true := by native_decide
+example : rangeMatches
+    (resolveRangeWithDefaults (rangeInt 128) (rangeInt 0) (rangeInt 1)
+      1 6 .int32_ .float32_)
+    128 0 1 0 128 .int8_ false = true := by native_decide
+
+/-- Shared stateful authority used by both the allocation-free query and the
+    allocating path. -/
+def resolveRange (start stop step : RangeBoundaryScalar)
+    (hasStop dtypeCode : UInt8) : IO RangeDecision := do
+  let (defaultInt, defaultFloat) ← readDtypeDefaults
+  pure (resolveRangeWithDefaults start stop step hasStop dtypeCode
+    defaultInt defaultFloat)
+
+private def boundaryRangeScalar (intValue : Int) (floatValue : Float)
+    (tag : UInt8) : RangeBoundaryScalar :=
+  { intValue := intValue, floatValue := floatValue, tag := tag }
+
+/-- Allocation-free observation of the exact stateful range decision.
+    Query 0 is semantic dtype, 1 length, 2 compute admission, 3 normalized
+    start bits, 4 step bits, 5 last bits, and 6 the decision code. -/
+@[export tgrad_range_query_lean]
+def rangeQuery (startInt stopInt stepInt : @& Int)
+    (startFloat stopFloat stepFloat : Float)
+    (startTag stopTag stepTag hasStop dtypeCode query : UInt8) : IO UInt64 := do
+  let start := boundaryRangeScalar startInt startFloat startTag
+  let stop := boundaryRangeScalar stopInt stopFloat stopTag
+  let step := boundaryRangeScalar stepInt stepFloat stepTag
+  let decision ← resolveRange start stop step hasStop dtypeCode
+  if query == 6 then return decision.code.toUInt64
+  match decision with
+  | .accepted spec =>
+    pure (match query with
+      | 0 => spec.dtype.code.toUInt64
+      | 1 => UInt64.ofNat spec.length
+      | 2 => boolCode spec.computeAdmitted
+      | 3 => if spec.start < 0 then
+          (0 : UInt64) - UInt64.ofNat (-spec.start).toNat
+        else UInt64.ofNat spec.start.toNat
+      | 4 => if spec.step < 0 then
+          (0 : UInt64) - UInt64.ofNat (-spec.step).toNat
+        else UInt64.ofNat spec.step.toNat
+      | 5 => if spec.last < 0 then
+          (0 : UInt64) - UInt64.ofNat (-spec.last).toNat
+        else UInt64.ofNat spec.last.toNat
+      | _ => (0 : UInt64) - 1)
+  | _ => pure ((0 : UInt64) - 1)
+
 initialize libCacheFill : IO.Ref (List (String × UInt64)) ← IO.mkRef []
 
 private def compileOrCacheGetFill (shape : List Nat) (ty : Tgrad.Dtype)
@@ -1316,5 +1562,55 @@ def tensorFullLike (sourceHandle : UInt64) (fill : Float)
     (fillTag dtypeCode : UInt8) : IO UInt64 := do
   let some spec ← resolveFullLike sourceHandle fillTag dtypeCode | return 0
   allocateFilledTensor spec.shape spec.dtype fill
+
+initialize libCacheRange : IO.Ref (List (String × UInt64)) ← IO.mkRef []
+
+private def compileOrCacheGetRange (spec : RangeResolution) :
+    IO (Option (UInt64 × String)) := do
+  match Tgrad.Renderer.Metal.rangeKernelDecl
+      spec.length spec.dtype spec.start spec.step with
+  | none => return none
+  | some decl =>
+    let key := decl.name
+    let cache ← libCacheRange.get
+    let cached := cacheLookup key cache
+    if cached != 0 then return some (cached, decl.name)
+    let msl := Tgrad.Renderer.Metal.renderKernel decl
+    if msl.isEmpty then return none
+    let lib ← Tgrad.Runtime.Metal.metalCompile msl
+    if lib == 0 then return none
+    libCacheRange.modify (fun c => (key, lib) :: c)
+    pure (some (lib, decl.name))
+
+private def allocateRangeTensor (spec : RangeResolution) : IO UInt64 := do
+  if !spec.computeAdmitted || spec.length == 0 ||
+      !rangeByteCountFitsBoundary spec then return 0
+  match (← compileOrCacheGetRange spec) with
+  | none => return 0
+  | some (lib, fnName) => do
+    let outBytes := spec.length * spec.dtype.sizeBytes
+    let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
+    if outBuf == 0 then return 0
+    let rc ← Tgrad.Runtime.Metal.metalDispatch lib fnName #[outBuf]
+      (USize.ofNat spec.length) 1 1 1 1 1
+    if rc != 0 then
+      Tgrad.Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
+      return 0
+    TensorRegistry.register
+      (Tgrad.Tensor.ofBuffer { raw := outBuf, size := outBytes }
+        [spec.length] spec.dtype)
+
+/-- Lean-owned arithmetic-progression allocation and dispatch. -/
+@[export tgrad_tensor_arange_lean]
+def tensorArange (startInt stopInt stepInt : @& Int)
+    (startFloat stopFloat stepFloat : Float)
+    (startTag stopTag stepTag hasStop dtypeCode : UInt8) : IO UInt64 := do
+  let start := boundaryRangeScalar startInt startFloat startTag
+  let stop := boundaryRangeScalar stopInt stopFloat stopTag
+  let step := boundaryRangeScalar stepInt stepFloat stepTag
+  let decision ← resolveRange start stop step hasStop dtypeCode
+  match decision with
+  | .accepted spec => allocateRangeTensor spec
+  | _ => return 0
 
 end Tgrad.PythonFFI

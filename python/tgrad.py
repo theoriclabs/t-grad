@@ -238,6 +238,16 @@ _lib.tgrad_full_like_query.restype = ctypes.c_uint64
 _lib.tgrad_tensor_full_like.argtypes = [
     ctypes.c_uint64, ctypes.c_double, ctypes.c_uint8, ctypes.c_uint8]
 _lib.tgrad_tensor_full_like.restype = ctypes.c_uint64
+_RANGE_BOUNDARY_ARGTYPES = [
+    ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+    ctypes.c_double, ctypes.c_double, ctypes.c_double,
+    ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8,
+    ctypes.c_uint8, ctypes.c_uint8,
+]
+_lib.tgrad_range_query.argtypes = _RANGE_BOUNDARY_ARGTYPES + [ctypes.c_uint8]
+_lib.tgrad_range_query.restype = ctypes.c_uint64
+_lib.tgrad_tensor_arange.argtypes = _RANGE_BOUNDARY_ARGTYPES
+_lib.tgrad_tensor_arange.restype = ctypes.c_uint64
 
 _lib.tgrad_matmul_view.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_view.restype  = ctypes.c_uint64
@@ -366,6 +376,71 @@ def _full_like_resolution(source_handle: int, fill_tag: int,
             return None
         shape.append(dim)
     return tuple(shape), dtype
+
+
+def _range_scalar(value) -> tuple[int, bytes, float]:
+    """Marshal primitive scalar syntax without interpreting range semantics."""
+    if isinstance(value, bool):
+        return _FILL_SCALAR_BOOL, str(int(value)).encode("ascii"), 0.0
+    if isinstance(value, int):
+        return _FILL_SCALAR_INT, str(value).encode("ascii"), 0.0
+    if isinstance(value, float):
+        return _FILL_SCALAR_FLOAT, b"0", value
+    raise TgradTypeError(
+        f"Tensor.arange scalar must be bool, int, or float "
+        f"(got {type(value).__name__})")
+
+
+def _range_boundary_args(start, stop, step, dtype_code: int):
+    """Marshal call arity and scalar payloads; Lean normalizes the range."""
+    has_stop = stop is not None
+    start_tag, start_int, start_float = _range_scalar(start)
+    stop_tag, stop_int, stop_float = _range_scalar(stop if has_stop else 0)
+    step_tag, step_int, step_float = _range_scalar(step)
+    return (
+        start_int, stop_int, step_int,
+        start_float, stop_float, step_float,
+        start_tag, stop_tag, step_tag,
+        int(has_stop), dtype_code,
+    )
+
+
+def _signed_from_uint64_bits(value: int) -> int:
+    return value - (1 << 64) if value & (1 << 63) else value
+
+
+def _range_resolution(start, stop=None, step=1,
+                      dtype_code: int = _CREATION_DTYPE_DEFAULT):
+    """Allocation-free projection of Lean's shared arithmetic-range decision."""
+    args = _range_boundary_args(start, stop, step, dtype_code)
+    decision = int(_lib.tgrad_range_query(*args, 6))
+    if decision != 0:
+        return None
+    dtype = int(_lib.tgrad_range_query(*args, 0))
+    length = int(_lib.tgrad_range_query(*args, 1))
+    admitted = bool(_lib.tgrad_range_query(*args, 2))
+    start_value = _signed_from_uint64_bits(
+        int(_lib.tgrad_range_query(*args, 3)))
+    step_value = _signed_from_uint64_bits(
+        int(_lib.tgrad_range_query(*args, 4)))
+    last_value = _signed_from_uint64_bits(
+        int(_lib.tgrad_range_query(*args, 5)))
+    return {
+        "dtype_code": dtype,
+        "length": length,
+        "compute_admitted": admitted,
+        "start": start_value,
+        "step": step_value,
+        "last": last_value,
+        "empty": length == 0,
+    }
+
+
+def _range_decision(start, stop=None, step=1,
+                    dtype_code: int = _CREATION_DTYPE_DEFAULT) -> int:
+    """Stable Lean rejection/acceptance code without allocation."""
+    args = _range_boundary_args(start, stop, step, dtype_code)
+    return int(_lib.tgrad_range_query(*args, 6))
 
 
 def _creation_shape_admission(shape) -> int:
@@ -894,6 +969,46 @@ class Tensor:
     def ones_like(self, **kwargs) -> "Tensor":
         """Create a one-filled tensor with Lean-owned inheritance."""
         return self.full_like(1.0, **kwargs)
+
+    @classmethod
+    def arange(cls, start, stop=None, step=1, dtype=None, **kwargs) -> "Tensor":
+        """Create an arithmetic progression through the Lean range authority."""
+        if kwargs:
+            raise TypeError(
+                f"Tensor.arange: unsupported keyword argument(s) {sorted(kwargs)}")
+        start_payload = _range_scalar(start)
+        stop_payload = _range_scalar(stop) if stop is not None else _range_scalar(0)
+        step_payload = _range_scalar(step)
+        code = _creation_dtype_code(dtype)
+        args = (
+            start_payload[1], stop_payload[1], step_payload[1],
+            start_payload[2], stop_payload[2], step_payload[2],
+            start_payload[0], stop_payload[0], step_payload[0],
+            int(stop is not None), code,
+        )
+        decision = _range_decision(start, stop, step, code)
+        if decision != 0:
+            if decision == 1:
+                raise ZeroDivisionError("Tensor.arange step must be nonzero")
+            if decision == 3:
+                raise TgradTypeError(f"unsupported dtype {dtype!r}")
+            if decision == 4:
+                raise OverflowError("Tensor.arange bounds are not representable")
+            raise NotInLeanScope(
+                f"Tensor.arange scalar/range decision is not materializable "
+                f"(Lean reason={decision})")
+        resolution = _range_resolution(start, stop, step, code)
+        if resolution is None:
+            raise TgradError("Lean range decision changed between queries")
+        if not resolution["compute_admitted"]:
+            raise NotInLeanScope(
+                f"Tensor.arange dtype code {resolution['dtype_code']} is not "
+                f"supported by the current compute backend")
+        if resolution["empty"]:
+            raise NotInLeanScope(
+                "zero-sized materialized Tensor is not supported")
+        handle = _lib.tgrad_tensor_arange(*args)
+        return cls._from_result_handle(handle, "tgrad_tensor_arange")
 
     @classmethod
     def from_bf16_bytes(cls, raw: bytes, shape: tuple[int, ...]) -> "Tensor":

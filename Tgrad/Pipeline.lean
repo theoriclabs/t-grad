@@ -42,6 +42,24 @@ inductive PipelineError where
 
 namespace Pipeline
 
+/-- Once this process's Metal compiler rejects a generated native-bf16
+    program, remember that backend capability result. Every generated TC
+    kernel uses the same native `bfloat` vocabulary, so retrying the same
+    unsupported language feature on every matmul adds latency but no evidence.
+    A new process re-probes, which lets an upgraded driver/compiler recover. -/
+initialize nativeBf16CompileRejected : IO.Ref Bool ← IO.mkRef false
+
+/-- Compile generated native-bf16 MSL, returning zero when this backend does
+    not support it. `TGRAD_FORCE_PORTABLE_BF16=1` is a verification hook: it
+    exercises the real scalar-fallback plumbing on capable development GPUs
+    without weakening structural TC eligibility or changing default routing. -/
+def compileNativeBf16OrZero (msl : String) : IO UInt64 := do
+  if (← IO.getEnv "TGRAD_FORCE_PORTABLE_BF16") == some "1" then return 0
+  if (← nativeBf16CompileRejected.get) then return 0
+  let libPtr ← Runtime.Metal.metalCompile msl
+  if libPtr == 0 then nativeBf16CompileRejected.set true
+  pure libPtr
+
 /-! ## L14.B.2.c: rangeify trace + view-aware matmul
 
   `Pipeline.realize` (the matmul-verify entry point used by Main.lean's
@@ -224,9 +242,10 @@ def runRangeifyAndTrace (a b : Tensor) : IO Unit := do
 /-- `Pipeline.realize` for the bf16 N×N matmul, single-shape (L5.a).
 
     Takes pre-allocated input Tensors `a`, `b` (caller responsible
-    for filling). Allocates the output buffer, compiles the captured
-    parametric MSL for the shape, dispatches the kernel, returns the output
-    Tensor.
+    for filling). Allocates the output buffer, attempts the parametric WMMA
+    MSL for the shape, and falls back to the portable scalar generator when
+    the Metal compiler rejects native bf16 on an older device. It then
+    dispatches the selected kernel and returns the output Tensor.
 
     L14.B.2.c: this function now invokes `runRangeifyAndTrace` at the
     top, which calls `Schedule_Rangeify_rangeify` on a SINK built from
@@ -253,14 +272,26 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   let msl := Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then
     return .error (.notInLeanScope s!"renderKernel produced empty MSL for {shape.fixturePath}")
-  -- 2. Compile.
-  let libPtr ← Runtime.Metal.metalCompile msl
+  let (mDim, kDim, nDim) := shape.toTriple
+  -- 2. Compile the optimized route when the backend accepts native bf16.
+  -- A shape being structurally TC-eligible is not a device capability fact:
+  -- GitHub's macOS-14 Metal runner rejects native `bfloat` while the M4
+  -- accepts it. Compilation is therefore the capability probe, and failure
+  -- selects the portable ushort-backed scalar kernel rather than failing the
+  -- tensor operation.
+  let tcLibPtr ← compileNativeBf16OrZero msl
+  let useTc := tcLibPtr != 0
+  let libPtr ← if useTc then pure tcLibPtr else do
+    let scalarMsl := Renderer.Metal.renderKernel
+      (Renderer.Metal.scalarMatmulKernelDecl mDim kDim nDim)
+    if scalarMsl.isEmpty then pure 0
+    else Runtime.Metal.metalCompile scalarMsl
   if libPtr == 0 then
-    return .error (.compileFailed s!"metalCompile returned 0 for rendered {shape.fixturePath}")
+    return .error (.compileFailed
+      s!"Metal rejected both generated WMMA and portable scalar matmul for {shape.fixturePath}")
   -- 3. Alloc output buffer. Sized from the *output* extent (M×N), not
   -- from `a.sizeBytes`: the two agree only for the square sentinels,
   -- and the non-square ones would under-allocate by up to 8x.
-  let (mDim, _kDim, nDim) := shape.toTriple
   let outBytes := mDim * nDim * a.dtype.sizeBytes
   let outBuf ← Runtime.Metal.metalAlloc (USize.ofNat outBytes)
   if outBuf == 0 then
@@ -271,14 +302,21 @@ def realize (a b : Tensor) (shape : Renderer.Metal.ShapeSentinel) :
   -- `dims.grid` is the threadgroup count (matches tinygrad's capture
   -- convention), so multiply through to get total threads.
   let dims := generatedDispatchDimsFor shape
-  let fnName := generatedKernelNameFor shape
-  let totalX : USize := USize.ofNat (dims.grid.x * dims.threadgroup.x)
-  let totalY : USize := USize.ofNat (dims.grid.y * dims.threadgroup.y)
-  let totalZ : USize := USize.ofNat (dims.grid.z * dims.threadgroup.z)
+  let fnName := if useTc then generatedKernelNameFor shape
+                else s!"matmul_scalar_{mDim}x{kDim}x{nDim}"
+  let totalX : USize := USize.ofNat
+    (if useTc then dims.grid.x * dims.threadgroup.x else mDim)
+  let totalY : USize := USize.ofNat
+    (if useTc then dims.grid.y * dims.threadgroup.y else nDim)
+  let totalZ : USize := USize.ofNat
+    (if useTc then dims.grid.z * dims.threadgroup.z else 1)
+  let localX : USize := USize.ofNat (if useTc then dims.threadgroup.x else 1)
+  let localY : USize := USize.ofNat (if useTc then dims.threadgroup.y else 1)
+  let localZ : USize := USize.ofNat (if useTc then dims.threadgroup.z else 1)
   let rc ← Runtime.Metal.metalDispatch libPtr fnName
     #[outBuf, a.buffer.raw, b.buffer.raw]
     totalX totalY totalZ
-    (USize.ofNat dims.threadgroup.x) (USize.ofNat dims.threadgroup.y) (USize.ofNat dims.threadgroup.z)
+    localX localY localZ
   if rc != 0 then
     Runtime.Metal.metalFree outBuf (USize.ofNat outBytes)
     Runtime.Metal.metalLibraryRelease libPtr

@@ -71,7 +71,7 @@ def matmul64x64 (aPtr bPtr outPtr : UInt64) : IO Int32 := do
       | .ok decl => pure decl
     let msl := Tgrad.Renderer.Metal.renderKernel kernelDecl
     if msl.isEmpty then return -1
-    libPtr ← Tgrad.Runtime.Metal.metalCompile msl
+    libPtr ← Tgrad.Pipeline.compileNativeBf16OrZero msl
     if libPtr == 0 then return -2
     cachedMatmul64Lib.set libPtr
   let dims := Tgrad.Pipeline.generatedDispatchDimsFor .bf16_64x64
@@ -123,7 +123,7 @@ private def compileOrCacheGet (sentinel : Tgrad.Renderer.Metal.ShapeSentinel) : 
     | .ok decl => pure decl
   let msl := Tgrad.Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then return 0
-  let lib ← Tgrad.Runtime.Metal.metalCompile msl
+  let lib ← Tgrad.Pipeline.compileNativeBf16OrZero msl
   if lib == 0 then return 0
   libCache.modify (fun c => (key, lib) :: c)
   pure lib
@@ -177,7 +177,7 @@ private def compileOrCacheGetAlg (sentinel : Tgrad.Renderer.Metal.ShapeSentinel)
     | .ok decl => pure decl
   let msl := Tgrad.Renderer.Metal.renderKernel kernelDecl
   if msl.isEmpty then return 0
-  let lib ← Tgrad.Runtime.Metal.metalCompile msl
+  let lib ← Tgrad.Pipeline.compileNativeBf16OrZero msl
   if lib == 0 then return 0
   libCacheAlg.modify (fun c => (key, lib) :: c)
   pure lib
@@ -272,9 +272,11 @@ def matmulSmall (M K N : USize) (aPtr bPtr outPtr : UInt64) : IO Int32 := do
   pure rc.toInt32
 
 -- ----------------------------------------------------------------------
--- L13.F: TC-eligible non-sentinel general matmul. Production now routes
--- through the manual-load WMMA kernel from L13.F.STRICT.B/C. There is no
--- scalar fallback for shapes meeting the TC-eligibility predicate.
+-- L13.F: TC-eligible non-sentinel general matmul. The legacy explicit TC
+-- exports below remain WMMA-only and return -2 when this backend rejects
+-- native bf16. The default graph realizer is different: `runBufferMatmul`
+-- treats structural eligibility and backend capability separately and falls
+-- back to portable scalar execution when this compile probe returns zero.
 -- ----------------------------------------------------------------------
 
 initialize libCacheTcManual : IO.Ref (List (String × UInt64)) ← IO.mkRef []
@@ -290,7 +292,7 @@ private def compileOrCacheGetTcManual (M K N : Nat) : IO UInt64 := do
   | .ok kd =>
       let msl := Tgrad.Renderer.Metal.renderKernel kd
       if msl.isEmpty then return 0
-      let lib ← Tgrad.Runtime.Metal.metalCompile msl
+      let lib ← Tgrad.Pipeline.compileNativeBf16OrZero msl
       if lib == 0 then return 0
       libCacheTcManual.modify (fun c => (key, lib) :: c)
       pure lib
@@ -588,20 +590,25 @@ private def runBufferMatmul (a b : Tgrad.Tensor) (M K N : Nat) :
     IO (Option Tgrad.Tensor) := do
   let outBytes := M * N * 2
   let tcOk := (Tgrad.Renderer.Metal.tcMatmulKernelDeclManualLoadWide M K N).isOk
-  let libPtr ← if tcOk then compileOrCacheGetTcManual M K N
-               else compileOrCacheGetSmall M K N
+  let tcLibPtr ← if tcOk then compileOrCacheGetTcManual M K N else pure 0
+  -- Structural tile eligibility is not hardware support. If this Metal
+  -- compiler rejects the native-bf16 WMMA source, use the same portable
+  -- scalar generator as an ineligible shape. On capable devices `tcLibPtr`
+  -- remains nonzero and the optimized route is unchanged.
+  let useTc := tcOk && tcLibPtr != 0
+  let libPtr ← if useTc then pure tcLibPtr else compileOrCacheGetSmall M K N
   if libPtr == 0 then return none
   let outBuf ← Tgrad.Runtime.Metal.metalAlloc (USize.ofNat outBytes)
   if outBuf == 0 then return none
   let d := Tgrad.Renderer.Metal.tcLaunchDims M N
-  let fnName := if tcOk then s!"matmul_tc_manual_{M}x{K}x{N}"
+  let fnName := if useTc then s!"matmul_tc_manual_{M}x{K}x{N}"
                 else s!"matmul_scalar_{M}x{K}x{N}"
-  let tx := if tcOk then d.grid.x * d.threadgroup.x else M
-  let ty := if tcOk then d.grid.y * d.threadgroup.y else N
-  let tz := if tcOk then d.grid.z * d.threadgroup.z else 1
-  let lx := if tcOk then d.threadgroup.x else 1
-  let ly := if tcOk then d.threadgroup.y else 1
-  let lz := if tcOk then d.threadgroup.z else 1
+  let tx := if useTc then d.grid.x * d.threadgroup.x else M
+  let ty := if useTc then d.grid.y * d.threadgroup.y else N
+  let tz := if useTc then d.grid.z * d.threadgroup.z else 1
+  let lx := if useTc then d.threadgroup.x else 1
+  let ly := if useTc then d.threadgroup.y else 1
+  let lz := if useTc then d.threadgroup.z else 1
   let rc ← Tgrad.Runtime.Metal.metalDispatch libPtr fnName
     #[outBuf, a.buffer.raw, b.buffer.raw]
     (USize.ofNat tx) (USize.ofNat ty) (USize.ofNat tz)

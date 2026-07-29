@@ -1,4 +1,4 @@
-import Tgrad.Renderer.Metal
+import Tgrad.Renderer.Elementwise
 
 /-! # Tgrad.Renderer.MatmulScalar — L13.B scalar matmul KernelDecl
 
@@ -16,14 +16,16 @@ import Tgrad.Renderer.Metal
   ```
   #include <metal_stdlib>
   using namespace metal;
-  kernel void matmul_scalar_4x4x4(device bfloat* data0, device bfloat* data1, device bfloat* data2, uint3 gid [[threadgroup_position_in_grid]], uint3 lid [[thread_position_in_threadgroup]]) {
+  kernel void matmul_scalar_4x4x4(device ushort* data0, device ushort* data1, device ushort* data2, uint3 gid [[threadgroup_position_in_grid]], uint3 lid [[thread_position_in_threadgroup]]) {
     int gidx0 = gid.x;
     int gidx1 = gid.y;
     float acc = 0.0f;
     for (int Ridx0 = 0; Ridx0 < 4; Ridx0++) {
-      acc = (acc + ((float)(*(data1+(gidx0*4+Ridx0)))) * ((float)(*(data2+(Ridx0*4+gidx1)))));
+      float val0 = as_type<float>(((uint)(*(data1+(gidx0*4+Ridx0)))) << 16);
+      float val1 = as_type<float>(((uint)(*(data2+(Ridx0*4+gidx1)))) << 16);
+      acc = (acc + val0 * val1);
     }
-    *(data0+(gidx0*4+gidx1)) = ((bfloat)((acc)));
+    // Explicit round-to-nearest-even bf16 packing to ushort follows.
   }
   ```
 
@@ -47,9 +49,9 @@ def scalarMatmulKernelDeclWithIdx
   { name     := s!"matmul_scalar_{tag}_{M}x{K}x{N}",
     wmmaArgs := [],
     args     := [
-      .buffer { qualifier := "device", baseType := "bfloat", name := "data0" },
-      .buffer { qualifier := "device", baseType := "bfloat", name := "data1" },
-      .buffer { qualifier := "device", baseType := "bfloat", name := "data2" },
+      .buffer { qualifier := "device", baseType := "ushort", name := "data0" },
+      .buffer { qualifier := "device", baseType := "ushort", name := "data1" },
+      .buffer { qualifier := "device", baseType := "ushort", name := "data2" },
       .attr   { baseType := "uint3", name := "gid",
                 attrStr := "[[threadgroup_position_in_grid]]" },
       .attr   { baseType := "uint3", name := "lid",
@@ -60,18 +62,19 @@ def scalarMatmulKernelDeclWithIdx
       .declInt "gidx1" "gid.y" none,
       .declFloat "acc" "0.0f",
       .forLoop "Ridx0" K [
+        loadScalarStmt "val0" "data1" aIdx .bfloat16_ "ushort",
+        loadScalarStmt "val1" "data2" bIdx .bfloat16_ "ushort",
         .assign "acc"
-          s!"(acc + ((float)(*(data1+{aIdx.renderIndexExpr}))) * ((float)(*(data2+{bIdx.renderIndexExpr}))))"
-      ],
-      -- Output store: row-major (always — the output is what the
-      -- caller observes via numpy reshape).
-      .storeIndexed "data0"
+          "(acc + val0 * val1)"
+      ] ] ++
+      -- Output store is row-major (always — the output is what the caller
+      -- observes via numpy reshape) and uses portable bf16 RNE packing.
+      storeScalarStmts "result" .bfloat16_ "ushort" "data0"
         (.binop .add
           (.binop .mul (.var "gidx0" .int32_)
                        (.const .int32_ (.i (Int.ofNat N))) .int32_)
           (.var "gidx1" .int32_) .int32_)
-        "acc"
-    ],
+        "acc",
     trailingNewline := false }
 
 /-- L14.B.2.b row-major default for A: `gidx0*K + Ridx0`. -/
@@ -104,6 +107,16 @@ def scalarMatmulKernelDecl (M K N : Nat) : KernelDecl :=
   -- so we keep BACKWARDS-COMPATIBLE naming for this default entry.
   { (scalarMatmulKernelDeclWithIdx M K N (rowMajorAIdx K) (rowMajorBIdx N) "rm") with
     name := s!"matmul_scalar_{M}x{K}x{N}" }
+
+/-- Scalar matmul is the correctness fallback when native WMMA bf16 fails to
+    compile, so its rendered source must not itself depend on native `bfloat`.
+    This checks the full emitted kernel, including both indexed loads and the
+    output conversion. -/
+theorem bf16_scalar_matmul_render_is_portable :
+    portableBf16ScalarSource
+      (renderKernel (scalarMatmulKernelDecl 4 4 4))
+      ["data0", "data1", "data2"] true = true := by
+  native_decide
 
 end Metal
 

@@ -170,6 +170,29 @@ smoke_basic_matmul() {
   }
 }
 
+smoke_portable_matmul_fallback() {
+  local portable_log
+  portable_log="$(mktemp "${TMPDIR:-/tmp}/tgrad_portable_matmul.XXXXXX")"
+  if ! run_cmd env TGRAD_FORCE_PORTABLE_BF16=1 \
+      "$PY" "$TGRAD_DIR/python/tgrad.py" bench --shape 64x64x64 --dtype bf16 \
+      >"$portable_log" 2>&1; then
+    if skip_metal_runtime_smoke "portable matmul fallback" "$portable_log"; then
+      rm -f "$portable_log"
+      return 0
+    fi
+    sed 's/^/      /' "$portable_log"
+    rm -f "$portable_log"
+    return 1
+  fi
+  if ! grep -q "py_byte_match: true" "$portable_log"; then
+    echo "  ✗ forced portable 64x64x64 matmul did not byte-match"
+    sed 's/^/      /' "$portable_log"
+    rm -f "$portable_log"
+    return 1
+  fi
+  rm -f "$portable_log"
+}
+
 smoke_timing() {
   if ! run_cmd "$PY" "$TGRAD_DIR/python/tgrad.py" bench-timing \
       --shape 64x64x64 --dtype bf16 --warmup 1 --measured 3 \
@@ -322,6 +345,7 @@ case "$gate" in
   --all|all)
     run_cmd bash "$TGRAD_DIR/scripts/check_no_tinygrad_deps.sh"
     smoke_basic_matmul
+    smoke_portable_matmul_fallback
     smoke_fused_reduce
     smoke_render_algebraic
     smoke_tc_general

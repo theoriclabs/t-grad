@@ -39,7 +39,7 @@ inductive IdentityError where
 structure BackendIdentity where
   private mk ::
   stableName : String
-  deriving BEq, Repr
+  deriving BEq, Repr, DecidableEq
 
 def BackendIdentity.build (name : String) : Except IdentityError BackendIdentity :=
   if name.trimAscii.isEmpty then .error .emptyBackend
@@ -160,6 +160,17 @@ def FillValue.dtype : FillValue → Tgrad.Dtype
 def FillValue.stableTag : FillValue → String
   | .int32 value => "i32:" ++ toString value.value
   | .float32Bits bits => "f32bits:" ++ toString bits.toNat
+
+/-- Proof-free exact storage semantics exposed to leaf payload projections.
+The admitted `FillValue` remains the plan authority. -/
+inductive RenderedScalar where
+  | int32 (value : Int)
+  | float32Bits (bits : UInt32)
+  deriving BEq, Repr, DecidableEq
+
+def FillValue.renderedScalar : FillValue → RenderedScalar
+  | .int32 value => .int32 value.value
+  | .float32Bits bits => .float32Bits bits
 
 inductive ScalarInput where
   | signed (value : Int)
@@ -358,6 +369,42 @@ def FillPlan.kernelIdentity (plan : FillPlan) : KernelIdentity :=
 
 def FillPlan.kernelName (plan : FillPlan) : String := plan.kernelIdentity.kernelName
 
+/-- Auditable renderer-level indexing meanings. Only `linearBlockThreadX` is
+the image of the admitted plan policy; `blockOnlyX` exists so a plausible but
+incorrect leaf projection is representable and rejectable. -/
+inductive RenderedOutputIndex where
+  | linearBlockThreadX
+  | blockOnlyX
+  deriving BEq, Repr, DecidableEq
+
+def OutputIndexPolicy.rendered : OutputIndexPolicy → RenderedOutputIndex
+  | .linearBlockThreadX => .linearBlockThreadX
+
+/-- Auditable renderer-level guard meanings. The initial plan maps only to the
+exact element-count guard; an unguarded artifact remains distinguishable. -/
+inductive RenderedBounds where
+  | guardElementCount
+  | unguarded
+  deriving BEq, Repr, DecidableEq
+
+def BoundsPolicy.rendered : BoundsPolicy → RenderedBounds
+  | .guardElementCount => .guardElementCount
+
+/-- The exact neutral meanings every leaf renderer must project from its own
+payload format. This does not prescribe source syntax. -/
+structure RenderedSemantics where
+  scalar : RenderedScalar
+  elementCount : Nat
+  outputIndex : RenderedOutputIndex
+  bounds : RenderedBounds
+  deriving BEq, Repr, DecidableEq
+
+def FillPlan.renderedSemantics (plan : FillPlan) : RenderedSemantics :=
+  { scalar := plan.value.renderedScalar
+    elementCount := plan.elementCount.value
+    outputIndex := plan.outputIndexPolicy.rendered
+    bounds := plan.boundsPolicy.rendered }
+
 structure RendererContractIdentity where
   private mk ::
   stableName : String
@@ -386,6 +433,9 @@ def FillPlan.sourceIdentity (plan : FillPlan)
 structure RendererContract (Payload : Type) where
   identity : RendererContractIdentity
   render : FillPlan → Payload
+  projectSemantics : Payload → Option RenderedSemantics
+  renderPreserves : ∀ plan,
+    projectSemantics (render plan) = some plan.renderedSemantics
 
 structure SourceArtifactCandidate (Payload : Type) where
   identity : SourceIdentity
@@ -402,6 +452,8 @@ structure SourceArtifact {Payload : Type} (renderer : RendererContract Payload)
     (plan : FillPlan) where
   private mk ::
   candidate : SourceArtifactCandidate Payload
+  projectionExact :
+    renderer.projectSemantics candidate.payload = some plan.renderedSemantics
 
 def SourceArtifact.validateCandidate [DecidableEq Payload]
     (renderer : RendererContract Payload) (plan : FillPlan)
@@ -409,8 +461,12 @@ def SourceArtifact.validateCandidate [DecidableEq Payload]
     Except ArtifactBindingError (SourceArtifact renderer plan) := do
   if candidate.identity != plan.sourceIdentity renderer.identity then
     throw .sourceIdentityMismatch
-  if candidate.payload = renderer.render plan then
-    pure { candidate }
+  if payloadMatches : candidate.payload = renderer.render plan then
+    have projectionExact :
+        renderer.projectSemantics candidate.payload = some plan.renderedSemantics := by
+      rw [payloadMatches]
+      exact renderer.renderPreserves plan
+    pure { candidate, projectionExact }
   else throw .sourcePayloadMismatch
 
 def RendererContract.renderArtifact
@@ -418,7 +474,8 @@ def RendererContract.renderArtifact
     SourceArtifact renderer plan :=
   { candidate := {
       identity := plan.sourceIdentity renderer.identity
-      payload := renderer.render plan } }
+      payload := renderer.render plan }
+    projectionExact := renderer.renderPreserves plan }
 
 def SourceArtifact.identity {Payload : Type}
     {renderer : RendererContract Payload} {plan : FillPlan}
@@ -453,6 +510,15 @@ def CompileRequest.sourcePayload {Payload : Type}
     (request : CompileRequest renderer plan) : Payload :=
   request.artifact.payload
 
+def CompileRequest.renderedSemantics
+    (request : CompileRequest renderer plan) : Option RenderedSemantics :=
+  renderer.projectSemantics request.sourcePayload
+
+theorem CompileRequest.projectionExact
+    (request : CompileRequest renderer plan) :
+    request.renderedSemantics = some plan.renderedSemantics :=
+  request.artifact.projectionExact
+
 /-! ## Runtime-neutral intersection -/
 
 inductive BufferOwnership where
@@ -482,9 +548,13 @@ inductive RuntimeStage where
 inductive UnavailableClass where
   | probeAbsent
   | runtimeLibraryMissing
+  | negativeProbe
   | probeFailed
   | noDevice
+  | countOnly
   | incompleteDeviceProfile
+  | invalidDeviceOrdinal
+  | wrongBackend
   | invalidDeviceProfile
   deriving BEq, Repr, DecidableEq
 
@@ -529,9 +599,104 @@ def Availability.isAvailable : Availability Capability Detail → Bool
   | .available _ => true
   | .unavailable _ _ => false
 
+/-- Neutral profile completeness reported by a leaf probe. Invalid raw data is
+descriptive only and can never become a capability. -/
+inductive ObservedProfile where
+  | missing
+  | invalid
+  | complete (profile : DeviceProfile)
+  deriving Repr
+
+/-- Public probe facts. A complete observation additionally needs a leaf-owned
+credential, so callers can describe failures/counts without minting authority. -/
+inductive ProbeObservation (Credential Detail : Type) where
+  | absent (detail : Detail)
+  | runtimeMissing (detail : Detail)
+  | negative (detail : Detail)
+  | failed (detail : Detail)
+  | countOnly (count : Nat) (detail : Detail)
+  | profiled (credential : Credential) (deviceCount deviceOrdinal : Nat)
+      (profile : ObservedProfile) (detail : Detail)
+
 /-- A leaf exposes only this projection from its private capability. -/
 structure CapabilityContract (Capability : Type) where
   deviceOf : Capability → DeviceIdentity
+
+/-- A leaf defines its requested backend and compatibility rule over its
+private credential. Architecture/tool syntax remains wholly outside shared. -/
+structure ProbeAuthority (Credential : Type) where
+  requestedBackend : BackendIdentity
+  admitsProfile : Credential → DeviceProfile → Bool
+
+/-- Sealed execution authority. Its proof fields bind one complete, admitted
+profile and valid ordinal to the exact leaf authority value. -/
+structure AvailableCapability {Credential : Type}
+    (authority : ProbeAuthority Credential) where
+  private mk ::
+  credential : Credential
+  device : DeviceIdentity
+  deviceCount : Nat
+  deviceCountPositive : 0 < deviceCount
+  ordinalValid : device.ordinal < deviceCount
+  backendMatches : device.profile.backend = authority.requestedBackend
+  profileAuthorized : authority.admitsProfile credential device.profile = true
+
+def AvailableCapability.deviceOf
+    (capability : AvailableCapability authority) : DeviceIdentity :=
+  capability.device
+
+def AvailableCapability.count
+    (capability : AvailableCapability authority) : Nat :=
+  capability.deviceCount
+
+def AvailableCapability.contract (authority : ProbeAuthority Credential) :
+    CapabilityContract (AvailableCapability authority) :=
+  { deviceOf := AvailableCapability.deviceOf }
+
+/-- The sole shared capability-minting path. Every incomplete or inconsistent
+probe fact fails closed with a stable structured class. -/
+def availabilityFromProbe (authority : ProbeAuthority Credential) :
+    ProbeObservation Credential Detail →
+      Availability (AvailableCapability authority) Detail
+  | .absent detail => .unavailable authority.requestedBackend {
+      reasonClass := .probeAbsent, detail }
+  | .runtimeMissing detail => .unavailable authority.requestedBackend {
+      reasonClass := .runtimeLibraryMissing, detail }
+  | .negative detail => .unavailable authority.requestedBackend {
+      reasonClass := .negativeProbe, detail }
+  | .failed detail => .unavailable authority.requestedBackend {
+      reasonClass := .probeFailed, detail }
+  | .countOnly 0 detail => .unavailable authority.requestedBackend {
+      reasonClass := .noDevice, detail }
+  | .countOnly (_ + 1) detail => .unavailable authority.requestedBackend {
+      reasonClass := .countOnly, detail }
+  | .profiled _ 0 _ _ detail => .unavailable authority.requestedBackend {
+      reasonClass := .noDevice, detail }
+  | .profiled _ (_ + 1) _ .missing detail =>
+      .unavailable authority.requestedBackend {
+        reasonClass := .incompleteDeviceProfile, detail }
+  | .profiled _ (_ + 1) _ .invalid detail =>
+      .unavailable authority.requestedBackend {
+        reasonClass := .invalidDeviceProfile, detail }
+  | .profiled credential (deviceCount + 1) ordinal (.complete profile) detail =>
+      let positive : 0 < deviceCount + 1 := Nat.zero_lt_succ deviceCount
+      if ordinalValid : ordinal < deviceCount + 1 then
+        if backendMatches : profile.backend = authority.requestedBackend then
+          if profileAuthorized : authority.admitsProfile credential profile = true then
+            .available {
+              credential
+              device := { profile, ordinal }
+              deviceCount := deviceCount + 1
+              deviceCountPositive := positive
+              ordinalValid
+              backendMatches
+              profileAuthorized }
+          else .unavailable authority.requestedBackend {
+            reasonClass := .invalidDeviceProfile, detail }
+        else .unavailable authority.requestedBackend {
+          reasonClass := .wrongBackend, detail }
+      else .unavailable authority.requestedBackend {
+        reasonClass := .invalidDeviceOrdinal, detail }
 
 structure AuthorizedPlan {Capability : Type}
     (contract : CapabilityContract Capability) where

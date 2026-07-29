@@ -72,3 +72,8 @@ lean_exe «tgrad-tests» where
   root := `Tests
   supportInterpreter := true
   moreLinkArgs := metalLinkArgs
+
+/-- Focused pure-Lean checks for the initial CUDA fill slice.  This target has
+no CUDA or Metal link dependency and makes no hardware claim. -/
+lean_exe «cuda-slice-tests» where
+  root := `CudaSliceTests

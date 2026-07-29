@@ -36,6 +36,7 @@ import Tgrad.Renderer.WmmaArgs
 import Tgrad.Renderer.Metal
 import Tgrad.Renderer.Elementwise
 import Tgrad.Renderer.Creation
+import Tgrad.Renderer.Cuda
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 
@@ -45,6 +46,7 @@ import Tgrad.Runtime.MetalAllocator
 import Tgrad.Runtime.MetalProgram
 import Tgrad.Runtime.Buffer
 import Tgrad.Runtime.Cache
+import Tgrad.Runtime.Cuda
 
 -- L5 (pipeline + Tensor — active)
 import Tgrad.Tensor

@@ -72,3 +72,11 @@ lean_exe «tgrad-tests» where
   root := `Tests
   supportInterpreter := true
   moreLinkArgs := metalLinkArgs
+
+/-- Focused CPU/static test root for the HIP/ROCm prototype.  The bridge uses
+dynamic discovery only and links no ROCm library. -/
+lean_exe «rocm-tests» where
+  root := `RocmTests
+  supportInterpreter := true
+  moreLinkArgs := if System.Platform.isOSX then #["c/build/hip_probe.o"]
+                  else #["c/build/hip_probe.o", "-ldl"]

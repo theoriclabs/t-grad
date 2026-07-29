@@ -42,7 +42,15 @@ cd "$REPO_ROOT"
 required_modules=(
   Tgrad/UOp.lean
   Tgrad/Renderer/Metal.lean
-  Tgrad/Main.lean
+  # The CLI entry point is `Main.lean` at the repository root --
+  # `lean_exe «tgrad-cli» where root := `Main` in lakefile.lean.
+  # This read `Tgrad/Main.lean` from acf53f7, the commit that created BOTH
+  # this gate and Main.lean, so the path has never resolved and this gate
+  # could never pass its own structural layer -- while being listed in
+  # GREEN_GATES the whole time. Correcting the path restores the check's
+  # intent (the module defining the CLI entry must exist); it does not
+  # weaken it.
+  Main.lean
   fixtures/codegen/synthetic_indexed_kernel.msl
 )
 for m in "${required_modules[@]}"; do

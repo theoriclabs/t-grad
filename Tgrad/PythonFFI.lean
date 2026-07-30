@@ -3,6 +3,7 @@ import Tgrad.Runtime.MetalProgram
 import Tgrad.Runtime.Cache
 import Tgrad.Pipeline
 import Tgrad.Tensor
+import Tgrad.Cast
 import Tgrad.Renderer.Elementwise
 import Tgrad.Renderer.Creation
 import Tgrad.Renderer.MatmulScalar
@@ -374,11 +375,14 @@ def matmulTcEligible (M K N : USize) : IO UInt32 := do
 -- in, then registers a Tensor whose uop is `.buffer (h, shape, dtype)`.
 -- ----------------------------------------------------------------------
 
-/-- Lean-side Tensor registry: opaque `UInt64` handle → `Tensor`. The
-    map is append-only at L14.A (release is L14.B+ work — for now
-    Python's existing `tgrad_tensor_free` reclaims the underlying
-    MTLBuffer, and the registry entry is never re-used). -/
-initialize tensorRegistry : IO.Ref (List (UInt64 × Tgrad.Tensor)) ← IO.mkRef []
+/-- Transform-created entries carry exact release ownership.  Ordinary tensors
+    retain the legacy external-Python ownership (`none`); cast owns fresh
+    storage, while bitcast borrows its source storage. -/
+structure RegistryEntry where
+  tensor : Tgrad.Tensor
+  transformOwnership : Option Tgrad.Cast.TransformOwnership := none
+
+initialize tensorRegistry : IO.Ref (List (UInt64 × RegistryEntry)) ← IO.mkRef []
 
 /-- Monotonic counter for the next handle to hand out. -/
 initialize nextTensorHandle : IO.Ref UInt64 ← IO.mkRef 1
@@ -389,14 +393,36 @@ namespace TensorRegistry
 def register (t : Tgrad.Tensor) : IO UInt64 := do
   let h ← nextTensorHandle.get
   nextTensorHandle.set (h + 1)
-  tensorRegistry.modify (fun reg => (h, t) :: reg)
+  tensorRegistry.modify (fun reg => (h, { tensor := t }) :: reg)
+  pure h
+
+/-- Register only a successful Wave-10 transform result. -/
+def registerTransform (t : Tgrad.Tensor)
+    (ownership : Tgrad.Cast.TransformOwnership) : IO UInt64 := do
+  let h ← nextTensorHandle.get
+  nextTensorHandle.set (h + 1)
+  tensorRegistry.modify (fun reg =>
+    (h, { tensor := t, transformOwnership := some ownership }) :: reg)
   pure h
 
 /-- Look up the Tensor for a handle. Returns `none` if the handle was
     never registered (or was released — but L14.A is append-only). -/
 def get? (h : UInt64) : IO (Option Tgrad.Tensor) := do
   let reg ← tensorRegistry.get
-  pure (reg.find? (fun p => p.1 == h) |>.map Prod.snd)
+  pure (reg.find? (fun p => p.1 == h) |>.map (fun p => p.2.tensor))
+
+/-- Remove a transform-created entry exactly once.  External entries and
+    already-released handles are not removable through this operation. -/
+def remove? (h : UInt64) : IO (Option RegistryEntry) := do
+  let reg ← tensorRegistry.get
+  let found := reg.find? (fun p => p.1 == h) |>.map Prod.snd
+  match found with
+  | some entry@( { transformOwnership := some _ , .. } ) =>
+      tensorRegistry.set (reg.filter (fun p => p.1 != h))
+      pure (some entry)
+  | _ => pure none
+
+def count : IO Nat := return (← tensorRegistry.get).length
 
 end TensorRegistry
 
@@ -717,7 +743,81 @@ def tensorUopKind (h : UInt64) : IO UInt8 := do
     | .reshape _ _   => 2
     | .expand _ _    => 3
     | .slice _ _     => 4
+    | .bitcast _ _   => 5
     | _              => 255)
+
+/-- Lean-owned direct-readback classification. Python transports this Boolean
+    rather than maintaining a parallel set of semantic UOp kinds. -/
+@[export tgrad_tensor_is_materialized_storage_lean]
+def tensorIsMaterializedStorage (h : UInt64) : IO UInt8 := do
+  let some tensor ← TensorRegistry.get? h | return 255
+  pure (if tensor.isMaterializedStorageUop then 1 else 0)
+
+/-! ## Wave 10 cast/bitcast transaction boundary -/
+
+private def transformPayload (reason : Tgrad.Cast.TransformReason)
+    (handle : UInt64 := 0) : Array UInt64 :=
+  #[reason.code.toUInt64, handle]
+
+private def finishTransform (sourceHandle : UInt64)
+    (result : Tgrad.Cast.TransformResult) : IO (Array UInt64) := do
+  if result.reason != .ok then return transformPayload result.reason
+  let some tensor := result.tensor | return transformPayload .invalidHandle
+  match result.ownership with
+  | .existing => return transformPayload .ok sourceHandle
+  | .owned =>
+      let handle ← TensorRegistry.registerTransform tensor
+        Tgrad.Cast.TransformOwnership.owned
+      return transformPayload .ok handle
+  | .borrowed =>
+      let handle ← TensorRegistry.registerTransform tensor
+        Tgrad.Cast.TransformOwnership.borrowed
+      return transformPayload .ok handle
+
+@[export tgrad_tensor_cast_lean]
+def tensorCast (sourceHandle : UInt64) (targetCode : UInt8) : IO (Array UInt64) := do
+  let some source ← TensorRegistry.get? sourceHandle
+    | return transformPayload .invalidHandle
+  let some target := Tgrad.Dtype.ofCode? targetCode
+    | return transformPayload .invalidDtype
+  finishTransform sourceHandle (← Tgrad.Cast.realizeCast source target)
+
+@[export tgrad_tensor_bitcast_lean]
+def tensorBitcast (sourceHandle : UInt64) (targetCode : UInt8) : IO (Array UInt64) := do
+  let some source ← TensorRegistry.get? sourceHandle
+    | return transformPayload .invalidHandle
+  let some target := Tgrad.Dtype.ofCode? targetCode
+    | return transformPayload .invalidDtype
+  finishTransform sourceHandle (← Tgrad.Cast.realizeBitcast source target)
+
+/-- Allocation-free lifecycle query: 0 validity, 1 ownership
+    (1 owned cast, 2 borrowed bitcast, UInt64.max otherwise). -/
+@[export tgrad_tensor_transform_query_lean]
+def tensorTransformQuery (handle : UInt64) (query : UInt8) : IO UInt64 := do
+  let reg ← tensorRegistry.get
+  let some entry := reg.find? (fun p => p.1 == handle) |>.map Prod.snd
+    | return 0xFFFFFFFFFFFFFFFF
+  match query, entry.transformOwnership with
+  | 0, some _ => pure 1
+  | 1, some .owned => pure 1
+  | 1, some .borrowed => pure 2
+  | _, _ => pure 0xFFFFFFFFFFFFFFFF
+
+/-- Transactional cleanup.  Owned cast results free their one fresh buffer;
+    borrowed bitcast aliases unregister only. -/
+@[export tgrad_tensor_transform_release_lean]
+def tensorTransformRelease (handle : UInt64) : IO UInt8 := do
+  let some entry ← TensorRegistry.remove? handle | return 1
+  match entry.transformOwnership with
+  | some .owned =>
+      Tgrad.Runtime.Metal.metalFree entry.tensor.buffer.raw
+        (USize.ofNat entry.tensor.sizeBytes)
+      pure 0
+  | some .borrowed => pure 0
+  | _ => pure 1
+
+@[export tgrad_tensor_registry_count_lean]
+def tensorRegistryCount : IO USize := return USize.ofNat (← TensorRegistry.count)
 
 -- ----------------------------------------------------------------------
 -- L14.B.2.c: view-aware matmul and unary view materialization.

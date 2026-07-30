@@ -9,8 +9,8 @@ namespace Runtime
 
 namespace Metal
 
-/-- Compile MSL source. Returns the MTLLibrary pointer (as UInt64) on
-    success, 0 on failure. -/
+/-- Compile MSL source. Returns an opaque exact-source/generation-bound
+    compiled-library handle (as UInt64) on success, 0 on failure. -/
 @[extern "lean_theograd_metal_compile"]
 opaque metalCompile (msl : @& String) : IO UInt64
 

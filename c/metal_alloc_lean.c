@@ -40,6 +40,7 @@ extern int    theograd_metal_dispatch(
                   void* const* buffers, size_t n_buffers,
                   size_t gx, size_t gy, size_t gz,
                   size_t lx, size_t ly, size_t lz);
+extern void   theograd_metal_counter_increment(uint8_t index);
 
 /* IO Bool — returns 1 if a default Metal device is available. */
 lean_obj_res lean_theograd_metal_available(lean_object* w) {
@@ -121,6 +122,7 @@ lean_obj_res lean_theograd_metal_library_function_count(uint64_t lib_ptr, lean_o
 lean_obj_res lean_theograd_metal_buffer_write_f32(
         uint64_t buf_ptr, b_lean_obj_arg vals, lean_object* w) {
     (void)w;
+    theograd_metal_counter_increment(5);
     void* dst = theograd_metal_buffer_contents((void*)(uintptr_t)buf_ptr);
     if (!dst) return lean_io_result_mk_ok(lean_box(0));
     size_t n = lean_sarray_size(vals);
@@ -136,6 +138,7 @@ lean_obj_res lean_theograd_metal_buffer_write_f32(
 lean_obj_res lean_theograd_metal_buffer_read_f32(
         uint64_t buf_ptr, size_t index, lean_object* w) {
     (void)w;
+    theograd_metal_counter_increment(4);
     void* src = theograd_metal_buffer_contents((void*)(uintptr_t)buf_ptr);
     double val = 0.0;
     if (src) {
@@ -154,6 +157,7 @@ lean_obj_res lean_theograd_metal_buffer_read_f32(
 lean_obj_res lean_theograd_metal_buffer_write_bytes(
         uint64_t buf_ptr, b_lean_obj_arg bytes, lean_object* w) {
     (void)w;
+    theograd_metal_counter_increment(5);
     void* dst = theograd_metal_buffer_contents((void*)(uintptr_t)buf_ptr);
     if (!dst) return lean_io_result_mk_ok(lean_box(0));
     size_t n = lean_sarray_size(bytes);
@@ -167,6 +171,7 @@ lean_obj_res lean_theograd_metal_buffer_write_bytes(
 lean_obj_res lean_theograd_metal_buffer_read_bytes(
         uint64_t buf_ptr, size_t n_bytes, lean_object* w) {
     (void)w;
+    theograd_metal_counter_increment(4);
     void* src = theograd_metal_buffer_contents((void*)(uintptr_t)buf_ptr);
     lean_obj_res arr = lean_alloc_sarray(1, n_bytes, n_bytes);
     uint8_t* dst = lean_sarray_cptr(arr);

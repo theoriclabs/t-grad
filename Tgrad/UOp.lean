@@ -126,6 +126,9 @@ inductive UOp : Type where
   /- ALU -/
   | binop     (op : BinOp) (a : UOp) (b : UOp) (dtype : Dtype)
   | cast      (target : Dtype) (e : UOp)
+  /-- Storage reinterpretation is deliberately distinct from numeric cast.
+      The target dtype changes while the source bytes and shape are preserved. -/
+  | bitcast   (target : Dtype) (e : UOp)
   | gep       (e : UOp) (lane : Nat)
   /- control flow / structure -/
   | range     (idx : Nat) (kind : RangeKind) (bound : UOp)
@@ -147,7 +150,7 @@ inductive UOpKind where
   | DEFINE_VAR | CONST | VCONST
   | ADD | SUB | MUL | FLOORDIV | FLOORMOD
   | AND | OR | XOR | SHL | SHR | CMPLT | CMPNE
-  | PARAM | SPECIAL | BUFFER | INDEX | LOAD | STORE | CAST | GEP
+  | PARAM | SPECIAL | BUFFER | INDEX | LOAD | STORE | CAST | BITCAST | GEP
   | RANGE | END | REDUCE | SINK | WMMA
   | PERMUTE | RESHAPE | EXPAND | SLICE
   | VAR
@@ -176,6 +179,7 @@ def UOpKind.toStr : UOpKind → String
   | .LOAD       => "LOAD"
   | .STORE      => "STORE"
   | .CAST       => "CAST"
+  | .BITCAST    => "BITCAST"
   | .GEP        => "GEP"
   | .RANGE      => "RANGE"
   | .END        => "END"
@@ -212,6 +216,7 @@ def UOpKind.ofString (s : String) : Option UOpKind :=
   | "LOAD"       => some .LOAD
   | "STORE"      => some .STORE
   | "CAST"       => some .CAST
+  | "BITCAST"    => some .BITCAST
   | "GEP"        => some .GEP
   | "RANGE"      => some .RANGE
   | "END"        => some .END
@@ -275,6 +280,7 @@ def kind : UOp → UOpKind
   | .store _ _           => .STORE
   | .binop op _ _ _      => op.toKind
   | .cast _ _            => .CAST
+  | .bitcast _ _         => .BITCAST
   | .gep _ _             => .GEP
   | .range _ _ _         => .RANGE
   | .endR _              => .END
@@ -304,6 +310,7 @@ def dtypeOf : UOp → Dtype
   | .store _ _           => .void_   -- sentinel (no result)
   | .binop _ _ _ d       => d
   | .cast d _            => d
+  | .bitcast d _         => d
   | .gep e _             => e.dtypeOf
   | .range _ _ _         => .weakint_
   | .endR _              => .void_   -- sentinel
@@ -333,6 +340,7 @@ def children : UOp → List UOp
   | .store addr v             => [addr, v]
   | .binop _ a b _            => [a, b]
   | .cast _ e                 => [e]
+  | .bitcast _ e              => [e]
   | .gep e _                  => [e]
   | .range _ _ b              => [b]
   | .endR r                   => [r]

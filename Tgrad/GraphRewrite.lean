@@ -269,6 +269,9 @@ where
     | .cast d e         => do
         let e' ← graphRewriteBottomUp? pm e
         some (.cast d e')
+    | .bitcast d e      => do
+        let e' ← graphRewriteBottomUp? pm e
+        some (.bitcast d e')
     | .gep e l          => do
         let e' ← graphRewriteBottomUp? pm e
         some (.gep e' l)

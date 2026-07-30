@@ -91,6 +91,7 @@ def classify : UOp → OpClass
   | .store ..     => .memoryAccess
   | .binop ..     => .aluBinary
   | .cast ..      => .aluConvert
+  | .bitcast ..   => .aluConvert
   | .gep ..       => .aluConvert
   | .reduce ..    => .reduction
   | .range ..     => .loopStructure

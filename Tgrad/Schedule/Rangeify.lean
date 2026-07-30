@@ -92,6 +92,7 @@ partial def rangeify (u : UOp) : UOp :=
   | .sink b            => .sink (rangeify b)
   | .binop op a b d    => .binop op (rangeify a) (rangeify b) d
   | .cast t e          => .cast t (rangeify e)
+  | .bitcast t e       => .bitcast t (rangeify e)
   | .index buf off     => .index (rangeify buf) (rangeify off)
   | .load addr d       => .load (rangeify addr) d
   | .store addr val    => .store (rangeify addr) (rangeify val)

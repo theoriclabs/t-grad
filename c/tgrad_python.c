@@ -78,6 +78,19 @@ extern lean_object* tgrad_low_precision_decode_public_lean(
 extern lean_object* tgrad_low_precision_value_public_lean(
     uint8_t operation, uint8_t dtype_code, uint64_t input,
     uint8_t value_tag, uint8_t query);
+extern lean_object* tgrad_tensor_cast_lean(uint64_t source, uint8_t target);
+extern lean_object* tgrad_tensor_bitcast_lean(uint64_t source, uint8_t target);
+extern lean_object* tgrad_tensor_transform_query_lean(uint64_t handle, uint8_t query);
+extern lean_object* tgrad_tensor_transform_release_lean(uint64_t handle);
+extern lean_object* tgrad_tensor_registry_count_lean(void);
+extern lean_object* tgrad_tensor_is_materialized_storage_lean(uint64_t handle);
+
+extern void theograd_metal_counter_reset(void);
+extern uint64_t theograd_metal_counter(uint8_t index);
+extern void theograd_metal_fault_set(uint8_t kind);
+extern void theograd_metal_fault_clear(void);
+extern void theograd_metal_watch_buffer(void* ptr);
+extern uint64_t theograd_metal_watch_free_count(void);
 
 static int g_initialized = 0;
 
@@ -782,6 +795,82 @@ uint8_t tgrad_tensor_dtype(uint64_t h) {
     uint8_t v = lean_unbox(lean_io_result_get_value(result));
     lean_dec_ref(result);
     return v;
+}
+
+/* Decode one Lean transaction payload `[reason, handle]`.  The status is the
+ * Lean-owned reason code; zero-handle conventions do not erase it. */
+static uint8_t tgrad_transform_result(
+    lean_object* result, uint64_t* out_handle) {
+    if (out_handle) *out_handle = 0;
+    if (!result || lean_io_result_is_error(result)) {
+        if (result) lean_dec_ref(result);
+        return 255;
+    }
+    lean_object* values = lean_io_result_get_value(result);
+    if (lean_array_size(values) != 2) {
+        lean_dec_ref(result);
+        return 255;
+    }
+    uint8_t status = (uint8_t)lean_unbox_uint64(lean_array_get_core(values, 0));
+    uint64_t handle = lean_unbox_uint64(lean_array_get_core(values, 1));
+    if (out_handle) *out_handle = handle;
+    lean_dec_ref(result);
+    return status;
+}
+
+uint8_t tgrad_tensor_cast(
+    uint64_t source, uint8_t target, uint64_t* out_handle) {
+    return tgrad_transform_result(
+        tgrad_tensor_cast_lean(source, target), out_handle);
+}
+
+uint8_t tgrad_tensor_bitcast(
+    uint64_t source, uint8_t target, uint64_t* out_handle) {
+    return tgrad_transform_result(
+        tgrad_tensor_bitcast_lean(source, target), out_handle);
+}
+
+uint64_t tgrad_tensor_transform_query(uint64_t handle, uint8_t query) {
+    lean_object* result = tgrad_tensor_transform_query_lean(handle, query);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return UINT64_MAX; }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint8_t tgrad_tensor_transform_release(uint64_t handle) {
+    lean_object* result = tgrad_tensor_transform_release_lean(handle);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t status = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return status;
+}
+
+size_t tgrad_tensor_registry_count(void) {
+    lean_object* result = tgrad_tensor_registry_count_lean();
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return SIZE_MAX; }
+    size_t count = lean_unbox_usize(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return count;
+}
+
+uint8_t tgrad_tensor_is_materialized_storage(uint64_t handle) {
+    lean_object* result = tgrad_tensor_is_materialized_storage_lean(handle);
+    if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 255; }
+    uint8_t value = (uint8_t)lean_unbox(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+void tgrad_metal_counter_reset(void) { theograd_metal_counter_reset(); }
+uint64_t tgrad_metal_counter(uint8_t index) { return theograd_metal_counter(index); }
+void tgrad_metal_fault_set(uint8_t kind) { theograd_metal_fault_set(kind); }
+void tgrad_metal_fault_clear(void) { theograd_metal_fault_clear(); }
+void tgrad_metal_watch_buffer(uint64_t ptr) {
+    theograd_metal_watch_buffer((void*)(uintptr_t)ptr);
+}
+uint64_t tgrad_metal_watch_free_count(void) {
+    return theograd_metal_watch_free_count();
 }
 
 /* Constant-fill creation. Signed dimensions remain signed until Lean has

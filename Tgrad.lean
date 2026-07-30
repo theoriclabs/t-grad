@@ -49,6 +49,7 @@ import Tgrad.Runtime.Cache
 
 -- L5 (pipeline + Tensor — active)
 import Tgrad.Tensor
+import Tgrad.Cast
 import Tgrad.Pipeline
 
 -- L6 (Python authoring layer — Python → C → Lean via @[export])

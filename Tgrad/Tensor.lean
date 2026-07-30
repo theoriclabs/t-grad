@@ -78,6 +78,7 @@ where
   | .reshape _ newShape => newShape
   | .expand _ newShape  => newShape
   | .slice src slices   => sliceShapeNat (walk src) slices
+  | .bitcast _ src      => walk src
   -- Pointwise: both operands carry the same shape at this stage, so the
   -- left one is representative. Broadcasting between differing shapes
   -- is rejected before a graph is built, not silently resolved here.
@@ -109,6 +110,7 @@ where
   | .reshape src _ => walk src
   | .expand src _  => walk src
   | .slice src _   => walk src
+  | .bitcast _ src => walk src
   | _              => panic! "L14.B.1: Tensor.buffer: unsupported uop kind"
 
 /-- Construct a Tensor from a raw BufferHandle + shape + dtype. Wraps
@@ -186,5 +188,21 @@ def Tensor.isBufferUop (t : Tensor) : Bool :=
   match t.uop with
   | .buffer _ _ _ => true
   | _             => false
+
+/-- A bitcast is a materialized storage alias, not a movement view.  This
+    predicate deliberately accepts only one compiler-visible bitcast over an
+    exact BUFFER root; it does not turn arbitrary graph walkers into storage
+    admission. -/
+def Tensor.bitcastStorageRoot (t : Tensor) : Bool :=
+  match t.uop with
+  | .bitcast target (.buffer _ _ source) =>
+      target == t.dtype && source.bitcastStoragePair target
+  | _ => false
+
+/-- Public readback may directly access exact BUFFER roots and admitted
+    bitcast aliases.  Cast/bitcast plan construction still pattern-matches an
+    exact BUFFER and therefore rejects aliases and movement roots as inputs. -/
+def Tensor.isMaterializedStorageUop (t : Tensor) : Bool :=
+  t.isBufferUop || t.bitcastStorageRoot
 
 end Tgrad

@@ -433,6 +433,50 @@ def Dtype.bf16RoundedF32Bits (u : UInt32) : UInt32 :=
 
 def Dtype.bf16ExpandBits (u : UInt32) : UInt32 := (u &&& 0xFFFF) <<< 16
 
+/-! ## Exact zero-copy storage reinterpretation authority -/
+
+/-- Proof-relevant complete nonidentity storage-bitcast relation. -/
+inductive Dtype.BitcastStorageRelation : Dtype → Dtype → Prop where
+  | float32ToInt32 : Dtype.BitcastStorageRelation .float32_ .int32_
+  | int32ToFloat32 : Dtype.BitcastStorageRelation .int32_ .float32_
+
+def Dtype.decideBitcastStorageRelation :
+    (source target : Dtype) → Decidable (Dtype.BitcastStorageRelation source target)
+  | source, target =>
+      if hForward : source = .float32_ ∧ target = .int32_ then
+        isTrue (by simpa [hForward.1, hForward.2] using
+          Dtype.BitcastStorageRelation.float32ToInt32)
+      else if hReverse : source = .int32_ ∧ target = .float32_ then
+        isTrue (by simpa [hReverse.1, hReverse.2] using
+          Dtype.BitcastStorageRelation.int32ToFloat32)
+      else
+        isFalse (by
+          intro relation
+          cases relation <;> simp_all)
+
+instance (source target : Dtype) :
+    Decidable (Dtype.BitcastStorageRelation source target) :=
+  Dtype.decideBitcastStorageRelation source target
+
+/-- Boolean decision view consumed by plans and Tensor classification.  It
+    lives below both modules, preventing parallel admission policies. -/
+def Dtype.bitcastStoragePair (source target : Dtype) : Bool :=
+  decide (Dtype.BitcastStorageRelation source target)
+
+/-- Independent exhaustive contract for the shared finite relation. -/
+theorem Dtype.bitcastStoragePair_contract (source target : Dtype) :
+    source.bitcastStoragePair target =
+      ((source == .float32_ && target == .int32_) ||
+       (source == .int32_ && target == .float32_)) := by
+  cases source <;> cases target <;> native_decide
+
+theorem Dtype.bitcastStoragePair_itemsize {source target : Dtype}
+    (h : source.bitcastStoragePair target = true) :
+    source.sizeBytes = target.sizeBytes := by
+  have relation : Dtype.BitcastStorageRelation source target :=
+    of_decide_eq_true h
+  cases relation <;> rfl
+
 private def Dtype.readU32LE (bytes : ByteArray) (offset : Nat) : UInt32 :=
   UInt32.ofNat ((bytes[offset]!).toNat
     + ((bytes[offset + 1]!).toNat * 256)

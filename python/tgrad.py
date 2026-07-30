@@ -232,6 +232,35 @@ _lib.tgrad_realize.restype  = ctypes.c_uint64
 _lib.tgrad_tensor_dtype.argtypes = [ctypes.c_uint64]
 _lib.tgrad_tensor_dtype.restype  = ctypes.c_uint8
 
+# Wave 10 structured transform transaction. Lean returns a reason code and
+# writes the result handle separately; Python never infers failure from zero.
+_TRANSFORM_ARGTYPES = [
+    ctypes.c_uint64, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
+_lib.tgrad_tensor_cast.argtypes = _TRANSFORM_ARGTYPES
+_lib.tgrad_tensor_cast.restype = ctypes.c_uint8
+_lib.tgrad_tensor_bitcast.argtypes = _TRANSFORM_ARGTYPES
+_lib.tgrad_tensor_bitcast.restype = ctypes.c_uint8
+_lib.tgrad_tensor_transform_query.argtypes = [ctypes.c_uint64, ctypes.c_uint8]
+_lib.tgrad_tensor_transform_query.restype = ctypes.c_uint64
+_lib.tgrad_tensor_transform_release.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_transform_release.restype = ctypes.c_uint8
+_lib.tgrad_tensor_registry_count.argtypes = []
+_lib.tgrad_tensor_registry_count.restype = ctypes.c_size_t
+_lib.tgrad_tensor_is_materialized_storage.argtypes = [ctypes.c_uint64]
+_lib.tgrad_tensor_is_materialized_storage.restype = ctypes.c_uint8
+_lib.tgrad_metal_counter_reset.argtypes = []
+_lib.tgrad_metal_counter_reset.restype = None
+_lib.tgrad_metal_counter.argtypes = [ctypes.c_uint8]
+_lib.tgrad_metal_counter.restype = ctypes.c_uint64
+_lib.tgrad_metal_fault_set.argtypes = [ctypes.c_uint8]
+_lib.tgrad_metal_fault_set.restype = None
+_lib.tgrad_metal_fault_clear.argtypes = []
+_lib.tgrad_metal_fault_clear.restype = None
+_lib.tgrad_metal_watch_buffer.argtypes = [ctypes.c_uint64]
+_lib.tgrad_metal_watch_buffer.restype = None
+_lib.tgrad_metal_watch_free_count.argtypes = []
+_lib.tgrad_metal_watch_free_count.restype = ctypes.c_uint64
+
 # Constant-fill creation. Lean resolves the current runtime floating default,
 # classifies signed dimensions, applies dtype admission, and owns the GPU fill;
 # Python only marshals shape / fill / dtype code and maps the returned reason.
@@ -348,6 +377,16 @@ def _creation_dtype_code(dtype) -> int:
     if code is not None:
         return code
     return _DTYPE_CODES.get(dtype, _CREATION_DTYPE_UNKNOWN)
+
+
+def _transform_dtype_code(dtype) -> int:
+    """Marshal only a dtype spelling/identity; Lean owns admission."""
+    code = _marshaled_dtype_code(dtype)
+    if code is not None:
+        return code if 0 <= code <= 255 else 255
+    if isinstance(dtype, str):
+        return _DTYPE_CODES.get(dtype, 255)
+    return 255
 
 
 def _fill_scalar_tag(value) -> int:
@@ -526,6 +565,25 @@ class NotInLeanScope(TgradError):
 
 class TgradTypeError(TgradError):
     """Raised for dtype / shape contract violations."""
+
+
+_TRANSFORM_REASONS = {
+    1: "invalidHandle", 2: "invalidDtype", 3: "nonBuffer",
+    4: "rootDtypeMismatch", 5: "invalidShape", 6: "sizeOverflow",
+    7: "bufferTooSmall", 8: "unsupportedPair", 9: "unequalItemSize",
+    10: "compileFailed", 11: "allocationFailed", 12: "dispatchFailed",
+    13: "transportMetadataMismatch",
+}
+
+
+class TgradTransformError(TgradError):
+    """Structured Lean transform rejection or transport-adoption failure."""
+    def __init__(self, reason: str, operation: str, detail: str = ""):
+        self.reason = reason
+        message = f"{operation}: Lean transform rejected reason={reason}"
+        if detail:
+            message += f" ({detail})"
+        super().__init__(message)
 
 
 class MatmulOnNonBufferUop(TgradError):
@@ -960,6 +1018,98 @@ class Tensor:
             out_buf, out_size, out_shape, out_dtype, handle=handle,
             owns_buf=out_size != 0)
 
+    def _adopt_transform_result(self, handle: int, operation: str,
+                                target_code: int) -> "Tensor":
+        """Transactionally adopt a successful Lean transform handle.
+
+        Cast owns one fresh buffer; bitcast owns only its alias registry entry
+        and retains ``self`` as the storage owner. Any metadata discrepancy
+        releases the exact transform result before an exception escapes.
+        """
+        try:
+            ownership = int(_lib.tgrad_tensor_transform_query(handle, 1))
+            expected_ownership = 1 if operation == "cast" else 2
+            if ownership != expected_ownership:
+                raise ValueError(
+                    f"ownership {ownership} != {expected_ownership}")
+            out_buf = int(_lib.tgrad_tensor_raw_buffer(handle))
+            out_rank = int(_lib.tgrad_tensor_rank(handle))
+            out_shape = tuple(
+                int(_lib.tgrad_tensor_shape_dim(handle, i))
+                for i in range(out_rank))
+            out_dtype_code = int(_lib.tgrad_tensor_dtype(handle))
+            out_size = int(_lib.tgrad_tensor_size_bytes(handle))
+            if out_dtype_code != target_code:
+                raise ValueError(
+                    f"dtype code {out_dtype_code} != requested {target_code}")
+            out_dtype = _DTYPE_OF_CODE.get(out_dtype_code)
+            if out_dtype is None:
+                raise ValueError(f"unmapped dtype code {out_dtype_code}")
+            if out_shape != self._shape:
+                raise ValueError(f"shape {out_shape} != source {self._shape}")
+            expected_size = _numel(out_shape) * _DTYPE_BYTES[out_dtype]
+            if out_size != expected_size:
+                raise ValueError(
+                    f"byte size {out_size} != shape/dtype {expected_size}")
+            if operation == "cast":
+                if out_buf == 0 or out_buf == self._buf \
+                        or int(_lib.tgrad_tensor_uop_kind(handle)) != 0:
+                    raise ValueError("cast did not return distinct owned BUFFER storage")
+                base = None
+            else:
+                if out_buf != self._buf or out_size != self._size \
+                        or int(_lib.tgrad_tensor_uop_kind(handle)) != 5:
+                    raise ValueError("bitcast did not return a materialized alias")
+                base = self
+            result = type(self)._from_buffer(
+                out_buf, out_size, out_shape, out_dtype, handle=handle,
+                owns_buf=False, base=base)
+            result._fin = weakref.finalize(
+                result, _lib.tgrad_tensor_transform_release, handle)
+            return result
+        except Exception as exc:
+            released = int(_lib.tgrad_tensor_transform_release(handle))
+            raise TgradTransformError(
+                "transportMetadataMismatch", operation,
+                f"{exc}; cleanup_status={released}") from exc
+
+    def _transform(self, operation: str, target, entry) -> "Tensor":
+        target_code = _transform_dtype_code(target)
+        out_handle = ctypes.c_uint64(0)
+        status = int(entry(
+            self._handle, target_code, ctypes.byref(out_handle)))
+        handle = int(out_handle.value)
+        if status != 0:
+            reason = _TRANSFORM_REASONS.get(status, f"unknownStatus{status}")
+            if handle != 0:
+                cleanup = int(_lib.tgrad_tensor_transform_release(handle))
+                raise TgradTransformError(
+                    "transportMetadataMismatch", operation,
+                    f"status={reason} carried handle={handle}; "
+                    f"cleanup_status={cleanup}")
+            raise TgradTransformError(reason, operation)
+        if handle == 0:
+            raise TgradTransformError(
+                "transportMetadataMismatch", operation,
+                "successful status carried a zero handle")
+        if handle == self._handle:
+            response_dtype = int(_lib.tgrad_tensor_dtype(handle))
+            materialized = int(
+                _lib.tgrad_tensor_is_materialized_storage(handle))
+            if response_dtype != target_code or materialized != 1:
+                raise TgradTransformError(
+                    "transportMetadataMismatch", operation,
+                    f"identity response dtype={response_dtype}, "
+                    f"target={target_code}, materialized={materialized}")
+            return self
+        return self._adopt_transform_result(handle, operation, target_code)
+
+    def cast(self, dtype) -> "Tensor":
+        return self._transform("cast", dtype, _lib.tgrad_tensor_cast)
+
+    def bitcast(self, dtype) -> "Tensor":
+        return self._transform("bitcast", dtype, _lib.tgrad_tensor_bitcast)
+
     def _init_from_numpy(self, arr: np.ndarray, dtype: str) -> None:
         dtype = _native_dtype_name(dtype)
         if dtype not in _SUPPORTED_DTYPES:
@@ -1171,8 +1321,13 @@ class Tensor:
         The temporary output owns its fresh buffer and is freed after the
         caller copies the bytes to Python."""
         kind = self._uop_kind_code()
-        if kind == 0:
+        materialized = int(_lib.tgrad_tensor_is_materialized_storage(self._handle))
+        if materialized == 1:
             return self
+        if materialized != 0:
+            raise TgradError(
+                f"Tensor.{method}(): Lean materialized-storage query failed "
+                f"for handle {self._handle}")
         name = self._VIEW_KIND_NAMES.get(kind, f"uop-kind-{kind}")
         out_handle = _lib.tgrad_matmul_view(self._handle, 0)
         if out_handle == 0:

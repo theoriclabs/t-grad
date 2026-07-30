@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import json
+import operator
 import os
 import statistics
 import struct
@@ -108,6 +109,15 @@ _lib.tgrad_bf16_expand_bytes.argtypes = [
 _lib.tgrad_bf16_expand_bytes.restype = ctypes.c_int
 _lib.tgrad_bf16_round_bits.argtypes = [ctypes.c_uint32]
 _lib.tgrad_bf16_round_bits.restype = ctypes.c_uint32
+_lib.tgrad_low_precision_scalar.argtypes = [
+    ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint64, ctypes.c_uint8]
+_lib.tgrad_low_precision_scalar.restype = ctypes.c_uint64
+_lib.tgrad_low_precision_decode_public.argtypes = [
+    ctypes.c_char_p, ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_low_precision_decode_public.restype = ctypes.c_uint64
+_lib.tgrad_low_precision_value_public.argtypes = [
+    ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint64, ctypes.c_uint8, ctypes.c_uint8]
+_lib.tgrad_low_precision_value_public.restype = ctypes.c_uint64
 _lib.tgrad_matmul_64x64.argtypes = [
     ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64]
 _lib.tgrad_matmul_64x64.restype  = ctypes.c_int32
@@ -663,6 +673,66 @@ _SUPPORTED_DTYPES = frozenset(
 def _bf16_round_bits(bits: int) -> int:
     """Lean-owned scalar float_to_bf16 result, represented as fp32 bits."""
     return int(_lib.tgrad_bf16_round_bits(int(bits)))
+
+
+def _low_precision_scalar(operation: int, dtype_code: int, input_bits: int) -> int:
+    """Marshal one exact integer-bit scalar query to Lean."""
+    reason = int(_lib.tgrad_low_precision_scalar(
+        operation, dtype_code, input_bits, 0))
+    if reason:
+        raise TgradTypeError(
+            f"Lean rejected low-precision scalar operation={operation} "
+            f"dtype_code={dtype_code} reason={reason}")
+    return int(_lib.tgrad_low_precision_scalar(
+        operation, dtype_code, input_bits, 1))
+
+
+class _LowPrecisionBoundaryError(TgradTypeError):
+    def __init__(self, reason: int):
+        self.reason = reason
+        super().__init__(f"Lean low-precision boundary rejected reason={reason}")
+
+
+def _low_precision_decode_public(payload, dtype_code: int) -> int:
+    """Marshal an integral-kind tag and exact arbitrary integer spelling."""
+    if isinstance(payload, bool):
+        payload_tag, spelling = 1, str(int(payload)).encode("ascii")
+    elif isinstance(payload, int):
+        payload_tag, spelling = 1, str(payload).encode("ascii")
+    else:
+        payload_tag, spelling = 0, b"0"
+    reason = int(_lib.tgrad_low_precision_decode_public(
+        spelling, payload_tag, dtype_code, 0))
+    if reason:
+        raise _LowPrecisionBoundaryError(reason)
+    return int(_lib.tgrad_low_precision_decode_public(
+        spelling, payload_tag, dtype_code, 1))
+
+
+def _low_precision_value_public(operation: int, value, dtype_code: int) -> int:
+    """Marshal binary64 success, invalid-kind, or packing-overflow state."""
+    try:
+        value_tag = 1
+        input_bits = struct.unpack("<Q", struct.pack("<d", value))[0]
+    except OverflowError:
+        value_tag, input_bits = 2, 0
+    except (TypeError, struct.error):
+        # CPython's struct layer wraps an oversized integral conversion in
+        # struct.error.  Asking only for the integral protocol distinguishes
+        # that marshalling overflow from a non-real object without performing
+        # conversion or FP8 semantics in Python.
+        try:
+            operator.index(value)
+        except (TypeError, OverflowError):
+            value_tag, input_bits = 0, 0
+        else:
+            value_tag, input_bits = 2, 0
+    reason = int(_lib.tgrad_low_precision_value_public(
+        operation, dtype_code, input_bits, value_tag, 0))
+    if reason:
+        raise _LowPrecisionBoundaryError(reason)
+    return int(_lib.tgrad_low_precision_value_public(
+        operation, dtype_code, input_bits, value_tag, 1))
 
 
 def _dtype_of_handle(h: int) -> str:

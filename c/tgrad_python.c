@@ -71,6 +71,13 @@ extern lean_object* tgrad_dtype_table_name_lean(uint8_t table, size_t row);
 extern lean_object* tgrad_bf16_pack_bytes_lean(lean_object* bytes);
 extern lean_object* tgrad_bf16_expand_bytes_lean(lean_object* bytes);
 extern lean_object* tgrad_bf16_round_bits_lean(uint32_t bits);
+extern lean_object* tgrad_low_precision_scalar_lean(
+    uint8_t operation, uint8_t dtype_code, uint64_t input, uint8_t query);
+extern lean_object* tgrad_low_precision_decode_public_lean(
+    lean_object* payload, uint8_t payload_tag, uint8_t dtype_code, uint8_t query);
+extern lean_object* tgrad_low_precision_value_public_lean(
+    uint8_t operation, uint8_t dtype_code, uint64_t input,
+    uint8_t value_tag, uint8_t query);
 
 static int g_initialized = 0;
 
@@ -348,6 +355,48 @@ uint32_t tgrad_bf16_round_bits(uint32_t bits) {
     lean_object* result = tgrad_bf16_round_bits_lean(bits);
     if (lean_io_result_is_error(result)) { lean_dec_ref(result); return 0; }
     uint32_t value = lean_unbox_uint32(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint64_t tgrad_low_precision_scalar(
+    uint8_t operation, uint8_t dtype_code, uint64_t input, uint8_t query) {
+    lean_object* result = tgrad_low_precision_scalar_lean(
+        operation, dtype_code, input, query);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return UINT64_MAX;
+    }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint64_t tgrad_low_precision_decode_public(
+    const char* payload, uint8_t payload_tag, uint8_t dtype_code, uint8_t query) {
+    if (!payload) return UINT64_MAX;
+    lean_object* payload_int = lean_cstr_to_int(payload);
+    lean_object* result = tgrad_low_precision_decode_public_lean(
+        payload_int, payload_tag, dtype_code, query);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return UINT64_MAX;
+    }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
+    lean_dec_ref(result);
+    return value;
+}
+
+uint64_t tgrad_low_precision_value_public(
+    uint8_t operation, uint8_t dtype_code, uint64_t input,
+    uint8_t value_tag, uint8_t query) {
+    lean_object* result = tgrad_low_precision_value_public_lean(
+        operation, dtype_code, input, value_tag, query);
+    if (lean_io_result_is_error(result)) {
+        lean_dec_ref(result);
+        return UINT64_MAX;
+    }
+    uint64_t value = lean_unbox_uint64(lean_io_result_get_value(result));
     lean_dec_ref(result);
     return value;
 }

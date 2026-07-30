@@ -6,6 +6,7 @@
 
 -- L0 (scaffold, green)
 import Tgrad.Dtype
+import Tgrad.LowPrecision
 import Tgrad.Shape
 import Tgrad.UOp
 

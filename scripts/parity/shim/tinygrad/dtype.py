@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import struct
 
 import tgrad as _tgrad
 
@@ -191,13 +192,63 @@ def can_lossless_cast(source, target):
 
 
 def float_to_bf16(value):
-    import struct
     # Normalize through fp32 exactly as upstream does, then marshal the bit
     # pattern through Lean's scalar-result rule. Tensor storage conversion is
     # intentionally a different boundary: it cannot preserve low NaN payload.
     normalized = struct.unpack("<I", struct.pack("<f", float(value)))[0]
     rounded = _tgrad._bf16_round_bits(normalized)
     return struct.unpack("<f", struct.pack("<I", rounded))[0]
+
+
+def float_to_fp16(value):
+    input_bits = struct.unpack("<Q", struct.pack("<d", float(value)))[0]
+    result_bits = _tgrad._low_precision_scalar(2, dtypes.float16.code, input_bits)
+    return struct.unpack("<d", struct.pack("<Q", result_bits))[0]
+
+
+def _low_precision_dtype_code(dtype):
+    """Marshal object identity only; Lean decides descriptor admission."""
+    return dtype.code if isinstance(dtype, DType) else 255
+
+
+def float_to_fp8(value, dtype):
+    try:
+        return _tgrad._low_precision_value_public(
+            0, value, _low_precision_dtype_code(dtype))
+    except _tgrad._LowPrecisionBoundaryError as exc:
+        if exc.reason == 1:
+            raise AssertionError("Only for fp8s") from exc
+        if exc.reason == 5:
+            raise OverflowError("int too large to convert to float") from exc
+        raise TypeError(
+            f"must be real number, not {type(value).__name__}") from exc
+
+
+def fp8_to_float(payload, dtype):
+    try:
+        result_bits = _tgrad._low_precision_decode_public(
+            payload, _low_precision_dtype_code(dtype))
+    except _tgrad._LowPrecisionBoundaryError as exc:
+        if exc.reason == 1:
+            raise AssertionError("Only for fp8s") from exc
+        raise TypeError(
+            f"unsupported operand type(s) for &: "
+            f"'{type(payload).__name__}' and 'int'") from exc
+    return struct.unpack("<d", struct.pack("<Q", result_bits))[0]
+
+
+def _truncate_fp8(value, dtype):
+    try:
+        result_bits = _tgrad._low_precision_value_public(
+            3, value, dtype.code)
+    except _tgrad._LowPrecisionBoundaryError as exc:
+        if exc.reason == 1:
+            raise AssertionError("Only for fp8s") from exc
+        if exc.reason == 5:
+            raise OverflowError("int too large to convert to float") from exc
+        raise TypeError(
+            f"must be real number, not {type(value).__name__}") from exc
+    return struct.unpack("<d", struct.pack("<Q", result_bits))[0]
 
 
 def _to_np_dtype(dtype):
@@ -207,11 +258,16 @@ def _to_np_dtype(dtype):
     return np.dtype(dtype.fmt).type if dtype.fmt is not None else None
 
 
-# Only conversion behavior genuinely implemented by this packet is exposed.
-truncate = {dtypes.bfloat16: float_to_bf16}
-float_to_fp16 = unsupported("tinygrad.dtype.float_to_fp16")
-fp8_to_float = unsupported("tinygrad.dtype.fp8_to_float")
-float_to_fp8 = unsupported("tinygrad.dtype.float_to_fp8")
+# Every callable delegates to Lean. This table exposes a dtype-indexed
+# relation; it does not carry conversion arithmetic or tensor admission.
+truncate = {
+    dtypes.float16: float_to_fp16,
+    dtypes.bfloat16: float_to_bf16,
+    dtypes.fp8e4m3: lambda value: _truncate_fp8(value, dtypes.fp8e4m3),
+    dtypes.fp8e5m2: lambda value: _truncate_fp8(value, dtypes.fp8e5m2),
+    dtypes.fp8e4m3fnuz: lambda value: _truncate_fp8(value, dtypes.fp8e4m3fnuz),
+    dtypes.fp8e5m2fnuz: lambda value: _truncate_fp8(value, dtypes.fp8e5m2fnuz),
+}
 _to_torch_dtype = unsupported("tinygrad.dtype._to_torch_dtype")
 _from_torch_dtype = unsupported("tinygrad.dtype._from_torch_dtype")
 

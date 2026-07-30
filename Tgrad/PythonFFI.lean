@@ -8,6 +8,7 @@ import Tgrad.Renderer.Creation
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 import Tgrad.Codegen.Opt.Heuristic
+import Tgrad.LowPrecision
 
 /-! # Tgrad.PythonFFI — `@[export]` entries for Python ctypes
 
@@ -583,6 +584,38 @@ def bf16ExpandBytes (bytes : @& ByteArray) : IO ByteArray :=
 @[export tgrad_bf16_round_bits_lean]
 def bf16RoundBits (bits : UInt32) : IO UInt32 :=
   pure (Tgrad.Dtype.bf16RoundedF32Bits bits)
+
+/-- Cache-free low-precision scalar authority. Query 0 returns a typed reason
+code (0 success); query 1 returns the exact result bits. Keeping status and
+payload separate preserves every valid UInt64 bit pattern. -/
+@[export tgrad_low_precision_scalar_lean]
+def lowPrecisionScalar (operation dtypeCode : UInt8) (input : UInt64)
+    (query : UInt8) : IO UInt64 :=
+  match Tgrad.Dtype.ofCode? dtypeCode with
+  | none => pure (if query == 0 then 1 else 0)
+  | some dtype =>
+      match Tgrad.LowPrecision.convert operation dtype input with
+      | .ok result => pure (if query == 0 then 0 else result)
+      | .error reason => pure (if query == 0 then reason.code else 0)
+
+@[export tgrad_low_precision_decode_public_lean]
+def lowPrecisionDecodePublic (payload : Int) (payloadTag dtypeCode query : UInt8) : IO UInt64 :=
+  match Tgrad.Dtype.ofCode? dtypeCode with
+  | none => pure (if query == 0 then 1 else 0)
+  | some dtype =>
+      match Tgrad.LowPrecision.fp8DecodePublic dtype payload payloadTag with
+      | .ok result => pure (if query == 0 then 0 else result)
+      | .error reason => pure (if query == 0 then reason.code else 0)
+
+@[export tgrad_low_precision_value_public_lean]
+def lowPrecisionValuePublic (operation dtypeCode : UInt8) (input : UInt64)
+    (valueTag query : UInt8) : IO UInt64 :=
+  match Tgrad.Dtype.ofCode? dtypeCode with
+  | none => pure (if query == 0 then 1 else 0)
+  | some dtype =>
+      match Tgrad.LowPrecision.convertPublicValue operation dtype input valueTag with
+      | .ok result => pure (if query == 0 then 0 else result)
+      | .error reason => pure (if query == 0 then reason.code else 0)
 
 /-- L14.A: query the registered shape rank for a tensor handle. Lets
     L14.B's view-method tests verify lookups round-trip via the FFI.

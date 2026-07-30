@@ -76,3 +76,11 @@ lean_exe «tgrad-tests» where
 /-- CPU-only focused checks for the backend-neutral accelerator spine. -/
 lean_exe «backend-shared-tests» where
   root := `BackendSharedTests
+
+/-- Focused CPU/static HIP-over-shared checks.  The header-free probe bridge
+links no ROCm library and count-only discovery cannot authorize execution. -/
+lean_exe «rocm-shared-tests» where
+  root := `RocmSharedTests
+  supportInterpreter := true
+  moreLinkArgs := if System.Platform.isOSX then #["c/build/hip_probe.o"]
+                  else #["c/build/hip_probe.o", "-ldl"]

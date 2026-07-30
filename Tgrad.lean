@@ -39,9 +39,12 @@ import Tgrad.Renderer.Creation
 import Tgrad.Renderer.MatmulScalar
 import Tgrad.Renderer.MatmulTc
 
--- Backend-neutral accelerator semantics and runtime interface. Vendor leaves
--- are separate modules and are not re-exported by this checkpoint.
+-- Backend-neutral accelerator semantics and runtime interface, followed by
+-- the explicit fail-closed CUDA leaf. This does not select a default backend.
 import Tgrad.Backend.FillPlan
+import Tgrad.Backend.Cuda
+import Tgrad.Renderer.Cuda
+import Tgrad.Runtime.Cuda
 
 -- L4 (FFI runtime — green)
 import Tgrad.Runtime.MetalDevice

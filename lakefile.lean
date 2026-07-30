@@ -76,3 +76,7 @@ lean_exe «tgrad-tests» where
 /-- CPU-only focused checks for the backend-neutral accelerator spine. -/
 lean_exe «backend-shared-tests» where
   root := `BackendSharedTests
+
+/-- CPU/static checks for the CUDA leaf over the shared backend spine. -/
+lean_exe «cuda-shared-tests» where
+  root := `CudaSharedTests
